@@ -1,0 +1,28 @@
+# Flutter & Dart
+build/
+.dart_tool/
+.flutter-plugins*
+.packages
+*.log
+
+# Environment & Secrets (Never commit credentials)
+.env
+.env.*
+!.env.example
+key.properties
+*.keystore
+*.jks
+
+# Android & Gradle
+android/.gradle/
+android/captures/
+android/gradleBuild/
+android/app/build/
+local.properties
+
+# IDE & OS files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
