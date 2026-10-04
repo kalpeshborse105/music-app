@@ -28,7 +28,7 @@ class LoadingView extends StatelessWidget {
             Text(
               message!,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textSecondaryDark,
+                    color: context.textSecondary,
                   ),
             ),
           ],
@@ -99,6 +99,8 @@ class MessageView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final TextTheme text = Theme.of(context).textTheme;
+    final bool isDark = context.isDarkMode;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.xl),
@@ -109,23 +111,34 @@ class MessageView extends StatelessWidget {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: AppColors.surfaceContainerHigh.withValues(alpha: 0.6),
+                color: isDark
+                    ? AppColors.surfaceContainerHigh.withValues(alpha: 0.6)
+                    : AppColors.lightElevatedSurface,
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.borderSubtle),
+                border: Border.all(
+                  color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
+                ),
               ),
-              child: Icon(icon, size: 36, color: AppColors.primaryLight),
+              child: Icon(
+                icon,
+                size: 36,
+                color: isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent,
+              ),
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(
               title,
-              style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              style: text.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: context.textPrimary,
+              ),
               textAlign: TextAlign.center,
             ),
             if (subtitle != null) ...<Widget>[
               const SizedBox(height: AppSpacing.sm),
               Text(
                 subtitle!,
-                style: text.bodySmall?.copyWith(color: AppColors.textSecondaryDark),
+                style: text.bodySmall?.copyWith(color: context.textSecondary),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -150,6 +163,7 @@ class SectionHeader extends StatelessWidget {
   final String? actionLabel;
   final VoidCallback? onAction;
   final Widget? trailing;
+  final double? topPadding;
 
   const SectionHeader({
     super.key,
@@ -158,14 +172,15 @@ class SectionHeader extends StatelessWidget {
     this.actionLabel,
     this.onAction,
     this.trailing,
+    this.topPadding,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: EdgeInsets.fromLTRB(
         AppSpacing.lg,
-        AppSpacing.xl,
+        topPadding ?? AppSpacing.lg,
         AppSpacing.lg,
         AppSpacing.sm,
       ),
@@ -179,21 +194,22 @@ class SectionHeader extends StatelessWidget {
               children: <Widget>[
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Plus Jakarta Sans',
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     letterSpacing: -0.01,
+                    color: context.textPrimary,
                   ),
                 ),
                 if (subtitle != null) ...<Widget>[
                   const SizedBox(height: 2),
                   Text(
                     subtitle!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 12,
-                      color: AppColors.textSecondaryDark,
+                      color: context.textSecondary,
                     ),
                   ),
                 ],
@@ -203,20 +219,17 @@ class SectionHeader extends StatelessWidget {
           if (trailing != null)
             trailing!
           else if (actionLabel != null && onAction != null)
-            InkWell(
-              onTap: onAction,
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Text(
-                  actionLabel!,
-                  style: const TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.secondary,
-                  ),
-                ),
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                foregroundColor: context.isDarkMode ? AppColors.secondary : AppColors.lightSecondaryAccent,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                actionLabel!,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
               ),
             ),
         ],

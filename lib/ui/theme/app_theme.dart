@@ -12,27 +12,27 @@ class AppTheme {
 
   static ThemeData light() {
     final ColorScheme scheme = const ColorScheme.light(
-      primary: AppColors.primary,
+      primary: AppColors.lightPrimaryAccent,
       onPrimary: Colors.white,
-      primaryContainer: Color(0xFFE9DDFF),
-      onPrimaryContainer: AppColors.onPrimaryContainer,
-      secondary: AppColors.secondary,
+      primaryContainer: Color(0xFFEDE9FE),
+      onPrimaryContainer: Color(0xFF4C1D95),
+      secondary: AppColors.lightSecondaryAccent,
       onSecondary: Colors.white,
-      secondaryContainer: Color(0xFFACEDFF),
-      onSecondaryContainer: AppColors.onSecondaryContainer,
-      tertiary: AppColors.tertiary,
+      secondaryContainer: Color(0xFFCFFAFE),
+      onSecondaryContainer: Color(0xFF164E63),
+      tertiary: AppColors.lightTertiaryAccent,
       onTertiary: Colors.white,
-      tertiaryContainer: Color(0xFFFFD9E4),
-      onTertiaryContainer: AppColors.onTertiary,
+      tertiaryContainer: Color(0xFFFCE7F3),
+      onTertiaryContainer: Color(0xFF831843),
       surface: AppColors.lightSurface,
       onSurface: AppColors.textPrimaryLight,
       onSurfaceVariant: AppColors.textSecondaryLight,
       outline: AppColors.lightBorder,
-      outlineVariant: Color(0xFFCBD5E1),
-      error: Color(0xFFBA1A1A),
+      outlineVariant: AppColors.lightBorderSubtle,
+      error: AppColors.lightError,
       onError: Colors.white,
-      errorContainer: Color(0xFFFFDAD6),
-      onErrorContainer: Color(0xFF410002),
+      errorContainer: Color(0xFFFEE2E2),
+      onErrorContainer: Color(0xFF7F1D1D),
     );
     return _buildTheme(scheme, isDark: false);
   }
@@ -67,10 +67,12 @@ class AppTheme {
   static ThemeData _buildTheme(ColorScheme scheme, {required bool isDark}) {
     final Color bg = isDark ? AppColors.darkBg : AppColors.lightBg;
     final Color surface = isDark ? AppColors.surfaceContainer : AppColors.lightSurface;
-    final Color surfaceHigh = isDark ? AppColors.surfaceContainerHigh : AppColors.lightSurfaceAlt;
+    final Color surfaceHigh = isDark ? AppColors.surfaceContainerHigh : AppColors.lightElevatedSurface;
     final Color border = isDark ? AppColors.borderSubtle : AppColors.lightBorder;
     final Color textPrimary = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final Color textSecondary = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final Color primaryAccent = isDark ? AppColors.primary : AppColors.lightPrimaryAccent;
+    final Color secondaryAccent = isDark ? AppColors.secondary : AppColors.lightSecondaryAccent;
 
     final TextTheme textTheme = _textTheme(textPrimary, textSecondary);
 
@@ -84,7 +86,7 @@ class AppTheme {
       textTheme: textTheme,
       dividerTheme: DividerThemeData(color: border, thickness: 1, space: 1),
       appBarTheme: AppBarTheme(
-        backgroundColor: bg.withValues(alpha: 0.85),
+        backgroundColor: bg.withValues(alpha: 0.88),
         foregroundColor: textPrimary,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -93,7 +95,8 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: surface,
-        elevation: 0,
+        elevation: isDark ? 0 : 1,
+        shadowColor: Colors.black.withValues(alpha: 0.05),
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: AppSpacing.brLg,
@@ -115,18 +118,22 @@ class AppTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: (isDark ? AppColors.darkBg : AppColors.lightBg).withValues(alpha: 0.90),
-        indicatorColor: AppColors.primary.withValues(alpha: 0.20),
+        backgroundColor: (isDark ? AppColors.darkBg : AppColors.lightNavSurface).withValues(alpha: 0.94),
+        indicatorColor: primaryAccent.withValues(alpha: isDark ? 0.20 : 0.14),
         elevation: 0,
         labelTextStyle: WidgetStateProperty.resolveWith(
           (Set<WidgetState> states) => textTheme.labelSmall?.copyWith(
             fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
-            color: states.contains(WidgetState.selected) ? AppColors.primaryLight : textSecondary,
+            color: states.contains(WidgetState.selected)
+                ? (isDark ? AppColors.primaryLight : AppColors.lightSelectedNav)
+                : textSecondary,
           ),
         ),
         iconTheme: WidgetStateProperty.resolveWith(
           (Set<WidgetState> states) => IconThemeData(
-            color: states.contains(WidgetState.selected) ? AppColors.primaryLight : textSecondary,
+            color: states.contains(WidgetState.selected)
+                ? (isDark ? AppColors.primaryLight : AppColors.lightSelectedNav)
+                : textSecondary,
             size: 24,
           ),
         ),
@@ -144,7 +151,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: surfaceHigh,
+        fillColor: isDark ? surfaceHigh : AppColors.lightInputBackground,
         hintStyle: textTheme.bodyMedium?.copyWith(color: textSecondary),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
@@ -160,12 +167,12 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: AppSpacing.brMd,
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.6),
+          borderSide: BorderSide(color: primaryAccent, width: 1.8),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.primary,
+          backgroundColor: primaryAccent,
           foregroundColor: Colors.white,
           minimumSize: const Size(0, kMinTouchTarget),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
@@ -184,7 +191,7 @@ class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.secondary,
+          foregroundColor: secondaryAccent,
           minimumSize: const Size(0, 40),
           textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
@@ -196,20 +203,20 @@ class AppTheme {
         ),
       ),
       sliderTheme: SliderThemeData(
-        activeTrackColor: AppColors.primary,
+        activeTrackColor: primaryAccent,
         inactiveTrackColor: surfaceHigh,
-        thumbColor: Colors.white,
-        overlayColor: AppColors.primary.withValues(alpha: 0.20),
+        thumbColor: isDark ? Colors.white : primaryAccent,
+        overlayColor: primaryAccent.withValues(alpha: 0.20),
         trackHeight: 3.5,
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: AppColors.secondary,
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: secondaryAccent,
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: surfaceHigh,
-        contentTextStyle: textTheme.bodyMedium,
+        contentTextStyle: textTheme.bodyMedium?.copyWith(color: textPrimary),
         shape: RoundedRectangleBorder(borderRadius: AppSpacing.brMd),
       ),
       switchTheme: SwitchThemeData(
@@ -217,7 +224,7 @@ class AppTheme {
           (Set<WidgetState> s) => s.contains(WidgetState.selected) ? Colors.white : null,
         ),
         trackColor: WidgetStateProperty.resolveWith(
-          (Set<WidgetState> s) => s.contains(WidgetState.selected) ? AppColors.primary : null,
+          (Set<WidgetState> s) => s.contains(WidgetState.selected) ? primaryAccent : null,
         ),
       ),
       popupMenuTheme: PopupMenuThemeData(
@@ -227,6 +234,7 @@ class AppTheme {
           side: BorderSide(color: border),
         ),
       ),
+
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: <TargetPlatform, PageTransitionsBuilder>{
           TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),

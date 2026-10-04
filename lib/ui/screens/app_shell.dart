@@ -41,8 +41,10 @@ class _AppShellState extends State<AppShell> {
             NavigationRail(
               selectedIndex: _index,
               onDestinationSelected: (int i) => setState(() => _index = i),
-              backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
-              indicatorColor: AppColors.primary.withValues(alpha: 0.20),
+              backgroundColor: isDark ? AppColors.darkBg : AppColors.lightNavSurface,
+              indicatorColor: isDark
+                  ? AppColors.primary.withValues(alpha: 0.20)
+                  : AppColors.lightPrimaryAccent.withValues(alpha: 0.14),
               labelType: NavigationRailLabelType.all,
               leading: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -56,26 +58,26 @@ class _AppShellState extends State<AppShell> {
                   child: const Icon(Icons.graphic_eq_rounded, color: Colors.white, size: 24),
                 ),
               ),
-              destinations: const <NavigationRailDestination>[
+              destinations: <NavigationRailDestination>[
                 NavigationRailDestination(
-                  icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home_rounded, color: AppColors.primaryLight),
-                  label: Text('Home'),
+                  icon: const Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home_rounded, color: isDark ? AppColors.primaryLight : AppColors.lightSelectedNav),
+                  label: const Text('Home'),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.search_rounded),
-                  selectedIcon: Icon(Icons.search_rounded, color: AppColors.primaryLight),
-                  label: Text('Search'),
+                  icon: const Icon(Icons.search_rounded),
+                  selectedIcon: Icon(Icons.search_rounded, color: isDark ? AppColors.primaryLight : AppColors.lightSelectedNav),
+                  label: const Text('Search'),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.library_music_outlined),
-                  selectedIcon: Icon(Icons.library_music_rounded, color: AppColors.primaryLight),
-                  label: Text('Library'),
+                  icon: const Icon(Icons.library_music_outlined),
+                  selectedIcon: Icon(Icons.library_music_rounded, color: isDark ? AppColors.primaryLight : AppColors.lightSelectedNav),
+                  label: const Text('Library'),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.person_outline_rounded),
-                  selectedIcon: Icon(Icons.person_rounded, color: AppColors.primaryLight),
-                  label: Text('Profile'),
+                  icon: const Icon(Icons.person_outline_rounded),
+                  selectedIcon: Icon(Icons.person_rounded, color: isDark ? AppColors.primaryLight : AppColors.lightSelectedNav),
+                  label: const Text('Profile'),
                 ),
               ],
             ),
@@ -98,7 +100,7 @@ class _AppShellState extends State<AppShell> {
 
     // Mobile Navigation Shell
     return Scaffold(
-      extendBody: true,
+      extendBody: false,
       body: IndexedStack(index: _index, children: _pages),
       bottomNavigationBar: SafeArea(
         top: false,
@@ -108,7 +110,7 @@ class _AppShellState extends State<AppShell> {
             const MiniPlayer(),
             Container(
               decoration: BoxDecoration(
-                color: (isDark ? AppColors.darkBg : AppColors.lightBg).withValues(alpha: 0.94),
+                color: (isDark ? AppColors.darkBg : AppColors.lightNavSurface).withValues(alpha: 0.94),
                 border: Border(
                   top: BorderSide(
                     color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,

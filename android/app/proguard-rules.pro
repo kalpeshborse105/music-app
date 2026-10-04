@@ -19,3 +19,5 @@
 # Keep kotlin metadata
 -keep class kotlin.Metadata { *; }
 -dontwarn org.jetbrains.annotations.**
+-dontwarn com.google.android.play.core.**
+-dontwarn io.flutter.embedding.engine.deferredcomponents.**

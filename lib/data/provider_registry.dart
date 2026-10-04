@@ -2,11 +2,13 @@ import '../core/cache/cache_store.dart';
 import '../core/network/api_client.dart';
 import '../core/utils/logger.dart';
 import '../domain/providers/archive_provider.dart';
+import '../domain/providers/audius_provider.dart';
 import '../domain/providers/demo_provider.dart';
 import '../domain/providers/jamendo_provider.dart';
 import '../domain/providers/licensed_provider_stub.dart';
 import '../domain/providers/local_provider.dart';
 import '../domain/providers/music_provider.dart';
+import '../domain/providers/regional_music_provider.dart';
 
 /// Builds, owns and exposes all configured providers, and tracks which are
 /// currently usable. Adding a new legal provider is a one-line change here —
@@ -19,7 +21,9 @@ class ProviderRegistry {
       DemoProvider(api: _api, cache: _cache),
       ArchiveProvider(api: _api, cache: _cache),
       JamendoProvider(api: _api, cache: _cache),
+      AudiusProvider(api: _api, cache: _cache),
       LocalMusicProvider(api: _api, cache: _cache),
+      RegionalMusicProvider(api: _api, cache: _cache),
       LicensedProviderStub(api: _api, cache: _cache),
     ];
   }
@@ -82,8 +86,12 @@ class ProviderRegistry {
 
   /// Providers that should feed the aggregate Home/Search experience, in
   /// priority order. Excludes purely-local content (surfaced separately).
+  /// Enforces Provider Compliance: only ACTIVE providers appear in the catalog.
   List<MusicProvider> get discoveryProviders => available
-      .where((MusicProvider p) => !p.capabilities.localOnly && p.id != 'licensed')
+      .where((MusicProvider p) =>
+          p.status.isProductionActive &&
+          !p.capabilities.localOnly &&
+          p.id != 'licensed')
       .toList();
 
   MusicProvider? get localProvider =>

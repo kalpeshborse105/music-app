@@ -45,12 +45,22 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- Deep link callback for Supabase Google/OAuth sign-in -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="io.supabase.echoflow"
+                    android:host="login-callback" />
+            </intent-filter>
         </activity>
 
         <!-- Background audio service (audio_service). Keeps playback alive,
              drives the media notification and lock-screen controls. -->
         <service
-            android:name="com.echoflowmusic.player.AudioService"
+            android:name="com.ryanheise.audioservice.AudioService"
             android:exported="true"
             android:foregroundServiceType="mediaPlayback">
             <intent-filter>

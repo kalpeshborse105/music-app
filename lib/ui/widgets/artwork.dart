@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
@@ -16,6 +17,16 @@ class Artwork extends StatelessWidget {
   final bool showGlow;
   final Color? glowColor;
 
+  /// Cache of URLs that have previously failed or are known to lack CORS on Web.
+  /// Prevents console flooding and infinite retry loops.
+  static final Set<String> _failedUrls = <String>{};
+
+  static bool isCorsBlockedOnWeb(String? u) {
+    if (!kIsWeb || u == null) return false;
+    if (u.contains('archive.org/services/img')) return true;
+    return _failedUrls.contains(u);
+  }
+
   const Artwork({
     super.key,
     required this.url,
@@ -30,7 +41,8 @@ class Artwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isRemote =
+    final bool isBlocked = isCorsBlockedOnWeb(url);
+    final bool isRemote = !isBlocked &&
         url != null && (url!.startsWith('http://') || url!.startsWith('https://'));
 
     final Widget imageWidget = !isRemote
@@ -43,7 +55,12 @@ class Artwork extends StatelessWidget {
             fadeInDuration: const Duration(milliseconds: 200),
             memCacheWidth: (size * MediaQuery.of(context).devicePixelRatio).round(),
             placeholder: (BuildContext c, String? _) => _placeholder(c),
-            errorWidget: (BuildContext c, String? _, Object __) => _fallback(),
+            errorWidget: (BuildContext c, String? failedUrl, Object __) {
+              if (failedUrl != null && failedUrl.isNotEmpty) {
+                _failedUrls.add(failedUrl);
+              }
+              return _fallback();
+            },
           );
 
     final Widget clippedChild = ClipRRect(

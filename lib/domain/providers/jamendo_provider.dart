@@ -9,6 +9,7 @@ import '../models/lyrics.dart';
 import '../models/paged_result.dart';
 import '../models/playlist.dart';
 import '../models/provider_capabilities.dart';
+import '../models/provider_status.dart';
 import '../models/search_result.dart';
 import '../models/stream_source.dart';
 import '../models/track.dart';
@@ -34,6 +35,9 @@ class JamendoProvider extends BaseMusicProvider {
 
   @override
   String get displayName => 'Jamendo (Creative Commons)';
+
+  @override
+  ProviderStatus get status => ProviderStatus.active;
 
   @override
   ProviderCapabilities get capabilities => const ProviderCapabilities(
@@ -196,6 +200,11 @@ class JamendoProvider extends BaseMusicProvider {
       isStreamable: (json['audio']?.toString().isNotEmpty ?? false),
       isDownloadable: false,
       hasLyrics: false,
+      commercialUseAllowed: false,
+      backgroundPlaybackAllowed: true,
+      license: json['license_ccurl']?.toString() ?? 'Creative Commons CC BY-SA',
+      licenseUrl: json['license_ccurl']?.toString(),
+      attributionRequired: true,
       qualityOptions: <AudioQuality>[
         _qualityFromFormat(json['audioformat']?.toString()),
         AudioQuality.normal,

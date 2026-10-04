@@ -88,15 +88,19 @@ class MiniPlayer extends StatelessWidget {
                                 track.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 14,
+                                  color: context.textPrimary,
                                 ),
                               ),
                             ),
                             if (pc.isPlaying) ...<Widget>[
                               const SizedBox(width: 6),
-                              const NowPlayingBars(size: 13, color: AppColors.secondary),
+                              NowPlayingBars(
+                                size: 13,
+                                color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
+                              ),
                             ],
                           ],
                         ),
@@ -105,8 +109,8 @@ class MiniPlayer extends StatelessWidget {
                           track.artistNames,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.textSecondaryDark,
+                          style: TextStyle(
+                            color: context.textSecondary,
                             fontSize: 12,
                           ),
                         ),
@@ -118,17 +122,17 @@ class MiniPlayer extends StatelessWidget {
                     iconSize: 22,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                    icon: const Icon(Icons.skip_previous_rounded, color: AppColors.textSecondaryDark),
+                    icon: Icon(Icons.skip_previous_rounded, color: context.textSecondary),
                     onPressed: pc.previous,
                     tooltip: 'Previous track',
                   ),
                   const SizedBox(width: 2),
                   // Play/Pause Hero Circle
                   Material(
-                    color: AppColors.primary,
+                    color: isDark ? AppColors.primary : AppColors.lightPrimaryAccent,
                     shape: const CircleBorder(),
                     elevation: 3,
-                    shadowColor: AppColors.primary.withValues(alpha: 0.4),
+                    shadowColor: (isDark ? AppColors.primary : AppColors.lightPrimaryAccent).withValues(alpha: 0.4),
                     child: InkWell(
                       onTap: pc.togglePlayPause,
                       customBorder: const CircleBorder(),
@@ -150,7 +154,7 @@ class MiniPlayer extends StatelessWidget {
                     iconSize: 22,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                    icon: const Icon(Icons.skip_next_rounded, color: AppColors.textSecondaryDark),
+                    icon: Icon(Icons.skip_next_rounded, color: context.textSecondary),
                     onPressed: pc.next,
                     tooltip: 'Next track',
                   ),

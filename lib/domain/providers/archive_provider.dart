@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import '../../core/constants/app_constants.dart';
 import '../../core/errors/app_exception.dart';
 import '../models/album.dart';
@@ -10,6 +12,7 @@ import '../models/lyrics.dart';
 import '../models/paged_result.dart';
 import '../models/playlist.dart';
 import '../models/provider_capabilities.dart';
+import '../models/provider_status.dart';
 import '../models/search_result.dart';
 import '../models/stream_source.dart';
 import '../models/track.dart';
@@ -51,6 +54,9 @@ class ArchiveProvider extends BaseMusicProvider {
 
   @override
   String get displayName => 'Internet Archive';
+
+  @override
+  ProviderStatus get status => ProviderStatus.developmentOnly;
 
   @override
   ProviderCapabilities get capabilities => const ProviderCapabilities(
@@ -144,6 +150,24 @@ class ArchiveProvider extends BaseMusicProvider {
   // ---------------------------------------------------------------------------
   // Mapping
   // ---------------------------------------------------------------------------
+  String? _resolveArtwork(String identifier, [List<_ArchiveFile>? files]) {
+    if (kIsWeb) {
+      if (files != null) {
+        for (final _ArchiveFile f in files) {
+          final String name = f.name.toLowerCase();
+          if (name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png')) {
+            return '$_downloadBase/$identifier/${Uri.encodeComponent(f.name)}';
+          }
+        }
+      }
+      // On Web, archive.org/services/img lacks CORS headers and is blocked by browser security.
+      // Return null so EchoFlow's high-fidelity gradient fallback is rendered with zero console errors.
+      return null;
+    }
+    // Android / native apps handle services/img directly without CORS restrictions
+    return '$_imgBase/$identifier';
+  }
+
   Track _docToTrack(_ArchiveDoc doc) {
     final String artistName = doc.creator.isNotEmpty ? doc.creator : 'Internet Archive';
     final Artist artist = Artist(
@@ -152,6 +176,7 @@ class ArchiveProvider extends BaseMusicProvider {
       providerArtistId: _slug(artistName),
       name: artistName,
     );
+    final String? artwork = _resolveArtwork(doc.identifier);
     return Track(
       id: 'archive:track:${doc.identifier}',
       providerId: id,
@@ -165,10 +190,10 @@ class ArchiveProvider extends BaseMusicProvider {
         title: doc.title,
         artists: <Artist>[artist],
         year: doc.year,
-        artworkUrl: '$_imgBase/${doc.identifier}',
+        artworkUrl: artwork,
       ),
       duration: Duration.zero,
-      artworkUrl: '$_imgBase/${doc.identifier}',
+      artworkUrl: artwork,
       isStreamable: true,
       isDownloadable: false,
       hasLyrics: false,
@@ -196,6 +221,7 @@ class ArchiveProvider extends BaseMusicProvider {
       providerArtistId: _slug(artistName),
       name: artistName,
     );
+    final String? artwork = _resolveArtwork(identifier, meta.files);
     return Track(
       id: trackId,
       providerId: id,
@@ -209,10 +235,10 @@ class ArchiveProvider extends BaseMusicProvider {
         title: meta.title,
         artists: <Artist>[artist],
         year: meta.year,
-        artworkUrl: '$_imgBase/$identifier',
+        artworkUrl: artwork,
       ),
       duration: file.duration,
-      artworkUrl: '$_imgBase/$identifier',
+      artworkUrl: artwork,
       isStreamable: true,
       qualityOptions: _qualityOptionsFor(file),
       extra: <String, dynamic>{

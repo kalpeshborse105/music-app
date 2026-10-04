@@ -37,6 +37,18 @@ class Track {
   /// ISO 639-1 genre label if the provider exposes one.
   final String? genre;
 
+  /// ---- Provider Compliance Model ----
+  final bool commercialUseAllowed;
+  final bool backgroundPlaybackAllowed;
+  final String? license;
+  final String? licenseUrl;
+  final bool attributionRequired;
+
+  /// Compliance alias getters
+  String get provider => providerId;
+  bool get streamAllowed => isStreamable;
+  bool get downloadAllowed => isDownloadable;
+
   /// Free-form provider metadata we keep for richer detail pages.
   final Map<String, dynamic> extra;
 
@@ -56,6 +68,11 @@ class Track {
     this.hasLyrics = false,
     this.qualityOptions = const <AudioQuality>[],
     this.genre,
+    this.commercialUseAllowed = false,
+    this.backgroundPlaybackAllowed = true,
+    this.license,
+    this.licenseUrl,
+    this.attributionRequired = true,
     this.extra = const <String, dynamic>{},
   });
 
@@ -83,6 +100,11 @@ class Track {
         hasLyrics: hasLyrics,
         qualityOptions: qualityOptions,
         genre: genre,
+        commercialUseAllowed: commercialUseAllowed,
+        backgroundPlaybackAllowed: backgroundPlaybackAllowed,
+        license: license,
+        licenseUrl: licenseUrl,
+        attributionRequired: attributionRequired,
       );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -101,6 +123,11 @@ class Track {
         'hasLyrics': hasLyrics,
         'qualityOptions': qualityOptions.map((AudioQuality q) => q.storageId).toList(),
         'genre': genre,
+        'commercialUseAllowed': commercialUseAllowed,
+        'backgroundPlaybackAllowed': backgroundPlaybackAllowed,
+        'license': license,
+        'licenseUrl': licenseUrl,
+        'attributionRequired': attributionRequired,
       };
 
   factory Track.fromJson(Map<String, dynamic> json) => Track(
@@ -128,6 +155,11 @@ class Track {
             .map((dynamic e) => AudioQualityX.fromId(e as String?))
             .toList(),
         genre: json['genre'] as String?,
+        commercialUseAllowed: json['commercialUseAllowed'] as bool? ?? false,
+        backgroundPlaybackAllowed: json['backgroundPlaybackAllowed'] as bool? ?? true,
+        license: json['license'] as String?,
+        licenseUrl: json['licenseUrl'] as String?,
+        attributionRequired: json['attributionRequired'] as bool? ?? true,
       );
 
   @override

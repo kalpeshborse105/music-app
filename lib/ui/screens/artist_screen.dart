@@ -41,7 +41,7 @@ class _ArtistScreenState extends State<ArtistScreen> {
         title: Text(widget.artist.name),
       ),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 120),
+        padding: const EdgeInsets.only(bottom: 140),
         children: <Widget>[
           Padding(
             padding: AppSpacing.screen,

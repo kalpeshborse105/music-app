@@ -148,8 +148,8 @@ class TrackTile extends StatelessWidget {
                             track.artistNames,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColors.textSecondaryDark,
+                            style: TextStyle(
+                              color: context.textSecondary,
                               fontSize: 12.5,
                             ),
                           ),
@@ -171,10 +171,10 @@ class TrackTile extends StatelessWidget {
               if (track.duration > Duration.zero && trailing == null)
                 Text(
                   Formatters.duration(track.duration),
-                  style: const TextStyle(
-                    color: AppColors.textMutedDark,
+                  style: TextStyle(
+                    color: context.textMuted,
                     fontSize: 12,
-                    fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
+                    fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
                   ),
                 ),
               if (trailing != null)

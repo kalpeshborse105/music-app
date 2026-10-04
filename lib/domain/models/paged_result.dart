@@ -26,4 +26,7 @@ class PagedResult<T> {
         nextOffset = null,
         total = 0,
         hasMore = false;
+
+  bool get isEmpty => items.isEmpty;
+  bool get isNotEmpty => items.isNotEmpty;
 }

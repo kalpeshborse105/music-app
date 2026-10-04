@@ -15,6 +15,7 @@ import '../widgets/glass_card.dart';
 import '../widgets/state_views.dart';
 import '../widgets/track_tile.dart';
 import 'list_screen.dart';
+import 'onboarding_auth_screen.dart';
 
 /// Stitch Library Screen with segmented filter chips, pinned bento cards
 /// (Liked Songs, Downloads, Device Audio), and dynamic collections.
@@ -525,7 +526,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ),
                 ],
 
-                const SliverToBoxAdapter(child: SizedBox(height: 120)),
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
               ],
             ),
           ),
@@ -632,7 +633,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.more_vert_rounded, color: AppColors.textSecondaryDark, size: 20),
-                    onPressed: () {},
+                    tooltip: 'Playlist options',
+                    onPressed: () => _showPlaylistActions(context, p, library),
                   ),
                 ],
               ),
@@ -640,6 +642,115 @@ class _LibraryScreenState extends State<LibraryScreen> {
           );
         },
         childCount: playlists.length,
+      ),
+    );
+  }
+
+  void _showPlaylistActions(
+      BuildContext context, Playlist p, LibraryController library) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            ListTile(
+              leading: const Icon(Icons.play_arrow_rounded, color: AppColors.secondary),
+              title: const Text('Play Playlist', style: TextStyle(fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(ctx);
+                if (p.tracks.isNotEmpty) {
+                  TrackActions.playAll(context, p.tracks);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Playlist is empty')),
+                  );
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.folder_open_rounded),
+              title: const Text('Open Playlist'),
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => PlaylistDetailScreen(playlistId: p.id),
+                ));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Rename Playlist'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _promptRenamePlaylist(context, p, library);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
+              title: const Text('Delete Playlist', style: TextStyle(color: AppColors.error)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _confirmDeletePlaylist(context, p, library);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _promptRenamePlaylist(
+      BuildContext context, Playlist p, LibraryController library) {
+    final TextEditingController nameCtrl = TextEditingController(text: p.title);
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('Rename Playlist'),
+        content: TextField(
+          controller: nameCtrl,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'New playlist title...'),
+        ),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () async {
+              final String newTitle = nameCtrl.text.trim();
+              if (newTitle.isNotEmpty && newTitle != p.title) {
+                await library.renamePlaylist(p.id, newTitle);
+              }
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeletePlaylist(
+      BuildContext context, Playlist p, LibraryController library) {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: Text('Delete “${p.title}”?'),
+        content: const Text(
+          'This will permanently delete this playlist from your library.',
+          style: TextStyle(fontSize: 13),
+        ),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () async {
+              await library.deletePlaylist(p.id);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
   }
@@ -671,6 +782,28 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   void _promptCreatePlaylist(BuildContext context, LibraryController library) {
+    if (!library.isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Sign in to create and sync playlists across devices'),
+          action: SnackBarAction(
+            label: 'Sign In',
+            textColor: AppColors.secondary,
+            onPressed: () {
+              Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => OnboardingAuthScreen(
+                  initialShowAuthForm: true,
+                  initialSignUp: false,
+                  onComplete: () => Navigator.pop(context),
+                ),
+              ));
+            },
+          ),
+        ),
+      );
+      return;
+    }
+
     final TextEditingController nameCtrl = TextEditingController();
     showDialog<void>(
       context: context,
@@ -684,11 +817,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
         actions: <Widget>[
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               if (nameCtrl.text.trim().isNotEmpty) {
-                library.createPlaylist(nameCtrl.text.trim());
+                await library.createPlaylist(nameCtrl.text.trim());
               }
-              Navigator.pop(ctx);
+              if (ctx.mounted) Navigator.pop(ctx);
             },
             child: const Text('Create'),
           ),

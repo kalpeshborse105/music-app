@@ -70,6 +70,7 @@ class TrackListScreen extends StatelessWidget {
                   ),
                 Expanded(
                   child: ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 96),
                     itemCount: tracks.length,
                     itemBuilder: (BuildContext c, int i) {
                       final Track t = tracks[i];
@@ -117,7 +118,7 @@ class PlaylistsScreen extends StatelessWidget {
               subtitle: 'Create a playlist to organise your music.',
             )
           : ListView.separated(
-              padding: AppSpacing.screenVertical,
+              padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 96),
               itemCount: playlists.length,
               separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
               itemBuilder: (BuildContext c, int i) {
@@ -191,6 +192,7 @@ class PlaylistDetailScreen extends StatelessWidget {
               subtitle: 'Add songs from any track menu.',
             )
           : ListView.builder(
+              padding: const EdgeInsets.only(bottom: 96),
               itemCount: playlist.tracks.length,
               itemBuilder: (BuildContext c, int i) {
                 final Track t = playlist.tracks[i];

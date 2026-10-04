@@ -51,11 +51,24 @@ class AppColors {
   static const Color borderSubtle = Color(0x1AFFFFFF); // rgba(255,255,255,0.10)
   static const Color borderHighlight = Color(0x26FFFFFF); // rgba(255,255,255,0.15)
 
-  // Light Surfaces (Inversion)
+  // Light Surfaces & Elevated Tokens (Stitch Dedicated Light Theme)
   static const Color lightBg = Color(0xFFF8FAFC);
   static const Color lightSurface = Color(0xFFFFFFFF);
-  static const Color lightSurfaceAlt = Color(0xFFEDF2F7);
+  static const Color lightElevatedSurface = Color(0xFFF1F5F9);
+  static const Color lightSurfaceAlt = Color(0xFFF1F5F9);
+  static const Color lightCard = Color(0xFFFFFFFF);
   static const Color lightBorder = Color(0xFFE2E8F0);
+  static const Color lightBorderSubtle = Color(0xFFCBD5E1);
+  static const Color lightDivider = Color(0xFFE2E8F0);
+
+  // Dedicated Light Accents (Optimized contrast for light backgrounds)
+  static const Color lightPrimaryAccent = Color(0xFF7C3AED);
+  static const Color lightSecondaryAccent = Color(0xFF0891B2);
+  static const Color lightTertiaryAccent = Color(0xFFDB2777);
+  static const Color lightPlayerSurface = Color(0xF7FFFFFF);
+  static const Color lightNavSurface = Color(0xF7F8FAFC);
+  static const Color lightSelectedNav = Color(0xFF7C3AED);
+  static const Color lightInputBackground = Color(0xFFF1F5F9);
 
   // Text Colors
   static const Color textPrimaryDark = Color(0xFFDFE2EE);
@@ -64,12 +77,14 @@ class AppColors {
 
   static const Color textPrimaryLight = Color(0xFF0F172A);
   static const Color textSecondaryLight = Color(0xFF475569);
-  static const Color textMutedLight = Color(0xFF94A3B8);
+  static const Color textMutedLight = Color(0xFF64748B);
 
   // Status & Feedback
   static const Color success = Color(0xFF10B981);
   static const Color warning = Color(0xFFF59E0B);
   static const Color error = Color(0xFFFFB4AB);
+  static const Color lightError = Color(0xFFDC2626);
+  static const Color lightSuccess = Color(0xFF059669);
   static const Color errorContainer = Color(0xFF93000A);
   static const Color onError = Color(0xFF690005);
 
@@ -108,4 +123,15 @@ class AppColors {
     end: Alignment.bottomCenter,
     colors: <Color>[Color(0x268B5CF6), Color(0x00000000)],
   );
+}
+
+/// Helper extension on [BuildContext] for responsive and accessible theme colors.
+extension EchoThemeContext on BuildContext {
+  bool get isDarkMode => Theme.of(this).brightness == Brightness.dark;
+  Color get textPrimary => isDarkMode ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+  Color get textSecondary => isDarkMode ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+  Color get textMuted => isDarkMode ? AppColors.textMutedDark : AppColors.textMutedLight;
+  Color get surfaceColor => isDarkMode ? AppColors.surfaceContainer : AppColors.lightSurface;
+  Color get cardColor => isDarkMode ? AppColors.surfaceContainerHigh : AppColors.lightCard;
+  Color get borderColor => isDarkMode ? AppColors.borderSubtle : AppColors.lightBorder;
 }

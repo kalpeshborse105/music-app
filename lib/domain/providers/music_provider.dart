@@ -6,6 +6,7 @@ import '../models/lyrics.dart';
 import '../models/paged_result.dart';
 import '../models/playlist.dart';
 import '../models/provider_capabilities.dart';
+import '../models/provider_status.dart';
 import '../models/search_result.dart';
 import '../models/stream_source.dart';
 import '../models/track.dart';
@@ -21,6 +22,9 @@ abstract class MusicProvider {
 
   /// Human-readable name shown in settings / source labels.
   String get displayName;
+
+  /// Formal compliance and operational lifecycle state.
+  ProviderStatus get status;
 
   /// What this provider can do. The UI reads these flags.
   ProviderCapabilities get capabilities;

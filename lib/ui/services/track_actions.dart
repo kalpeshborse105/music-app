@@ -11,6 +11,8 @@ import '../../state/downloads_controller.dart';
 import '../../state/library_controller.dart';
 import '../screens/album_screen.dart';
 import '../screens/artist_screen.dart';
+import '../screens/onboarding_auth_screen.dart';
+import '../theme/app_colors.dart';
 import '../widgets/app_sheets.dart';
 
 /// Cross-cutting track interactions (play, queue, favorite, playlist, share,
@@ -48,16 +50,46 @@ class TrackActions {
   // ---- Favorites ----
   static Future<void> toggleFavorite(BuildContext context, Track track) async {
     final LibraryController library = context.read<LibraryController>();
+    if (!library.isAuthenticated) {
+      _showSignInPrompt(context, 'Sign in to save favorites to your cloud library');
+      return;
+    }
     final bool wasLiked = library.isLiked(track.id);
     await library.toggleLike(track);
     AppMessenger.show(wasLiked ? 'Removed from Liked Songs' : 'Added to Liked Songs');
   }
 
   static Future<void> addToPlaylist(BuildContext context, Track track) async {
+    final LibraryController library = context.read<LibraryController>();
+    if (!library.isAuthenticated) {
+      _showSignInPrompt(context, 'Sign in to create and manage custom playlists');
+      return;
+    }
     final result = await showAddToPlaylistSheet(context, track);
     if (result != null && context.mounted) {
       AppMessenger.show('Added to “$result”');
     }
+  }
+
+  static void _showSignInPrompt(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: SnackBarAction(
+          label: 'Sign In',
+          textColor: AppColors.secondary,
+          onPressed: () {
+            Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => OnboardingAuthScreen(
+                initialShowAuthForm: true,
+                initialSignUp: false,
+                onComplete: () => Navigator.pop(context),
+              ),
+            ));
+          },
+        ),
+      ),
+    );
   }
 
   // ---- Share (no technical stream URLs exposed — spec §22) ----
@@ -65,7 +97,7 @@ class TrackActions {
     try {
       final String text = 'Listening to “${track.title}” by ${track.artistNames}'
           '${track.album != null ? ' — ${track.album!.title}' : ''} on EchoFlow Music';
-      await SharePlus.instance.share(ShareParams(text: text));
+      await Share.share(text);
     } catch (_) {
       AppMessenger.show('Sharing is not available here');
     }

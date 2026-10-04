@@ -8,6 +8,7 @@ import '../models/lyrics.dart';
 import '../models/paged_result.dart';
 import '../models/playlist.dart';
 import '../models/provider_capabilities.dart';
+import '../models/provider_status.dart';
 import '../models/search_result.dart';
 import '../models/stream_source.dart';
 import '../models/track.dart';
@@ -32,6 +33,9 @@ class LicensedProviderStub extends BaseMusicProvider {
 
   @override
   String get displayName => 'Licensed Provider (not configured)';
+
+  @override
+  ProviderStatus get status => ProviderStatus.licensePending;
 
   @override
   ProviderCapabilities get capabilities => const ProviderCapabilities(

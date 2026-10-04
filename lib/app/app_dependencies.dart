@@ -19,6 +19,7 @@ import '../domain/recommendations/recommendation_engine.dart';
 import '../state/search_controller.dart';
 import '../state/downloads_controller.dart';
 import '../state/library_controller.dart';
+import '../data/services/supabase_service.dart';
 
 /// Holds every long-lived dependency. Constructed once during bootstrap so the
 /// widget tree stays free of async initialization (fast, deterministic startup,
@@ -80,6 +81,7 @@ class AppDependencies {
       queueStore.init(),
       downloadStore.init(),
       connectivity.init(),
+      SupabaseService().initialize(),
     ]);
 
     final ApiClient api = ApiClient();

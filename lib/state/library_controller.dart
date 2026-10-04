@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/storage/library_store.dart';
 import '../core/utils/logger.dart';
+import '../data/services/supabase_service.dart';
 import '../domain/models/album.dart';
 import '../domain/models/artist.dart';
 import '../domain/models/history_entry.dart';
@@ -9,24 +13,97 @@ import '../domain/models/playlist.dart';
 import '../domain/models/track.dart';
 import '../domain/providers/local_provider.dart';
 
-/// UI-facing facade over [LibraryStore] plus the device music scan.
-/// Notifies listeners so Library/Favorites screens update instantly.
+/// UI-facing facade over [LibraryStore] plus the device music scan,
+/// dynamically synchronized with real Supabase database when authenticated.
 class LibraryController extends ChangeNotifier {
-  LibraryController({required LibraryStore store}) : _store = store;
+  LibraryController({
+    required LibraryStore store,
+    SupabaseService? supabase,
+  })  : _store = store,
+        _supabase = supabase ?? SupabaseService() {
+    _initAuth();
+  }
 
   final LibraryStore _store;
+  final SupabaseService _supabase;
+  StreamSubscription<AuthState>? _authSub;
+
+  bool get isAuthenticated => _supabase.isAuthenticated;
+
+  void _initAuth() {
+    try {
+      _authSub = _supabase.authStateChanges.listen((AuthState state) {
+        if (state.event == AuthChangeEvent.signedIn ||
+            state.event == AuthChangeEvent.tokenRefreshed ||
+            state.event == AuthChangeEvent.userUpdated) {
+          syncWithSupabase();
+        } else if (state.event == AuthChangeEvent.signedOut) {
+          onSignedOut();
+        }
+      });
+
+      if (_supabase.isAuthenticated) {
+        syncWithSupabase();
+      }
+    } catch (e) {
+      Logger.warn('Auth state listener init: $e');
+    }
+  }
+
+  /// Syncs remote favorites, playlists, and history from Supabase with local store
+  Future<void> syncWithSupabase() async {
+    if (!_supabase.isAuthenticated) return;
+    try {
+      final List<Track> remoteFavs = await _supabase.fetchFavorites();
+      if (remoteFavs.isNotEmpty) {
+        await _store.setLikedTracks(remoteFavs);
+      }
+      final List<Playlist> remotePlaylists = await _supabase.fetchPlaylists();
+      if (remotePlaylists.isNotEmpty) {
+        await _store.setPlaylists(remotePlaylists);
+      }
+      final List<HistoryEntry> remoteHistory = await _supabase.fetchRecentlyPlayed();
+      if (remoteHistory.isNotEmpty) {
+        await _store.setHistory(remoteHistory);
+      }
+      notifyListeners();
+    } catch (e) {
+      Logger.warn('Supabase sync error', error: e);
+    }
+  }
+
+  /// Clears local user data when signed out so no private data remains
+  Future<void> onSignedOut() async {
+    await _store.clearUserData();
+    notifyListeners();
+  }
 
   // ---- Favorites ----
   List<Track> get likedTracks => _store.getLikedTracks();
   bool isLiked(String trackId) => _store.isLiked(trackId);
 
   Future<void> toggleLike(Track track) async {
+    final bool willBeLiked = !isLiked(track.id);
     await _store.toggleLiked(track);
+    if (_supabase.isAuthenticated) {
+      if (willBeLiked) {
+        await _supabase.addFavorite(track);
+      } else {
+        await _supabase.removeFavorite(track.id);
+      }
+    }
     notifyListeners();
   }
 
   Future<void> setLiked(Track track, bool liked) async {
     await _store.setLiked(track, liked);
+    if (_supabase.isAuthenticated) {
+      if (liked) {
+        await _supabase.addFavorite(track);
+      } else {
+        await _supabase.removeFavorite(track.id);
+      }
+    }
     notifyListeners();
   }
 
@@ -52,28 +129,57 @@ class LibraryController extends ChangeNotifier {
   Playlist? playlist(String id) => _store.getPlaylist(id);
 
   Future<Playlist> createPlaylist(String title, {String? description}) async {
-    final Playlist p = await _store.createPlaylist(title, description: description);
+    Playlist p;
+    if (_supabase.isAuthenticated) {
+      final Playlist? remote = await _supabase.createPlaylist(title, description: description);
+      if (remote != null) {
+        p = remote;
+      } else {
+        p = await _store.createPlaylist(title, description: description);
+      }
+    } else {
+      p = await _store.createPlaylist(title, description: description);
+    }
+    final List<Playlist> all = _store.getPlaylists();
+    if (!all.any((Playlist pl) => pl.id == p.id)) {
+      all.insert(0, p);
+      await _store.setPlaylists(all);
+    }
     notifyListeners();
     return p;
   }
 
   Future<void> renamePlaylist(String id, String title) async {
     await _store.renamePlaylist(id, title);
+    if (_supabase.isAuthenticated) {
+      await _supabase.renamePlaylist(id, title);
+    }
     notifyListeners();
   }
 
   Future<void> deletePlaylist(String id) async {
     await _store.deletePlaylist(id);
+    if (_supabase.isAuthenticated) {
+      await _supabase.deletePlaylist(id);
+    }
     notifyListeners();
   }
 
   Future<void> addTrackToPlaylist(String playlistId, Track track) async {
+    final Playlist? p = _store.getPlaylist(playlistId);
+    final int nextPos = p?.tracks.length ?? 0;
     await _store.addTrackToPlaylist(playlistId, track);
+    if (_supabase.isAuthenticated) {
+      await _supabase.addTrackToPlaylist(playlistId, track, nextPos);
+    }
     notifyListeners();
   }
 
   Future<void> removeTrackFromPlaylist(String playlistId, String trackId) async {
     await _store.removeTrackFromPlaylist(playlistId, trackId);
+    if (_supabase.isAuthenticated) {
+      await _supabase.removeTrackFromPlaylist(playlistId, trackId);
+    }
     notifyListeners();
   }
 
@@ -136,5 +242,11 @@ class LibraryController extends ChangeNotifier {
       _localScanning = false;
       notifyListeners();
     }
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
   }
 }

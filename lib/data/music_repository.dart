@@ -55,12 +55,16 @@ class MusicRepository {
             return 0;
           case 'jamendo':
             return 1;
-          case 'archive':
+          case 'audius':
             return 2;
-          case 'demo':
+          case 'local':
             return 3;
-          default:
+          case 'archive':
             return 4;
+          case 'demo':
+            return 5;
+          default:
+            return 6;
         }
       }
 
@@ -80,7 +84,12 @@ class MusicRepository {
     final String q = query.trim();
     if (q.isEmpty) return SearchResult.empty;
 
-    final List<MusicProvider> providers = _discoveryProviders;
+    // Search merges active streaming providers (Jamendo, Audius) + Local device music
+    final List<MusicProvider> providers = <MusicProvider>[
+      ..._discoveryProviders,
+      if (_registry.localProvider != null && _registry.isAvailable('local'))
+        _registry.localProvider!,
+    ];
     if (providers.isEmpty) {
       throw const ProviderException('none', message: 'No music service is available.');
     }

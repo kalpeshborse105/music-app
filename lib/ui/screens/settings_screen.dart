@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/config/app_config.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/storage/settings_store.dart';
-import '../../data/provider_registry.dart';
 import '../../domain/models/audio_quality.dart';
-import '../../domain/providers/music_provider.dart';
-import '../../domain/providers/provider_labels.dart';
 import '../../state/downloads_controller.dart';
 import '../theme/app_spacing.dart';
 
@@ -20,7 +16,6 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final SettingsStore settings = context.watch<SettingsStore>();
     final DownloadsController downloads = context.watch<DownloadsController>();
-    final ProviderRegistry registry = context.read<ProviderRegistry>();
 
     return Scaffold(
       body: SafeArea(
@@ -122,28 +117,6 @@ class SettingsScreen extends StatelessWidget {
               value: settings.analyticsEnabled,
               onChanged: (bool v) => settings.analyticsEnabled = v,
             ),
-            _section(context, 'Music sources'),
-            for (final MusicProvider p in registry.all)
-              ListTile(
-                leading: Icon(providerIcon(p.id)),
-                title: Text(p.displayName),
-                subtitle: Text(
-                  registry.isAvailable(p.id) ? 'Available' : 'Not available',
-                ),
-                trailing: registry.isAvailable(p.id)
-                    ? const Icon(Icons.check_circle_rounded, color: Colors.green)
-                    : const Icon(Icons.error_outline_rounded),
-              ),
-            if (!AppConfig.jamendoConfigured)
-              const Padding(
-                padding: AppSpacing.screen,
-                child: Text(
-                  'Tip: configure a Jamendo client id at build time '
-                  '(--dart-define=JAMENDO_CLIENT_ID=...) to enable the '
-                  'Creative-Commons catalogue.',
-                  style: TextStyle(fontSize: 12),
-                ),
-              ),
             _section(context, 'About'),
             ListTile(
               leading: const Icon(Icons.info_outline_rounded),
@@ -158,12 +131,26 @@ class SettingsScreen extends StatelessWidget {
             Padding(
               padding: AppSpacing.screen,
               child: Text(
-                'EchoFlow Music plays only authorized, openly-licensed or '
-                'user-owned audio. It never scrapes, rips or redistributes '
-                'copyrighted music.',
+                'EchoFlow Music streams authorized Creative Commons audio, '
+                'public-domain recordings, and local device media. '
+                'Privacy-first architecture.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                'Kalpkrut Infotech',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.6),
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
           ],
         ),
       ),

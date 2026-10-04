@@ -11,6 +11,7 @@ import '../widgets/cards.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/state_views.dart';
 import '../widgets/track_tile.dart';
+import 'list_screen.dart';
 
 /// Stitch Search & Explore Screen with genre bento discovery cards,
 /// filter pills, recent query tags, and responsive search result lists.
@@ -23,7 +24,8 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _controller = TextEditingController();
-  final ScrollController _scroll = ScrollController();
+  final ScrollController _exploreScroll = ScrollController();
+  final ScrollController _resultsScroll = ScrollController();
   String _selectedFilter = 'All';
 
   static const List<String> _filters = <String>[
@@ -48,17 +50,22 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   void initState() {
     super.initState();
-    _scroll.addListener(() {
-      if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 400) {
-        context.read<SearchController>().loadMore();
-      }
-    });
+    _resultsScroll.addListener(_onResultsScroll);
+  }
+
+  void _onResultsScroll() {
+    if (_resultsScroll.hasClients &&
+        _resultsScroll.position.pixels >= _resultsScroll.position.maxScrollExtent - 400) {
+      context.read<SearchController>().loadMore();
+    }
   }
 
   @override
   void dispose() {
+    _resultsScroll.removeListener(_onResultsScroll);
     _controller.dispose();
-    _scroll.dispose();
+    _exploreScroll.dispose();
+    _resultsScroll.dispose();
     super.dispose();
   }
 
@@ -102,7 +109,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         child: const Icon(Icons.graphic_eq_rounded, color: Colors.white, size: 18),
                       ),
                       const SizedBox(width: 10),
-                      const Column(
+                      Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
@@ -120,7 +127,7 @@ class _SearchScreenState extends State<SearchScreen> {
                             style: TextStyle(
                               fontFamily: 'Inter',
                               fontSize: 11,
-                              color: AppColors.textSecondaryDark,
+                              color: context.textSecondary,
                             ),
                           ),
                         ],
@@ -142,7 +149,10 @@ class _SearchScreenState extends State<SearchScreen> {
                     },
                     decoration: InputDecoration(
                       hintText: 'Songs, artists, albums, genres…',
-                      prefixIcon: const Icon(Icons.search_rounded, color: AppColors.secondary),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
+                      ),
                       suffixIcon: search.query.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.close_rounded, size: 20),
@@ -168,16 +178,22 @@ class _SearchScreenState extends State<SearchScreen> {
                       itemBuilder: (BuildContext ctx, int i) {
                         final String f = _filters[i];
                         final bool active = f == _selectedFilter;
+                        final Color activeBg = isDark ? AppColors.primary : AppColors.lightPrimaryAccent;
+                        final Color inactiveBg = isDark
+                            ? AppColors.surfaceContainerHigh.withValues(alpha: 0.6)
+                            : AppColors.lightElevatedSurface;
+                        final Color inactiveBorder = isDark ? AppColors.borderSubtle : AppColors.lightBorder;
+
                         return InkWell(
                           onTap: () => setState(() => _selectedFilter = f),
                           borderRadius: BorderRadius.circular(18),
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                             decoration: BoxDecoration(
-                              color: active ? AppColors.primary : AppColors.surfaceContainerHigh.withValues(alpha: 0.6),
+                              color: active ? activeBg : inactiveBg,
                               borderRadius: BorderRadius.circular(18),
                               border: Border.all(
-                                color: active ? Colors.transparent : AppColors.borderSubtle,
+                                color: active ? Colors.transparent : inactiveBorder,
                               ),
                             ),
                             child: Center(
@@ -186,7 +202,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                                  color: active ? Colors.white : AppColors.textSecondaryDark,
+                                  color: active ? Colors.white : context.textSecondary,
                                 ),
                               ),
                             ),
@@ -237,8 +253,8 @@ class _SearchScreenState extends State<SearchScreen> {
     final recent = library.recentSearches;
 
     return ListView(
-      controller: _scroll,
-      padding: const EdgeInsets.only(bottom: 120),
+      controller: _exploreScroll,
+      padding: const EdgeInsets.only(bottom: 24),
       children: <Widget>[
         // Recent searches section
         if (recent.isNotEmpty) ...<Widget>[
@@ -366,14 +382,14 @@ class _SearchScreenState extends State<SearchScreen> {
     final showAll = _selectedFilter == 'All';
 
     return ListView(
-      controller: _scroll,
-      padding: const EdgeInsets.only(bottom: 120),
+      controller: _resultsScroll,
+      padding: const EdgeInsets.only(bottom: 24),
       children: <Widget>[
         // Artists Section
         if ((showAll || _selectedFilter == 'Artists') && r.artists.isNotEmpty) ...<Widget>[
           const SectionHeader(title: 'Artists'),
           SizedBox(
-            height: 148,
+            height: 168,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
@@ -394,7 +410,7 @@ class _SearchScreenState extends State<SearchScreen> {
         if ((showAll || _selectedFilter == 'Albums') && r.albums.isNotEmpty) ...<Widget>[
           const SectionHeader(title: 'Albums'),
           SizedBox(
-            height: 196,
+            height: 212,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
@@ -420,6 +436,29 @@ class _SearchScreenState extends State<SearchScreen> {
               onTap: () => TrackActions.play(context, r.tracks[i], queue: r.tracks),
               onMenu: () => showTrackActionsSheet(context, r.tracks[i]),
             ),
+        ],
+
+        // Playlists Section
+        if ((showAll || _selectedFilter == 'Playlists') && r.playlists.isNotEmpty) ...<Widget>[
+          const SectionHeader(title: 'Playlists'),
+          SizedBox(
+            height: 190,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              itemCount: r.playlists.length,
+              separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+              itemBuilder: (BuildContext c, int i) {
+                final p = r.playlists[i];
+                return MediaCard.forPlaylist(
+                  playlist: p,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) => PlaylistDetailScreen(playlistId: p.id),
+                  )),
+                );
+              },
+            ),
+          ),
         ],
 
         if (search.loadingMore)

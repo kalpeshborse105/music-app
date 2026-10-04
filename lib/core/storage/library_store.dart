@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../data/services/supabase_service.dart';
 import '../../domain/models/album.dart';
 import '../../domain/models/artist.dart';
 import '../../domain/models/history_entry.dart';
@@ -28,6 +30,8 @@ class LibraryStore {
 
   final _uuid = const Uuid();
   Box<dynamic>? _box;
+  String? _lastRecordedTrackId;
+  DateTime? _lastRecordedAt;
 
   Future<void> init() async {
     _box = Hive.isBoxOpen(_boxName)
@@ -224,6 +228,24 @@ class LibraryStore {
       history.removeRange(AppConstants.recentHistoryLimit, history.length);
     }
     await _writeList(_kHistory, history.map((HistoryEntry h) => h.toJson()).toList());
+
+    // Synchronize playback event to Supabase when authenticated (deduplicated by 30s)
+    try {
+      final SupabaseService supabase = SupabaseService();
+      if (supabase.isAuthenticated) {
+        final DateTime now = DateTime.now();
+        if (_lastRecordedTrackId != track.id ||
+            _lastRecordedAt == null ||
+            now.difference(_lastRecordedAt!).inSeconds >= 30) {
+          _lastRecordedTrackId = track.id;
+          _lastRecordedAt = now;
+          unawaited(supabase.recordRecentlyPlayed(
+            trackId: track.id,
+            customMetadata: track.toCompact().toJson(),
+          ));
+        }
+      }
+    } catch (_) {}
   }
 
   /// Update completion ratio of the currently playing track without bumping count.
@@ -242,6 +264,29 @@ class LibraryStore {
   }
 
   Future<void> clearHistory() async => _requireBox.delete(_kHistory);
+
+  // ---------------------------------------------------------------------------
+  // User Data Sync & Reset
+  // ---------------------------------------------------------------------------
+  Future<void> setLikedTracks(List<Track> tracks) async {
+    await _writeList(_kLiked, tracks.map((Track t) => t.toJson()).toList());
+  }
+
+  Future<void> setPlaylists(List<Playlist> playlists) async {
+    await _persistPlaylists(playlists);
+  }
+
+  Future<void> setHistory(List<HistoryEntry> entries) async {
+    await _writeList(_kHistory, entries.map((HistoryEntry h) => h.toJson()).toList());
+  }
+
+  Future<void> clearUserData() async {
+    await _requireBox.delete(_kLiked);
+    await _requireBox.delete(_kPlaylists);
+    await _requireBox.delete(_kHistory);
+    await _requireBox.delete(_kFollowedArtists);
+    await _requireBox.delete(_kSavedAlbums);
+  }
 
   // ---------------------------------------------------------------------------
   // Recent searches

@@ -6,14 +6,18 @@ String providerShortLabel(String providerId) {
   switch (providerId) {
     case 'jamendo':
       return 'Jamendo';
+    case 'audius':
+      return 'Audius';
     case 'archive':
       return 'Archive';
     case 'local':
-      return 'Local';
+      return 'Device Audio';
     case 'licensed':
       return 'Licensed';
+    case 'regional_indian':
+      return 'Regional Indic';
     case 'demo':
-      return 'Demo';
+      return 'EchoFlow Masters';
     default:
       return providerId;
   }
@@ -23,14 +27,18 @@ IconData providerIcon(String providerId) {
   switch (providerId) {
     case 'jamendo':
       return Icons.public_rounded;
+    case 'audius':
+      return Icons.album_rounded;
     case 'archive':
       return Icons.account_balance_rounded;
     case 'local':
       return Icons.smartphone_rounded;
     case 'licensed':
       return Icons.verified_rounded;
+    case 'regional_indian':
+      return Icons.translate_rounded;
     case 'demo':
-      return Icons.science_rounded;
+      return Icons.graphic_eq_rounded;
     default:
       return Icons.cloud_queue_rounded;
   }
@@ -40,15 +48,19 @@ IconData providerIcon(String providerId) {
 String providerDescription(String providerId) {
   switch (providerId) {
     case 'jamendo':
-      return 'Creative-Commons licensed catalogue via Jamendo';
+      return 'Creative-Commons licensed global catalog via Jamendo';
+    case 'audius':
+      return 'Decentralized high-fidelity streaming catalog via Audius Protocol';
     case 'archive':
-      return 'Public-domain & openly-licensed audio from the Internet Archive';
+      return 'Public-domain & openly-licensed audio archives';
     case 'local':
-      return 'Your own files stored on this device';
+      return 'Local audio tracks stored on this device';
     case 'licensed':
-      return 'A commercial provider (not configured)';
+      return 'Licensed partner audio catalog';
+    case 'regional_indian':
+      return 'Regional Indian-language catalog (Hindi, Marathi, Khandeshi & Indic languages)';
     case 'demo':
-      return 'Royalty-free demo tracks bundled for offline testing';
+      return 'EchoFlow Studio Master recordings (ambient & electronic archives)';
     default:
       return 'Music provider';
   }
