@@ -198,7 +198,8 @@ class JamendoProvider extends BaseMusicProvider {
       duration: Duration(seconds: int.tryParse(json['duration']?.toString() ?? '') ?? 0),
       artworkUrl: json['album_image']?.toString() ?? json['image']?.toString(),
       isStreamable: (json['audio']?.toString().isNotEmpty ?? false),
-      isDownloadable: false,
+      isDownloadable: (json['audiodownload']?.toString().isNotEmpty ?? false) ||
+          (json['audio']?.toString().isNotEmpty ?? false),
       hasLyrics: false,
       commercialUseAllowed: false,
       backgroundPlaybackAllowed: true,

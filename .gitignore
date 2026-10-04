@@ -10,8 +10,11 @@ build/
 .env.*
 !.env.example
 key.properties
+android/key.properties
+!android/key.properties.example
 *.keystore
 *.jks
+upload-keystore.jks
 
 # Android & Gradle
 android/.gradle/

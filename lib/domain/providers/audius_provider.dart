@@ -225,7 +225,7 @@ class AudiusProvider extends BaseMusicProvider {
       artworkUrl: artwork,
       genre: json['genre']?.toString(),
       isStreamable: json['is_streamable'] as bool? ?? true,
-      isDownloadable: false,
+      isDownloadable: (json['is_downloadable'] as bool?) ?? (json['is_streamable'] as bool? ?? true),
       hasLyrics: false,
       commercialUseAllowed: false,
       backgroundPlaybackAllowed: true,

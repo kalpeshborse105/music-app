@@ -107,13 +107,81 @@ class SettingsStore extends ChangeNotifier {
       case 'dark':
         return ThemeMode.dark;
       default:
-        return ThemeMode.system;
+        // Default app theme MUST BE DARK on fresh installation.
+        return ThemeMode.dark;
     }
   }
 
   set themeMode(ThemeMode mode) {
     _p.setString(_kThemeMode, mode.name);
     notifyListeners();
+  }
+
+  // ---- Providers (Admin Controlled) ----
+  static const String _kJamendoEnabled = 'provider_jamendo_enabled';
+  static const String _kAudiusEnabled = 'provider_audius_enabled';
+  static const String _kArchiveEnabled = 'provider_archive_enabled';
+  static const String _kLocalEnabled = 'provider_local_enabled';
+  static const String _kRegionalEnabled = 'provider_regional_enabled';
+
+  /// Jamendo provider toggle. Strictly defaulted to OFF per project specifications.
+  bool get jamendoEnabled => _p.getBool(_kJamendoEnabled) ?? false;
+
+  set jamendoEnabled(bool value) {
+    _p.setBool(_kJamendoEnabled, value);
+    notifyListeners();
+  }
+
+  Future<void> setJamendoEnabled(bool value) async {
+    jamendoEnabled = value;
+  }
+
+  /// Audius decentralized catalog provider toggle. Defaulted to ON.
+  bool get audiusEnabled => _p.getBool(_kAudiusEnabled) ?? true;
+
+  set audiusEnabled(bool value) {
+    _p.setBool(_kAudiusEnabled, value);
+    notifyListeners();
+  }
+
+  Future<void> setAudiusEnabled(bool value) async {
+    audiusEnabled = value;
+  }
+
+  /// Internet Archive legal/live recordings provider toggle. Defaulted to ON.
+  bool get archiveEnabled => _p.getBool(_kArchiveEnabled) ?? true;
+
+  set archiveEnabled(bool value) {
+    _p.setBool(_kArchiveEnabled, value);
+    notifyListeners();
+  }
+
+  Future<void> setArchiveEnabled(bool value) async {
+    archiveEnabled = value;
+  }
+
+  /// Local Device MediaStore provider toggle. Defaulted to ON.
+  bool get localEnabled => _p.getBool(_kLocalEnabled) ?? true;
+
+  set localEnabled(bool value) {
+    _p.setBool(_kLocalEnabled, value);
+    notifyListeners();
+  }
+
+  Future<void> setLocalEnabled(bool value) async {
+    localEnabled = value;
+  }
+
+  /// Regional Indian music provider toggle. Defaulted to PENDING (false).
+  bool get regionalEnabled => _p.getBool(_kRegionalEnabled) ?? false;
+
+  set regionalEnabled(bool value) {
+    _p.setBool(_kRegionalEnabled, value);
+    notifyListeners();
+  }
+
+  Future<void> setRegionalEnabled(bool value) async {
+    regionalEnabled = value;
   }
 
   // ---- Privacy ----

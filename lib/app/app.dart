@@ -16,6 +16,7 @@ import '../domain/providers/local_provider.dart';
 import '../state/downloads_controller.dart';
 import '../state/library_controller.dart';
 import '../state/search_controller.dart';
+import '../ui/screens/admin_screen.dart';
 import '../ui/screens/app_shell.dart';
 import '../ui/screens/onboarding_auth_screen.dart';
 import '../ui/theme/app_colors.dart';
@@ -69,6 +70,43 @@ class _EchoFlowAppState extends State<EchoFlowApp> {
             darkTheme: AppTheme.dark(),
             themeMode: settings.themeMode,
             home: const AuthGate(),
+            onGenerateRoute: (RouteSettings routeSettings) {
+              if (routeSettings.name == '/operations') {
+                return MaterialPageRoute<void>(
+                  settings: routeSettings,
+                  builder: (BuildContext context) {
+                    final SupabaseService supabase = SupabaseService();
+                    if (!supabase.isAuthenticated) {
+                      return OnboardingAuthScreen(
+                        initialShowAuthForm: true,
+                        onComplete: () {
+                          Navigator.pushReplacementNamed(context, '/operations');
+                        },
+                      );
+                    }
+                    return const AdminScreen();
+                  },
+                );
+              }
+              if (routeSettings.name == '/login') {
+                return MaterialPageRoute<void>(
+                  settings: routeSettings,
+                  builder: (BuildContext context) {
+                    final SupabaseService supabase = SupabaseService();
+                    if (supabase.isAuthenticated) {
+                      return const AppShell();
+                    }
+                    return OnboardingAuthScreen(
+                      initialShowAuthForm: true,
+                      onComplete: () {
+                        Navigator.pushReplacementNamed(context, '/');
+                      },
+                    );
+                  },
+                );
+              }
+              return null;
+            },
           );
         },
       ),

@@ -28,26 +28,36 @@ class MiniPlayer extends StatelessWidget {
 
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
+    void openPlayer() {
+      Navigator.of(context).push(
+        PageRouteBuilder<void>(
+          pageBuilder: (_, Animation<double> a, Animation<double> sa) => const PlayerScreen(),
+          transitionsBuilder: (_, Animation<double> a, Animation<double> sa, Widget child) {
+            return FadeTransition(
+              opacity: a,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.08),
+                  end: Offset.zero,
+                ).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
+                child: child,
+              ),
+            );
+          },
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
-      child: EchoGlassCard(
-        onTap: () => Navigator.of(context).push(
-          PageRouteBuilder<void>(
-            pageBuilder: (_, Animation<double> a, Animation<double> sa) => const PlayerScreen(),
-            transitionsBuilder: (_, Animation<double> a, Animation<double> sa, Widget child) {
-              return FadeTransition(
-                opacity: a,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0, 0.08),
-                    end: Offset.zero,
-                  ).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
-                  child: child,
-                ),
-              );
-            },
-          ),
-        ),
+      child: GestureDetector(
+        onVerticalDragEnd: (DragEndDetails details) {
+          if (details.primaryVelocity != null && details.primaryVelocity! < -180) {
+            openPlayer();
+          }
+        },
+        child: EchoGlassCard(
+          onTap: openPlayer,
         padding: EdgeInsets.zero,
         borderRadius: AppSpacing.radiusLg,
         blurSigma: 24,
@@ -182,6 +192,7 @@ class MiniPlayer extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }

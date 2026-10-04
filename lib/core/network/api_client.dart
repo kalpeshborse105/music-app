@@ -46,11 +46,17 @@ class ApiClient {
     Map<String, String>? headers,
     bool retry = true,
   }) async {
+    final Map<String, String> mergedHeaders = <String, String>{
+      'User-Agent': 'EchoFlowMusic/1.0.0 (Android; Mobile; Web)',
+      'Accept': 'application/json, text/plain, */*',
+      if (headers != null) ...headers,
+    };
+
     int attempt = 0;
     while (true) {
       try {
         final http.Response response = await _client
-            .get(uri, headers: headers)
+            .get(uri, headers: mergedHeaders)
             .timeout(timeout);
         _throwForStatus(response.statusCode);
         return response.body;

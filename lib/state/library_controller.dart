@@ -50,10 +50,72 @@ class LibraryController extends ChangeNotifier {
     }
   }
 
-  /// Syncs remote favorites, playlists, and history from Supabase with local store
+  Map<String, dynamic>? _userProfile;
+  Map<String, dynamic>? get userProfile => _userProfile;
+
+  String get displayName {
+    if (_userProfile != null &&
+        _userProfile!['display_name'] != null &&
+        (_userProfile!['display_name'] as String).trim().isNotEmpty) {
+      return _userProfile!['display_name'] as String;
+    }
+    final dynamic metaName = _supabase.currentUser?.userMetadata?['full_name'] ??
+        _supabase.currentUser?.userMetadata?['name'] ??
+        _supabase.currentUser?.userMetadata?['display_name'];
+    if (metaName is String && metaName.trim().isNotEmpty) {
+      return metaName;
+    }
+    final String? email = _supabase.currentUser?.email;
+    if (email != null && email.isNotEmpty) {
+      return email.split('@').first;
+    }
+    return 'Listener';
+  }
+
+  String? get avatarUrl {
+    if (_userProfile != null &&
+        _userProfile!['avatar_url'] != null &&
+        (_userProfile!['avatar_url'] as String).trim().isNotEmpty) {
+      return _userProfile!['avatar_url'] as String;
+    }
+    final dynamic metaAvatar = _supabase.currentUser?.userMetadata?['avatar_url'];
+    if (metaAvatar is String && metaAvatar.trim().isNotEmpty) {
+      return metaAvatar;
+    }
+    return null;
+  }
+
+  String get userEmail => _supabase.currentUser?.email ?? '';
+
+  bool get isAdmin => _userProfile?['role'] == 'admin';
+
+  Future<void> refreshProfile() async {
+    if (!_supabase.isAuthenticated || _supabase.currentUserId == null) {
+      _userProfile = null;
+      notifyListeners();
+      return;
+    }
+    try {
+      _userProfile = await _supabase.getProfile(_supabase.currentUserId!);
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> updateProfile({required String displayName, String? avatarUrl}) async {
+    if (!_supabase.isAuthenticated || _supabase.currentUserId == null) return;
+    await _supabase.updateProfile(
+      userId: _supabase.currentUserId!,
+      displayName: displayName,
+      avatarUrl: avatarUrl,
+    );
+    await refreshProfile();
+  }
+
+  /// Syncs remote favorites, playlists, profile, and history from Supabase with local store
   Future<void> syncWithSupabase() async {
     if (!_supabase.isAuthenticated) return;
     try {
+      await refreshProfile();
       final List<Track> remoteFavs = await _supabase.fetchFavorites();
       if (remoteFavs.isNotEmpty) {
         await _store.setLikedTracks(remoteFavs);
@@ -74,6 +136,7 @@ class LibraryController extends ChangeNotifier {
 
   /// Clears local user data when signed out so no private data remains
   Future<void> onSignedOut() async {
+    _userProfile = null;
     await _store.clearUserData();
     notifyListeners();
   }

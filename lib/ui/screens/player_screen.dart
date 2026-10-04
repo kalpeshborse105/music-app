@@ -2,12 +2,14 @@ import 'package:flutter/material.dart' hide RepeatMode, SearchController;
 import 'package:provider/provider.dart';
 
 import '../../core/storage/settings_store.dart';
+import '../../core/utils/app_messenger.dart';
 import '../../core/utils/formatters.dart';
 import '../../domain/models/audio_quality.dart';
 import '../../domain/models/track.dart';
 import '../../domain/playback/playback_controller.dart';
 import '../../domain/playback/playback_queue.dart' as pq;
 import '../../domain/providers/provider_labels.dart';
+import '../../state/downloads_controller.dart';
 import '../../state/library_controller.dart';
 import '../services/track_actions.dart';
 import '../theme/app_colors.dart';
@@ -42,7 +44,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
       );
     }
 
+    final DownloadsController downloads = context.watch<DownloadsController>();
     final bool liked = context.watch<LibraryController>().isLiked(track.id);
+    final bool isDownloaded = downloads.isDownloaded(track.id);
+    final bool isDownloading = downloads.task(track.id)?.status == DownloadStatus.downloading;
     final Duration duration =
         pc.snapshot.duration > Duration.zero ? pc.snapshot.duration : track.duration;
     final double maxMs = duration.inMilliseconds.toDouble().clamp(1, double.infinity);
@@ -50,7 +55,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _dragValue ?? pc.snapshot.position.inMilliseconds.toDouble().clamp(0, maxMs);
 
     final double screenHeight = MediaQuery.of(context).size.height;
-    final double artSize = (screenHeight * 0.36).clamp(240.0, 320.0);
+    final double artSize = (screenHeight * 0.28).clamp(180.0, 260.0);
 
     return Scaffold(
       backgroundColor: AppColors.darkBg,
@@ -131,97 +136,116 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
                 const Spacer(flex: 1),
 
-                // 2. Hero Vinyl Framing & Artwork Centerpiece
-                Center(
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: <Widget>[
-                      // Ambient outer glow
-                      Container(
-                        width: artSize + 16,
-                        height: artSize + 16,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(36),
-                          boxShadow: <BoxShadow>[
-                            BoxShadow(
-                              color: AppColors.primaryContainer.withValues(alpha: 0.35),
-                              blurRadius: 36,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Outer vinyl groove frame
-                      Container(
-                        width: artSize,
-                        height: artSize,
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: <Color>[
-                              Color(0xFF353942),
-                              Color(0xFF262A33),
-                              Color(0xFF0A0E16),
+                // 2. Hero Vinyl Framing & Artwork Centerpiece with Gestures (Swipe left/right for tracks, drag down to collapse)
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onHorizontalDragEnd: (DragEndDetails details) {
+                    final double? v = details.primaryVelocity;
+                    if (v != null) {
+                      if (v < -250) {
+                        pc.next();
+                      } else if (v > 250) {
+                        pc.previous();
+                      }
+                    }
+                  },
+                  onVerticalDragEnd: (DragEndDetails details) {
+                    final double? v = details.primaryVelocity;
+                    if (v != null && v > 280) {
+                      Navigator.of(context).maybePop();
+                    }
+                  },
+                  child: Center(
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: <Widget>[
+                        // Ambient outer glow
+                        Container(
+                          width: artSize + 16,
+                          height: artSize + 16,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(36),
+                            boxShadow: <BoxShadow>[
+                              BoxShadow(
+                                color: AppColors.primaryContainer.withValues(alpha: 0.35),
+                                blurRadius: 36,
+                                spreadRadius: 2,
+                              ),
                             ],
                           ),
-                          borderRadius: BorderRadius.circular(32),
-                          boxShadow: const <BoxShadow>[
-                            BoxShadow(
-                              color: Colors.black54,
-                              blurRadius: 20,
-                              offset: Offset(0, 10),
-                            ),
-                          ],
                         ),
-                        child: Stack(
-                          children: <Widget>[
-                            Hero(
-                              tag: 'player_art_${track.id}',
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(26),
-                                child: Artwork(
-                                  url: track.artworkUrl,
-                                  size: artSize - 12,
-                                  radius: 26,
-                                  fallbackIcon: Icons.music_note_rounded,
+                        // Outer vinyl groove frame
+                        Container(
+                          width: artSize,
+                          height: artSize,
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: <Color>[
+                                Color(0xFF353942),
+                                Color(0xFF262A33),
+                                Color(0xFF0A0E16),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(32),
+                            boxShadow: const <BoxShadow>[
+                              BoxShadow(
+                                color: Colors.black54,
+                                blurRadius: 20,
+                                offset: Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: Stack(
+                            children: <Widget>[
+                              Hero(
+                                tag: 'player_art_${track.id}',
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(26),
+                                  child: Artwork(
+                                    url: track.artworkUrl,
+                                    size: artSize - 12,
+                                    radius: 26,
+                                    fallbackIcon: Icons.music_note_rounded,
+                                  ),
                                 ),
                               ),
-                            ),
-                            // Live Audio Reverb Badge Overlay
-                            Positioned(
-                              bottom: 10,
-                              left: 10,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: AppColors.surfaceContainerLowest.withValues(alpha: 0.85),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppColors.borderHighlight),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: <Widget>[
-                                    Icon(Icons.graphic_eq_rounded, size: 12, color: AppColors.secondary),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      'LIVE SOUNDSCAPE',
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: 0.5,
-                                        color: AppColors.secondary,
+                              // Live Audio Reverb Badge Overlay
+                              Positioned(
+                                bottom: 10,
+                                left: 10,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surfaceContainerLowest.withValues(alpha: 0.85),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: AppColors.borderHighlight),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: <Widget>[
+                                      Icon(Icons.graphic_eq_rounded, size: 12, color: AppColors.secondary),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'LIVE SOUNDSCAPE',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 0.5,
+                                          color: AppColors.secondary,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
 
@@ -508,6 +532,30 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           },
                         ),
                         _ActionIcon(
+                          icon: isDownloading
+                              ? Icons.downloading_rounded
+                              : (isDownloaded
+                                  ? Icons.download_done_rounded
+                                  : Icons.download_rounded),
+                          label: isDownloaded ? 'Saved' : 'Download',
+                          iconColor: isDownloaded
+                              ? AppColors.secondary
+                              : (isDownloading ? AppColors.primary : null),
+                          onTap: () async {
+                            if (isDownloaded) {
+                              await downloads.remove(track.id);
+                              AppMessenger.show('Removed from downloads');
+                            } else {
+                              try {
+                                await downloads.download(track);
+                                AppMessenger.show('Downloaded for offline playback');
+                              } catch (e) {
+                                AppMessenger.showError(e);
+                              }
+                            }
+                          },
+                        ),
+                        _ActionIcon(
                           icon: Icons.queue_music_rounded,
                           label: 'Up Next',
                           badgeCount: pc.queue.tracks.length,
@@ -528,7 +576,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 12),
+                SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
               ],
             ),
           ),
@@ -542,12 +590,14 @@ class _ActionIcon extends StatelessWidget {
   final IconData icon;
   final String label;
   final int? badgeCount;
+  final Color? iconColor;
   final VoidCallback onTap;
 
   const _ActionIcon({
     required this.icon,
     required this.label,
     this.badgeCount,
+    this.iconColor,
     required this.onTap,
   });
 
@@ -557,14 +607,14 @@ class _ActionIcon extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             Stack(
               clipBehavior: Clip.none,
               children: <Widget>[
-                Icon(icon, size: 22, color: AppColors.textSecondaryDark),
+                Icon(icon, size: 22, color: iconColor ?? AppColors.textSecondaryDark),
                 if (badgeCount != null && badgeCount! > 0)
                   Positioned(
                     top: -4,
@@ -588,7 +638,7 @@ class _ActionIcon extends StatelessWidget {
               label,
               style: const TextStyle(
                 fontFamily: 'Inter',
-                fontSize: 11,
+                fontSize: 10.5,
                 fontWeight: FontWeight.w600,
                 color: Colors.white70,
               ),
@@ -599,3 +649,4 @@ class _ActionIcon extends StatelessWidget {
     );
   }
 }
+

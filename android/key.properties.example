@@ -1,0 +1,7 @@
+# EchoFlow Music - Android Release Signing Template
+# Copy this file to `android/key.properties` for production builds.
+# Never commit key.properties or upload-keystore.jks to version control!
+keyAlias=upload
+keyPassword=YOUR_KEY_PASSWORD_HERE
+storeFile=upload-keystore.jks
+storePassword=YOUR_STORE_PASSWORD_HERE

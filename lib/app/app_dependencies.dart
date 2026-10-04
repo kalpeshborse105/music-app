@@ -85,8 +85,16 @@ class AppDependencies {
     ]);
 
     final ApiClient api = ApiClient();
-    final ProviderRegistry registry = ProviderRegistry(api: api, cache: cache);
-    final MusicRepository repository = MusicRepository(registry: registry);
+    final ProviderRegistry registry = ProviderRegistry(
+      api: api,
+      cache: cache,
+      settings: settings,
+    );
+    final MusicRepository repository = MusicRepository(
+      registry: registry,
+      downloadStore: downloadStore,
+      settings: settings,
+    );
 
     // Initialize the background audio service. If the platform doesn't support
     // it (e.g. some web contexts) fall back to a plain handler so playback and

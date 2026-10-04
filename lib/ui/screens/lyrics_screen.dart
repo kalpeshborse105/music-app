@@ -30,48 +30,53 @@ class _LyricsScreenState extends State<LyricsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final double bottomInset = MediaQuery.of(context).padding.bottom + 32;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Lyrics')),
-      body: FutureBuilder<Lyrics>(
-        future: _future,
-        builder: (BuildContext context, AsyncSnapshot<Lyrics> snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const LoadingView();
-          }
-          if (snapshot.hasError) {
-            return MessageView.fromError(snapshot.error!);
-          }
-          final Lyrics? lyrics = snapshot.data;
-          if (lyrics == null || lyrics.isEmpty) {
-            return const MessageView(
-              icon: Icons.lyrics_outlined,
-              title: 'Lyrics unavailable',
-              subtitle:
-                  'Lyrics are not supplied for this track. EchoFlow only shows '
-                  'licensed lyrics.',
-            );
-          }
-          if (lyrics.isSynced && lyrics.synced.isNotEmpty) {
-            return ListView.builder(
-              padding: AppSpacing.screenVertical,
-              itemCount: lyrics.synced.length,
-              itemBuilder: (BuildContext c, int i) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                child: Text(
-                  lyrics.synced[i].text,
-                  style: Theme.of(c).textTheme.titleMedium,
+      body: SafeArea(
+        bottom: true,
+        child: FutureBuilder<Lyrics>(
+          future: _future,
+          builder: (BuildContext context, AsyncSnapshot<Lyrics> snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const LoadingView();
+            }
+            if (snapshot.hasError) {
+              return MessageView.fromError(snapshot.error!);
+            }
+            final Lyrics? lyrics = snapshot.data;
+            if (lyrics == null || lyrics.isEmpty) {
+              return const MessageView(
+                icon: Icons.lyrics_outlined,
+                title: 'Lyrics unavailable',
+                subtitle:
+                    'Lyrics are not supplied for this track. EchoFlow only shows '
+                    'licensed lyrics.',
+              );
+            }
+            if (lyrics.isSynced && lyrics.synced.isNotEmpty) {
+              return ListView.builder(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, bottomInset),
+                itemCount: lyrics.synced.length,
+                itemBuilder: (BuildContext c, int i) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                  child: Text(
+                    lyrics.synced[i].text,
+                    style: Theme.of(c).textTheme.titleMedium,
+                  ),
                 ),
+              );
+            }
+            return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, bottomInset),
+              child: Text(
+                lyrics.plain ?? '',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.7),
               ),
             );
-          }
-          return SingleChildScrollView(
-            padding: AppSpacing.screenVertical,
-            child: Text(
-              lyrics.plain ?? '',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.7),
-            ),
-          );
-        },
+          },
+        ),
       ),
     );
   }

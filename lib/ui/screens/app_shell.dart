@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/mini_player.dart';
@@ -99,7 +100,7 @@ class _AppShellState extends State<AppShell> {
     }
 
     // Mobile Navigation Shell
-    return Scaffold(
+    final Widget mobileScaffold = Scaffold(
       extendBody: false,
       body: IndexedStack(index: _index, children: _pages),
       bottomNavigationBar: SafeArea(
@@ -151,6 +152,41 @@ class _AppShellState extends State<AppShell> {
           ],
         ),
       ),
+    );
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+        if (_index != 0) {
+          setState(() => _index = 0);
+          return;
+        }
+        final bool? exitApp = await showDialog<bool>(
+          context: context,
+          builder: (BuildContext ctx) => AlertDialog(
+            title: const Text('Exit EchoFlow?'),
+            content: const Text('Are you sure you want to close the application?'),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: isDark ? AppColors.primary : AppColors.lightPrimaryAccent,
+                ),
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Exit'),
+              ),
+            ],
+          ),
+        );
+        if (exitApp == true) {
+          SystemNavigator.pop();
+        }
+      },
+      child: mobileScaffold,
     );
   }
 }

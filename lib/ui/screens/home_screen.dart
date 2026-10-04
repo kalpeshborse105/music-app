@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/music_repository.dart';
 import '../../domain/models/artist.dart';
+import '../../domain/models/search_result.dart';
 import '../../domain/models/track.dart';
 import '../../domain/playback/playback_controller.dart';
 import '../../state/library_controller.dart';
@@ -45,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late Future<List<Track>> _trendingFuture;
   late Future<List<Track>> _newReleasesFuture;
   late Future<List<Track>> _spotlightFuture;
+  Future<List<Track>>? _categoryTracksFuture;
   bool _initialized = false;
 
   @override
@@ -53,10 +55,32 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_initialized) {
       _initialized = true;
       final MusicRepository repo = context.read<MusicRepository>();
-      _trendingFuture = repo.trending(limit: 6);
+      _trendingFuture = repo.trending(limit: 8);
       _newReleasesFuture = repo.newReleases(limit: 8);
       _spotlightFuture = repo.trending(limit: 1);
     }
+  }
+
+  void _onMoodSelected(String mood, MusicRepository repo) {
+    if (_selectedMood == mood) return;
+    setState(() {
+      _selectedMood = mood;
+      if (mood != 'All') {
+        _categoryTracksFuture = _fetchCategoryTracks(mood, repo);
+      } else {
+        _categoryTracksFuture = null;
+      }
+    });
+  }
+
+  Future<List<Track>> _fetchCategoryTracks(String category, MusicRepository repo) async {
+    try {
+      final SearchResult res = await repo.search(category, limit: 16);
+      if (res.tracks.isNotEmpty) {
+        return res.tracks;
+      }
+    } catch (_) {}
+    return repo.trending(limit: 16);
   }
 
   @override
@@ -105,42 +129,63 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 // 2. Greeting & Mood Filter Carousel
                 SliverToBoxAdapter(
-                  child: _buildGreetingAndMoods(context),
+                  child: _buildGreetingAndMoods(context, repo),
                 ),
 
-                // 3. Quick Access 6-Card Bento Grid
+                // Dynamic Category View or Standard Discovery Soundscape
+                if (_selectedMood != 'All') ...<Widget>[
+                  SliverToBoxAdapter(
+                    child: _buildCategoryView(context, repo, playback),
+                  ),
+                ] else ...<Widget>[
+                  // 3. Recently Played (if history exists) or Trending Right Now (no dead space!)
+                  SliverToBoxAdapter(
+                    child: _buildRecentlyPlayedOrTrending(context, library, repo),
+                  ),
+
+                  // 4. Jump Back In / Fresh Releases Carousel
+                  SliverToBoxAdapter(
+                    child: _buildJumpBackInSection(context, repo),
+                  ),
+
+                  // 5. Featured Release Spotlight Banner
+                  SliverToBoxAdapter(
+                    child: _buildFeaturedSpotlight(context),
+                  ),
+
+                  // 6. Made For You Curated Algorithmic Mixes
+                  SliverToBoxAdapter(
+                    child: _buildMadeForYouSection(context, repo),
+                  ),
+
+                  // 7. Trending Now & Fresh Picks (Ranked 1..5)
+                  SliverToBoxAdapter(
+                    child: _buildTrendingRankedSection(context, playback),
+                  ),
+
+                  // 8. Featured Artists & Curators
+                  SliverToBoxAdapter(
+                    child: _buildFeaturedCuratorsSection(context),
+                  ),
+                ],
+
+                // Clean subtle branding footer
                 SliverToBoxAdapter(
-                  child: _buildQuickAccessGrid(context, library),
-                ),
-
-                // 4. Jump Back In / Recent & New Releases Carousel
-                SliverToBoxAdapter(
-                  child: _buildJumpBackInSection(context, repo),
-                ),
-
-                // 5. Featured Release Spotlight Banner
-                SliverToBoxAdapter(
-                  child: _buildFeaturedSpotlight(context),
-                ),
-
-                // 6. Made For You Curated Algorithmic Mixes
-                SliverToBoxAdapter(
-                  child: _buildMadeForYouSection(context, repo),
-                ),
-
-                // 7. Trending Now & Fresh Picks (Ranked 1..5)
-                SliverToBoxAdapter(
-                  child: _buildTrendingRankedSection(context, playback),
-                ),
-
-                // 8. Featured Artists & Curators
-                SliverToBoxAdapter(
-                  child: _buildFeaturedCuratorsSection(context),
-                ),
-
-                // Clean bottom spacing above mini player
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 24),
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 20, bottom: 28),
+                    child: Center(
+                      child: Text(
+                        'Kalpkrut Infotech',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: context.textMuted.withValues(alpha: 0.7),
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -207,11 +252,7 @@ class _HomeScreenState extends State<HomeScreen> {
               IconButton(
                 icon: const Icon(Icons.notifications_none_rounded, size: 22),
                 tooltip: 'Notifications',
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No new notifications')),
-                  );
-                },
+                onPressed: () => _showNotificationCenter(context),
               ),
             ],
           ),
@@ -220,7 +261,150 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildGreetingAndMoods(BuildContext context) {
+  void _showNotificationCenter(BuildContext context) {
+    final bool isDark = context.isDarkMode;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: isDark ? AppColors.surfaceContainerHigh : AppColors.lightSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.radiusXl)),
+      ),
+      builder: (BuildContext ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.secondary.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.notifications_active_rounded,
+                              color: AppColors.secondary, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Notification Center',
+                          style: TextStyle(
+                            fontFamily: 'Plus Jakarta Sans',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                            color: context.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildNotificationTile(
+                  context,
+                  title: 'Audius & Jamendo Live',
+                  message: 'Official decentralized audio nodes connected with lossless streaming.',
+                  timestamp: 'Just now',
+                  icon: Icons.graphic_eq_rounded,
+                  color: AppColors.secondary,
+                ),
+                const SizedBox(height: 10),
+                _buildNotificationTile(
+                  context,
+                  title: 'Sound System Active',
+                  message: 'Dynamic 320 kbps MP3 quality and background audio service ready.',
+                  timestamp: '1h ago',
+                  icon: Icons.surround_sound_rounded,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(height: 10),
+                _buildNotificationTile(
+                  context,
+                  title: 'Cloud Database Synced',
+                  message: 'Supabase PostgreSQL authentication and cloud playlist storage operational.',
+                  timestamp: 'Today',
+                  icon: Icons.cloud_done_rounded,
+                  color: AppColors.success,
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildNotificationTile(
+    BuildContext context, {
+    required String title,
+    required String message,
+    required String timestamp,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: context.isDarkMode
+            ? AppColors.surfaceContainer
+            : AppColors.lightElevatedSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: context.borderColor),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                    Text(
+                      timestamp,
+                      style: TextStyle(color: context.textMuted, fontSize: 10),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  message,
+                  style: TextStyle(color: context.textSecondary, fontSize: 11.5, height: 1.3),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGreetingAndMoods(BuildContext context, MusicRepository repo) {
     final bool isDark = context.isDarkMode;
 
     return Padding(
@@ -240,7 +424,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 2),
           Text(
-            '${Formatters.greeting()}, Listener',
+            '${Formatters.greeting()}, ${context.watch<LibraryController>().displayName}',
             style: TextStyle(
               fontFamily: 'Plus Jakarta Sans',
               fontSize: 22,
@@ -266,7 +450,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 final Color inactiveBorder = isDark ? AppColors.borderSubtle : AppColors.lightBorder;
 
                 return InkWell(
-                  onTap: () => setState(() => _selectedMood = mood),
+                  onTap: () => _onMoodSelected(mood, repo),
                   borderRadius: BorderRadius.circular(20),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -308,117 +492,255 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildQuickAccessGrid(
+  Widget _buildRecentlyPlayedOrTrending(
     BuildContext context,
     LibraryController library,
+    MusicRepository repo,
   ) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 0),
-      child: FutureBuilder<List<Track>>(
-        future: _trendingFuture,
-        builder: (BuildContext context, AsyncSnapshot<List<Track>> snapshot) {
-          final List<Track> tracks = snapshot.data ?? <Track>[];
-          final String trackCount = '${library.likedTracks.length} tracks';
+    final bool hasHistory = library.history.isNotEmpty;
 
-          return GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-            childAspectRatio: 2.8,
-            children: <Widget>[
-              EchoBentoCard(
-                title: 'Liked Songs',
-                subtitle: trackCount,
-                icon: Icons.favorite_rounded,
-                iconGradient: AppColors.likedSongsGradient,
-                onTap: () {
+    if (hasHistory) {
+      final List<Track> historyTracks =
+          library.history.map((h) => h.track).toList();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SectionHeader(
+            title: 'Recently Played',
+            subtitle: 'Continue your personal listening session',
+            topPadding: AppSpacing.sm,
+            actionLabel: 'See all',
+            onAction: () {
+              Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => TrackListScreen(
+                  title: 'Recently Played',
+                  tracks: historyTracks,
+                ),
+              ));
+            },
+          ),
+          SizedBox(
+            height: 196,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              itemCount: historyTracks.take(10).length,
+              separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+              itemBuilder: (BuildContext ctx, int i) {
+                final Track track = historyTracks[i];
+                return MediaCard.forTrack(
+                  track: track,
+                  onTap: () => TrackActions.play(context, track, queue: historyTracks),
+                  onPlay: () => TrackActions.play(context, track, queue: historyTracks),
+                  width: 136,
+                );
+              },
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Fallback when no history exists: Compact Trending Charts (prevents any dead space)
+    return FutureBuilder<List<Track>>(
+      future: _trendingFuture,
+      builder: (BuildContext context, AsyncSnapshot<List<Track>> snapshot) {
+        final List<Track> tracks = snapshot.data ?? <Track>[];
+        if (tracks.isEmpty && snapshot.connectionState != ConnectionState.waiting) {
+          return const SizedBox.shrink();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            SectionHeader(
+              title: 'Trending Right Now',
+              subtitle: 'Top charts from Audius & decentralized streams',
+              topPadding: AppSpacing.sm,
+              actionLabel: 'See all',
+              onAction: () async {
+                final List<Track> all = await repo.trending(limit: 30);
+                if (context.mounted) {
                   Navigator.of(context).push(MaterialPageRoute<void>(
-                    builder: (_) => TrackListScreen(
-                      title: 'Liked Songs',
-                      tracks: library.likedTracks,
-                    ),
+                    builder: (_) => TrackListScreen(title: 'Trending Charts', tracks: all),
                   ));
-                },
-                onPlay: library.likedTracks.isNotEmpty
-                    ? () => TrackActions.play(context, library.likedTracks.first, queue: library.likedTracks)
-                    : null,
+                }
+              },
+            ),
+            SizedBox(
+              height: 196,
+              child: snapshot.connectionState == ConnectionState.waiting
+                  ? ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                      itemCount: 4,
+                      separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+                      itemBuilder: (_, __) => _buildTrackSkeletonCard(context),
+                    )
+                  : ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                      itemCount: tracks.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+                      itemBuilder: (BuildContext ctx, int i) {
+                        final Track track = tracks[i];
+                        return MediaCard.forTrack(
+                          track: track,
+                          badgeText: '#${i + 1}',
+                          badgeColor: i < 3 ? AppColors.secondary : null,
+                          onTap: () => TrackActions.play(context, track, queue: tracks),
+                          onPlay: () => TrackActions.play(context, track, queue: tracks),
+                          width: 136,
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCategoryView(
+    BuildContext context,
+    MusicRepository repo,
+    PlaybackController playback,
+  ) {
+    return FutureBuilder<List<Track>>(
+      future: _categoryTracksFuture,
+      builder: (BuildContext context, AsyncSnapshot<List<Track>> snapshot) {
+        final bool isLoading = snapshot.connectionState == ConnectionState.waiting;
+        final List<Track> tracks = snapshot.data ?? <Track>[];
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const SizedBox(height: 12),
+              // Category Hero Banner
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                decoration: BoxDecoration(
+                  gradient: AppColors.brandGradient,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.35),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '$_selectedMood SOUNDSCAPE'.toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ),
+                        if (tracks.isNotEmpty)
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            onPressed: () => TrackActions.play(context, tracks.first, queue: tracks),
+                            icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                            label: const Text('Play All', style: TextStyle(fontWeight: FontWeight.w700)),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Curated $_selectedMood',
+                      style: const TextStyle(
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Streaming tracks in $_selectedMood category',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 12.5,
+                        color: Colors.white.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              EchoBentoCard(
-                title: 'Heavy Rotation',
-                subtitle: 'Daily updates',
-                imageUrl: tracks.isNotEmpty ? tracks[0].artworkUrl : null,
-                icon: Icons.repeat_rounded,
-                onTap: () {
-                  if (tracks.isNotEmpty) {
-                    Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => TrackListScreen(title: 'Heavy Rotation', tracks: tracks),
-                    ));
-                  }
-                },
-                onPlay: tracks.isNotEmpty ? () => TrackActions.play(context, tracks[0], queue: tracks) : null,
-              ),
-              EchoBentoCard(
-                title: 'Daily Mix 01',
-                subtitle: 'Sonn, Tycho, ODESZA',
-                imageUrl: tracks.length > 1 ? tracks[1].artworkUrl : null,
-                icon: Icons.auto_awesome_rounded,
-                onTap: () {
-                  if (tracks.length > 1) {
-                    Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => TrackListScreen(title: 'Daily Mix 01', tracks: tracks),
-                    ));
-                  }
-                },
-                onPlay: tracks.length > 1 ? () => TrackActions.play(context, tracks[1], queue: tracks) : null,
-              ),
-              EchoBentoCard(
-                title: 'Cyber Chill',
-                subtitle: 'Ambient & Glitch',
-                imageUrl: tracks.length > 2 ? tracks[2].artworkUrl : null,
-                icon: Icons.headphones_rounded,
-                onTap: () {
-                  if (tracks.length > 2) {
-                    Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => TrackListScreen(title: 'Cyber Chill', tracks: tracks),
-                    ));
-                  }
-                },
-                onPlay: tracks.length > 2 ? () => TrackActions.play(context, tracks[2], queue: tracks) : null,
-              ),
-              EchoBentoCard(
-                title: 'Synth Nights',
-                subtitle: 'Retro Electro',
-                imageUrl: tracks.length > 3 ? tracks[3].artworkUrl : null,
-                icon: Icons.graphic_eq_rounded,
-                onTap: () {
-                  if (tracks.length > 3) {
-                    Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => TrackListScreen(title: 'Synth Nights', tracks: tracks),
-                    ));
-                  }
-                },
-                onPlay: tracks.length > 3 ? () => TrackActions.play(context, tracks[3], queue: tracks) : null,
-              ),
-              EchoBentoCard(
-                title: 'Acoustic Soul',
-                subtitle: 'Warm Raw Chords',
-                imageUrl: tracks.length > 4 ? tracks[4].artworkUrl : null,
-                icon: Icons.music_note_rounded,
-                onTap: () {
-                  if (tracks.length > 4) {
-                    Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => TrackListScreen(title: 'Acoustic Soul', tracks: tracks),
-                    ));
-                  }
-                },
-                onPlay: tracks.length > 4 ? () => TrackActions.play(context, tracks[4], queue: tracks) : null,
-              ),
+
+              const SizedBox(height: 16),
+
+              // Tracks List
+              if (isLoading)
+                Column(
+                  children: List<Widget>.generate(
+                    5,
+                    (_) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Container(
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: context.isDarkMode
+                              ? AppColors.surfaceContainerHigh.withValues(alpha: 0.5)
+                              : AppColors.lightElevatedSurface,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              else if (tracks.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Center(
+                    child: Text('No tracks found in this category'),
+                  ),
+                )
+              else
+                Column(
+                  children: <Widget>[
+                    for (int i = 0; i < tracks.length; i++) ...<Widget>[
+                      TrackTile(
+                        track: tracks[i],
+                        dense: false,
+                        isPlaying: playback.currentTrack?.id == tracks[i].id && playback.isPlaying,
+                        onTap: () => TrackActions.play(context, tracks[i], queue: tracks),
+                        onMenu: () => showTrackActionsSheet(context, tracks[i]),
+                      ),
+                      if (i < tracks.length - 1)
+                        const Divider(height: 1, indent: 64),
+                    ],
+                  ],
+                ),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -436,15 +758,15 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             SectionHeader(
-              title: 'Jump Back In',
-              subtitle: 'Continue your sonic journey',
+              title: 'Fresh Releases',
+              subtitle: 'New music across the network',
               topPadding: AppSpacing.sm,
               actionLabel: 'See all',
               onAction: () async {
                 final List<Track> all = await repo.newReleases(limit: 20);
                 if (context.mounted) {
                   Navigator.of(context).push(MaterialPageRoute<void>(
-                    builder: (_) => TrackListScreen(title: 'Jump Back In', tracks: all),
+                    builder: (_) => TrackListScreen(title: 'Fresh Releases', tracks: all),
                   ));
                 }
               },

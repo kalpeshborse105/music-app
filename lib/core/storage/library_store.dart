@@ -204,9 +204,21 @@ class LibraryStore {
   // ---------------------------------------------------------------------------
   // Recently played
   // ---------------------------------------------------------------------------
-  List<HistoryEntry> getHistory() => _readList(_kHistory)
-      .map((dynamic e) => HistoryEntry.fromJson((e as Map).cast<String, dynamic>()))
-      .toList();
+  List<HistoryEntry> getHistory() {
+    final List<dynamic> raw = _readList(_kHistory);
+    final List<HistoryEntry> list = raw
+        .map((dynamic e) => HistoryEntry.fromJson((e as Map).cast<String, dynamic>()))
+        .toList();
+    // Strictly deduplicate by stable track ID, preserving the latest (first) occurrence
+    final Set<String> seen = <String>{};
+    final List<HistoryEntry> deduped = <HistoryEntry>[];
+    for (final HistoryEntry h in list) {
+      if (seen.add(h.track.id)) {
+        deduped.add(h);
+      }
+    }
+    return deduped;
+  }
 
   /// Record a play. Re-inserts at the top and increments play count.
   Future<void> recordPlay(Track track, {double completion = 0.0}) async {
@@ -277,7 +289,14 @@ class LibraryStore {
   }
 
   Future<void> setHistory(List<HistoryEntry> entries) async {
-    await _writeList(_kHistory, entries.map((HistoryEntry h) => h.toJson()).toList());
+    final Set<String> seen = <String>{};
+    final List<HistoryEntry> deduped = <HistoryEntry>[];
+    for (final HistoryEntry h in entries) {
+      if (seen.add(h.track.id)) {
+        deduped.add(h);
+      }
+    }
+    await _writeList(_kHistory, deduped.map((HistoryEntry h) => h.toJson()).toList());
   }
 
   Future<void> clearUserData() async {

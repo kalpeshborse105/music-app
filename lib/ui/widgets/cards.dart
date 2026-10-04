@@ -146,6 +146,8 @@ class MediaCard extends StatelessWidget {
     required VoidCallback onTap,
     VoidCallback? onPlay,
     double width = 144,
+    String? badgeText,
+    Color? badgeColor,
   }) {
     return MediaCard(
       title: track.title,
@@ -155,9 +157,11 @@ class MediaCard extends StatelessWidget {
       onTap: onTap,
       onPlay: onPlay,
       width: width,
-      badgeText: track.qualityOptions.isNotEmpty
-          ? track.qualityOptions.first.label.toUpperCase()
-          : null,
+      badgeText: badgeText ??
+          (track.qualityOptions.isNotEmpty
+              ? track.qualityOptions.first.label.toUpperCase()
+              : null),
+      badgeColor: badgeColor,
     );
   }
 

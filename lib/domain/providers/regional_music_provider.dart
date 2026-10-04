@@ -20,9 +20,13 @@ enum RegionalLanguage {
   khandeshi('Khandeshi', 'khn'),
   gujarati('Gujarati', 'gu'),
   punjabi('Punjabi', 'pa'),
+  bengali('Bengali', 'bn'),
   tamil('Tamil', 'ta'),
   telugu('Telugu', 'te'),
-  bengali('Bengali', 'bn');
+  kannada('Kannada', 'kn'),
+  malayalam('Malayalam', 'ml'),
+  odia('Odia', 'or'),
+  assamese('Assamese', 'as');
 
   final String displayName;
   final String isoCode;

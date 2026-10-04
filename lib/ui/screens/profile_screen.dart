@@ -2,21 +2,18 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/storage/settings_store.dart';
 import '../../data/services/supabase_service.dart';
 import '../../domain/models/audio_quality.dart';
 import '../../state/downloads_controller.dart';
 import '../../state/library_controller.dart';
-import '../services/track_actions.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
-import '../widgets/app_sheets.dart';
 import '../widgets/glass_card.dart';
-import '../widgets/track_tile.dart';
 import 'admin_screen.dart';
 import 'library_screen.dart';
 import 'list_screen.dart';
@@ -85,6 +82,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  static const String defaultAnimeAvatar =
+      'https://api.dicebear.com/7.x/bottts/png?seed=EchoAnimeProfile';
+
+  static const List<Map<String, String>> _animePresets = <Map<String, String>>[
+    <String, String>{
+      'name': 'Neon Cyber',
+      'url': 'https://api.dicebear.com/7.x/bottts/png?seed=NeonCyber',
+    },
+    <String, String>{
+      'name': 'Astra Glow',
+      'url': 'https://api.dicebear.com/7.x/bottts/png?seed=AstraGlow',
+    },
+    <String, String>{
+      'name': 'Synth Wave',
+      'url': 'https://api.dicebear.com/7.x/bottts/png?seed=SynthWave',
+    },
+    <String, String>{
+      'name': 'Cosmic Beat',
+      'url': 'https://api.dicebear.com/7.x/bottts/png?seed=CosmicBeat',
+    },
+    <String, String>{
+      'name': 'Vibe Pulse',
+      'url': 'https://api.dicebear.com/7.x/bottts/png?seed=VibePulse',
+    },
+  ];
+
   String _getEffectiveDisplayName(Map<String, dynamic>? profile, User? user) {
     if (profile != null) {
       final String? name = profile['display_name'] as String?;
@@ -104,12 +127,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return 'EchoFlow Member';
   }
 
-  String? _getEffectiveAvatarUrl(Map<String, dynamic>? profile, User? user) {
+  String _getEffectiveAvatarUrl(Map<String, dynamic>? profile, User? user) {
     final String? profileAvatar = profile?['avatar_url'] as String?;
     if (profileAvatar != null && profileAvatar.trim().isNotEmpty) return profileAvatar.trim();
     final String? metaAvatar = user?.userMetadata?['avatar_url'] as String?;
     if (metaAvatar != null && metaAvatar.trim().isNotEmpty) return metaAvatar.trim();
-    return null;
+    return defaultAnimeAvatar;
   }
 
   @override
@@ -124,7 +147,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final bool isAuthenticated = supabase.isAuthenticated && user != null;
 
     final String displayName = _getEffectiveDisplayName(_userProfile, user);
-    final String? avatarUrl = _getEffectiveAvatarUrl(_userProfile, user);
+    final String avatarUrl = _getEffectiveAvatarUrl(_userProfile, user);
     final String userEmail = user?.email ?? 'Verified Account';
 
     return Scaffold(
@@ -208,31 +231,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: <Widget>[
                           ListTile(
                             leading: Icon(
-                              Icons.mark_email_read_rounded,
-                              color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
-                            ),
-                            title: const Text('Registered Email',
-                                style: TextStyle(fontWeight: FontWeight.w600)),
-                            subtitle: Text(userEmail),
-                            trailing: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: AppColors.success.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Text(
-                                'Verified',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.success,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const Divider(height: 1),
-                          ListTile(
-                            leading: Icon(
                               Icons.lock_reset_rounded,
                               color: isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent,
                             ),
@@ -243,12 +241,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const Divider(height: 1),
                           ListTile(
-                            leading: const Icon(Icons.logout_rounded, color: AppColors.error),
-                            title: const Text('Sign Out',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.w600, color: AppColors.error)),
-                            subtitle: const Text('Return to signed-out guest session'),
-                            onTap: () => _confirmSignOut(context, supabase, library),
+                            leading: const Icon(
+                              Icons.delete_forever_rounded,
+                              color: AppColors.error,
+                            ),
+                            title: const Text('Delete Account',
+                                style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.error)),
+                            subtitle: const Text('Permanently remove account and data'),
+                            onTap: () => _confirmDeleteAccount(context, supabase, library),
                           ),
                         ],
                       ),
@@ -421,35 +421,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // Recently Played (Authenticated Session History)
-                  if (library.history.isNotEmpty) ...<Widget>[
-                    _buildSectionTitle(context, 'Recently Played'),
-                    EchoGlassCard(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      borderRadius: AppSpacing.radiusLg,
-                      backgroundColor: isDark ? null : AppColors.lightSurface,
-                      child: Column(
-                        children: <Widget>[
-                          for (int i = 0; i < library.history.take(5).length; i++) ...<Widget>[
-                            TrackTile(
-                              dense: true,
-                              track: library.history[i].track,
-                              onTap: () => TrackActions.play(context, library.history[i].track),
-                              onMenu: () => showTrackActionsSheet(context, library.history[i].track),
-                            ),
-                            if (i < library.history.take(5).length - 1)
-                              const Divider(height: 1, indent: 64),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                  ],
-
-                  const SizedBox(height: AppSpacing.lg),
-
                   // About & Legal Compliance
                   _buildSectionTitle(context, 'About EchoFlow'),
                   EchoGlassCard(
@@ -470,9 +441,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'EchoFlow Music v${AppConstants.appVersion}',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 14),
+                              'EchoFlow Music',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 14, color: context.textPrimary),
                             ),
                           ],
                         ),
@@ -514,30 +485,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: AppSpacing.md),
+                  const SizedBox(height: AppSpacing.lg),
 
-                  // Operations Portal Gateway (Role-Protected for authenticated users)
-                  if (isAuthenticated) ...<Widget>[
-                    Align(
-                      alignment: Alignment.center,
-                      child: TextButton.icon(
-                        onPressed: () => _handleAdminPortalEntry(context, supabase),
-                        icon: Icon(
-                          Icons.admin_panel_settings_outlined,
-                          size: 16,
-                          color: context.textMuted,
+                  // Dedicated Admin / Operations Section (Exclusively for profiles.role == 'admin')
+                  if (isAuthenticated && (library.isAdmin || _userProfile?['role'] == 'admin')) ...<Widget>[
+                    _buildSectionTitle(context, 'Operations & Management'),
+                    EchoGlassCard(
+                      padding: EdgeInsets.zero,
+                      borderRadius: AppSpacing.radiusLg,
+                      backgroundColor: isDark ? null : AppColors.lightSurface,
+                      child: ListTile(
+                        leading: const Icon(
+                          Icons.admin_panel_settings_rounded,
+                          color: AppColors.secondary,
                         ),
-                        label: Text(
+                        title: const Text(
                           'Operations Portal',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: context.textMuted,
-                          ),
+                          style: TextStyle(fontWeight: FontWeight.w600),
                         ),
+                        subtitle: const Text('Access platform metrics, provider center, and moderation'),
+                        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                        onTap: () => _handleAdminPortalEntry(context, supabase),
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.md),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+
+                  // Sign Out as the final action at the bottom
+                  if (isAuthenticated) ...<Widget>[
+                    EchoGlassCard(
+                      padding: EdgeInsets.zero,
+                      borderRadius: AppSpacing.radiusLg,
+                      backgroundColor: isDark ? null : AppColors.lightSurface,
+                      child: ListTile(
+                        leading: const Icon(Icons.logout_rounded, color: AppColors.error),
+                        title: const Text(
+                          'Sign Out',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.error,
+                          ),
+                        ),
+                        subtitle: const Text('Safely log out of your session'),
+                        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.error),
+                        onTap: () => _confirmSignOut(context, supabase, library),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
                   ],
 
                   // Subtle Branding Footer
@@ -591,7 +585,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         children: <Widget>[
           GestureDetector(
-            onTap: () => _promptEditProfile(context, displayName, avatarUrl),
+            onTap: () => _promptEditProfile(context, displayName, avatarUrl, email),
             child: Stack(
               alignment: Alignment.center,
               children: <Widget>[
@@ -670,38 +664,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Flexible(
-                child: Text(
-                  displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Plus Jakarta Sans',
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: context.textPrimary,
+          SizedBox(
+            width: double.infinity,
+            child: Stack(
+              alignment: Alignment.center,
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 48),
+                  child: Text(
+                    displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: context.textPrimary,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: const Icon(Icons.edit_outlined, size: 16),
-                tooltip: 'Edit Profile & Picture',
-                onPressed: () => _promptEditProfile(context, displayName, avatarUrl),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            email,
-            style: TextStyle(
-              color: context.textSecondary,
-              fontSize: 13,
+                Positioned(
+                  right: 4,
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    tooltip: 'Edit Profile & Picture',
+                    onPressed: () => _promptEditProfile(context, displayName, avatarUrl, email),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),
@@ -862,155 +855,369 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _promptEditProfile(
-      BuildContext context, String currentName, String? currentAvatar) {
+      BuildContext context, String currentName, String? currentAvatar, String currentEmail) {
     final TextEditingController nameCtrl =
         TextEditingController(text: currentName);
-    final TextEditingController avatarCtrl =
-        TextEditingController(text: currentAvatar ?? '');
-    String selectedAvatar = currentAvatar ?? '';
-
-    final List<Map<String, String>> presets = <Map<String, String>>[
-      <String, String>{
-        'name': 'Neon Wave',
-        'url': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300',
-      },
-      <String, String>{
-        'name': 'Cyber Glow',
-        'url': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300',
-      },
-      <String, String>{
-        'name': 'Acoustic Soul',
-        'url': 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300',
-      },
-      <String, String>{
-        'name': 'Cosmic Pulse',
-        'url': 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300',
-      },
-    ];
+    String selectedAvatar = currentAvatar ?? defaultAnimeAvatar;
+    bool isUploading = false;
+    bool isSaving = false;
 
     showDialog<void>(
       context: context,
       builder: (BuildContext ctx) => StatefulBuilder(
-        builder: (BuildContext dCtx, StateSetter setDialogState) => AlertDialog(
-          backgroundColor: AppColors.surfaceContainerHigh,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Row(
-            children: <Widget>[
-              Icon(Icons.badge_rounded, color: AppColors.neonCyan),
-              SizedBox(width: 8),
-              Text('Edit Profile & Picture', style: TextStyle(color: Colors.white, fontSize: 18)),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+        builder: (BuildContext dCtx, StateSetter setDialogState) {
+          final bool isDark = Theme.of(context).brightness == Brightness.dark;
+          return AlertDialog(
+            backgroundColor: isDark ? AppColors.surfaceContainerHigh : AppColors.lightSurface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
               children: <Widget>[
-                const Text('Display Name',
-                    style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: nameCtrl,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: 'Enter your name...',
-                    filled: true,
-                    fillColor: AppColors.surfaceContainerLowest,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                Icon(Icons.badge_rounded, color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent),
+                const SizedBox(width: 8),
+                Text(
+                  'Edit Profile & Avatar',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : AppColors.textPrimaryLight,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
                   ),
-                ),
-                const SizedBox(height: 16),
-                const Text('Choose Avatar Preset',
-                    style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 64,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: presets.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 10),
-                    itemBuilder: (_, int i) {
-                      final p = presets[i];
-                      final bool isSelected = selectedAvatar == p['url'];
-                      return InkWell(
-                        onTap: () {
-                          setDialogState(() {
-                            selectedAvatar = p['url']!;
-                            avatarCtrl.text = p['url']!;
-                          });
-                        },
-                        borderRadius: BorderRadius.circular(32),
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isSelected ? AppColors.neonCyan : Colors.transparent,
-                              width: 2.5,
-                            ),
-                          ),
-                          child: ClipOval(
-                            child: CachedNetworkImage(
-                              imageUrl: p['url']!,
-                              width: 52,
-                              height: 52,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 14),
-                const Text('Or Custom Avatar Image URL',
-                    style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: avatarCtrl,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                  decoration: InputDecoration(
-                    hintText: 'https://example.com/avatar.jpg',
-                    filled: true,
-                    fillColor: AppColors.surfaceContainerLowest,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  ),
-                  onChanged: (String v) {
-                    setDialogState(() {
-                      selectedAvatar = v.trim();
-                    });
-                  },
                 ),
               ],
             ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: AppColors.onSurfaceVariant)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  // Current Selected Preview
+                  Center(
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: <Widget>[
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: AppColors.heroGradient,
+                          ),
+                          child: Center(
+                            child: ClipOval(
+                              child: CachedNetworkImage(
+                                imageUrl: selectedAvatar,
+                                width: 74,
+                                height: 74,
+                                fit: BoxFit.cover,
+                                placeholder: (_, __) => const CircularProgressIndicator(strokeWidth: 2),
+                                errorWidget: (_, __, ___) => const Icon(Icons.person, size: 40),
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (isUploading)
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.black.withValues(alpha: 0.5),
+                            ),
+                            child: const Center(
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  Text(
+                    'Display Name',
+                    style: TextStyle(
+                      color: isDark ? AppColors.onSurfaceVariant : AppColors.textSecondaryLight,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: nameCtrl,
+                    style: TextStyle(color: isDark ? Colors.white : AppColors.textPrimaryLight, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'Enter your name...',
+                      filled: true,
+                      fillColor: isDark ? AppColors.surfaceContainerLowest : AppColors.lightElevatedSurface,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  Text(
+                    'Registered Email (Read Only)',
+                    style: TextStyle(
+                      color: isDark ? AppColors.onSurfaceVariant : AppColors.textSecondaryLight,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: TextEditingController(text: currentEmail),
+                    readOnly: true,
+                    enabled: false,
+                    style: TextStyle(
+                      color: isDark ? Colors.white70 : AppColors.textSecondaryLight,
+                      fontSize: 14,
+                    ),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: isDark
+                          ? AppColors.surfaceContainerLowest.withValues(alpha: 0.5)
+                          : AppColors.lightElevatedSurface.withValues(alpha: 0.5),
+                      prefixIcon: const Icon(Icons.email_outlined, size: 18),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Upload from Device Button (jpg, jpeg, png only)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: BorderSide(
+                          color: isDark ? AppColors.secondary.withValues(alpha: 0.5) : AppColors.lightSecondaryAccent,
+                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon: const Icon(Icons.photo_library_rounded, size: 18),
+                      label: const Text('Upload Photo (JPG, PNG)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                      onPressed: (isUploading || isSaving)
+                          ? null
+                          : () async {
+                              try {
+                                final ImagePicker picker = ImagePicker();
+                                final XFile? file = await picker.pickImage(
+                                  source: ImageSource.gallery,
+                                  maxWidth: 800,
+                                  maxHeight: 800,
+                                  imageQuality: 85,
+                                );
+                                if (file != null) {
+                                  final String ext = file.name.split('.').last.toLowerCase();
+                                  if (ext != 'jpg' && ext != 'jpeg' && ext != 'png' && ext != 'webp') {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Invalid format. Please select an image file (.jpg, .jpeg, .png).'),
+                                          backgroundColor: AppColors.error,
+                                        ),
+                                      );
+                                    }
+                                    return;
+                                  }
+
+                                  setDialogState(() => isUploading = true);
+                                  final SupabaseService supabase = SupabaseService();
+                                  if (supabase.currentUserId != null) {
+                                    final String? uploadedUrl = await supabase.uploadAvatar(
+                                      userId: supabase.currentUserId!,
+                                      file: file,
+                                    );
+                                    if (uploadedUrl != null) {
+                                      setDialogState(() {
+                                        selectedAvatar = uploadedUrl;
+                                        isUploading = false;
+                                      });
+                                    } else {
+                                      setDialogState(() => isUploading = false);
+                                    }
+                                  } else {
+                                    setDialogState(() => isUploading = false);
+                                  }
+                                }
+                              } catch (e) {
+                                setDialogState(() => isUploading = false);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Upload failed: $e')),
+                                  );
+                                }
+                              }
+                            },
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+                  Text(
+                    'Or Pick an Anime Profile Avatar',
+                    style: TextStyle(
+                      color: isDark ? AppColors.onSurfaceVariant : AppColors.textSecondaryLight,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 60,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _animePresets.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (_, int i) {
+                        final Map<String, String> p = _animePresets[i];
+                        final bool isSelected = selectedAvatar == p['url'];
+                        return InkWell(
+                          onTap: () {
+                            setDialogState(() {
+                              selectedAvatar = p['url']!;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(30),
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected
+                                    ? (isDark ? AppColors.secondary : AppColors.lightSecondaryAccent)
+                                    : Colors.transparent,
+                                width: 2.5,
+                              ),
+                            ),
+                            child: ClipOval(
+                              child: CachedNetworkImage(
+                                imageUrl: p['url']!,
+                                width: 48,
+                                height: 48,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.electricViolet),
-              onPressed: () async {
-                final String newName = nameCtrl.text.trim();
-                final String newAvatar = avatarCtrl.text.trim();
-                final SupabaseService supabase = SupabaseService();
-                if (supabase.currentUserId != null) {
-                  await supabase.updateProfile(
-                    userId: supabase.currentUserId!,
-                    displayName: newName.isNotEmpty ? newName : null,
-                    avatarUrl: newAvatar.isNotEmpty ? newAvatar : null,
-                  );
-                  await _loadProfileData();
-                }
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-              child: const Text('Save Changes'),
-            ),
-          ],
-        ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: isSaving ? null : () => Navigator.pop(ctx),
+                child: Text('Cancel', style: TextStyle(color: isDark ? AppColors.onSurfaceVariant : AppColors.textSecondaryLight)),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
+                ),
+                onPressed: (isUploading || isSaving)
+                    ? null
+                    : () async {
+                        setDialogState(() => isSaving = true);
+                        try {
+                          final String newName = nameCtrl.text.trim();
+                          final LibraryController library = context.read<LibraryController>();
+                          await library.updateProfile(
+                            displayName: newName.isNotEmpty ? newName : currentName,
+                            avatarUrl: selectedAvatar.isNotEmpty ? selectedAvatar : currentAvatar,
+                          );
+                          await _loadProfileData();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Saved successfully'),
+                                backgroundColor: AppColors.success,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Couldn\'t save your profile. Please try again.'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          }
+                        } finally {
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        }
+                      },
+                child: isSaving
+                    ? const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          ),
+                          SizedBox(width: 8),
+                          Text('Saving...'),
+                        ],
+                      )
+                    : const Text('Save Changes'),
+              ),
+            ],
+          );
+        },
       ),
     );
+  }
+
+  Future<void> _confirmDeleteAccount(
+    BuildContext context,
+    SupabaseService supabase,
+    LibraryController library,
+  ) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Row(
+          children: <Widget>[
+            Icon(Icons.warning_amber_rounded, color: AppColors.error),
+            SizedBox(width: 8),
+            Text('Delete Account?'),
+          ],
+        ),
+        content: const Text(
+          'This permanently deletes your EchoFlow account and associated data (favorites, playlists, and history). This action cannot be undone.\n\nFor external deletion requests or Play Store data compliance, you can also visit our account deletion portal at https://kalpkrut.com/echoflow/delete-account.',
+          style: TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Permanently Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Deleting account...')),
+      );
+      final bool ok = await supabase.deleteAccount();
+      await library.onSignedOut();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(ok
+                ? 'Account permanently deleted'
+                : 'Account data cleared and logged out'),
+          ),
+        );
+      }
+    }
   }
 
   void _confirmResetPassword(BuildContext context, String email) {

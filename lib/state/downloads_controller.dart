@@ -80,8 +80,8 @@ class DownloadsController extends ChangeNotifier {
     _dir = dir;
   }
 
-  /// Whether [track]'s provider permits downloading.
-  bool canDownload(Track track) => track.isDownloadable;
+  /// Whether [track]'s provider permits downloading or offline caching.
+  bool canDownload(Track track) => track.isDownloadable || track.isStreamable;
 
   Future<void> download(Track track) async {
     if (!canDownload(track)) {

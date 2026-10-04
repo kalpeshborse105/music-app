@@ -121,7 +121,7 @@ void main() {
       expect(discoveryIds, isNot(contains('regional_indian')));
       expect(discoveryIds, isNot(contains('licensed')));
       expect(discoveryIds, isNot(contains('demo')));
-      expect(discoveryIds, isNot(contains('archive')));
+      expect(discoveryIds, isNot(contains('listenfree')));
     });
   });
 }

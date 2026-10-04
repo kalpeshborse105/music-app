@@ -1,6 +1,13 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+
 import '../core/cache/ttl_cache.dart';
 import '../core/constants/app_constants.dart';
 import '../core/errors/app_exception.dart';
+import '../core/storage/download_store.dart';
+import '../core/storage/settings_store.dart';
 import '../core/utils/logger.dart';
 import '../domain/models/album.dart';
 import '../domain/models/artist.dart';
@@ -25,9 +32,17 @@ class GenreRef {
 /// routes per-track operations back to the *owning* provider. The UI never
 /// talks to a concrete provider directly (spec §29).
 class MusicRepository {
-  MusicRepository({required ProviderRegistry registry}) : _registry = registry;
+  MusicRepository({
+    required ProviderRegistry registry,
+    DownloadStore? downloadStore,
+    SettingsStore? settings,
+  })  : _registry = registry,
+        _downloadStore = downloadStore,
+        _settings = settings;
 
   final ProviderRegistry _registry;
+  final DownloadStore? _downloadStore;
+  final SettingsStore? _settings;
 
   // Aggregate result caches for the hot discovery path.
   final TtlCache<String, SearchResult> _searchCache =
@@ -270,7 +285,33 @@ class MusicRepository {
   Future<StreamSource> resolveStream(
     Track track, {
     AudioQuality quality = AudioQuality.auto,
-  }) {
+  }) async {
+    // 1. Offline-First: If track is downloaded and file exists locally, load LOCAL FILE
+    // without requesting remote stream URL or checking internet connectivity.
+    if (_downloadStore != null) {
+      final DownloadRecord? record = _downloadStore.get(track.id);
+      if (record != null && record.filePath.isNotEmpty) {
+        if (!kIsWeb) {
+          final File localFile = File(record.filePath);
+          if (localFile.existsSync() && localFile.lengthSync() > 0) {
+            Logger.info('Loading offline track from local storage: ${record.filePath}');
+            return StreamSource(
+              url: Uri.file(record.filePath).toString(),
+              supportsSeek: true,
+            );
+          }
+        }
+      }
+    }
+
+    // 2. Jamendo disabled guard (default OFF per project specification)
+    if (track.providerId == 'jamendo' && _settings?.jamendoEnabled != true) {
+      throw const ProviderException(
+        'jamendo',
+        message: 'Jamendo is currently disabled in provider settings.',
+      );
+    }
+
     if (!track.isStreamable) {
       throw const TrackUnavailableException();
     }
@@ -278,13 +319,71 @@ class MusicRepository {
   }
 
   Future<Lyrics> lyrics(Track track) async {
-    final MusicProvider p = _providerFor(track.providerId);
-    if (!p.capabilities.lyrics) return Lyrics.unavailable;
     try {
-      return await p.getLyrics(track);
-    } catch (_) {
-      return Lyrics.unavailable;
-    }
+      final MusicProvider p = _providerFor(track.providerId);
+      if (p.capabilities.lyrics) {
+        final Lyrics l = await p.getLyrics(track);
+        if (!l.isEmpty) return l;
+      }
+    } catch (_) {}
+
+    return _fetchLrclibLyrics(track);
+  }
+
+  Future<Lyrics> _fetchLrclibLyrics(Track track) async {
+    try {
+      final String artist = track.artistNames.split(',').first.trim();
+      final String cleanTitle = track.title
+          .replaceAll(RegExp(r'\[.*?\]|\(.*?\)', caseSensitive: false), '')
+          .replaceAll(RegExp(r'feat\..*|ft\..*', caseSensitive: false), '')
+          .trim();
+      final Uri uri = Uri.parse('https://lrclib.net/api/get').replace(
+        queryParameters: <String, String>{
+          'artist_name': artist,
+          'track_name': cleanTitle.isNotEmpty ? cleanTitle : track.title,
+        },
+      );
+      final http.Response res = await http.get(uri, headers: const <String, String>{
+        'User-Agent': 'EchoFlowMusic/1.0.0 (Android; Mobile)',
+      }).timeout(const Duration(seconds: 5));
+
+      if (res.statusCode == 200) {
+        final dynamic data = jsonDecode(res.body);
+        if (data is Map) {
+          final String? plain = data['plainLyrics']?.toString();
+          final String? syncedStr = data['syncedLyrics']?.toString();
+          final List<LyricLine> syncedLines = <LyricLine>[];
+
+          if (syncedStr != null && syncedStr.isNotEmpty) {
+            final List<String> lines = syncedStr.split('\n');
+            final RegExp regex = RegExp(r'^\[(\d+):(\d+(?:\.\d+)?)\](.*)');
+            for (final String l in lines) {
+              final RegExpMatch? m = regex.firstMatch(l.trim());
+              if (m != null) {
+                final int min = int.tryParse(m.group(1) ?? '0') ?? 0;
+                final double sec = double.tryParse(m.group(2) ?? '0') ?? 0;
+                final String text = m.group(3)?.trim() ?? '';
+                syncedLines.add(LyricLine(
+                  time: Duration(milliseconds: (min * 60000 + sec * 1000).round()),
+                  text: text,
+                ));
+              }
+            }
+          }
+
+          if (syncedLines.isNotEmpty || (plain != null && plain.trim().isNotEmpty)) {
+            return Lyrics(
+              trackId: track.id,
+              plain: plain,
+              synced: syncedLines,
+              isSynced: syncedLines.isNotEmpty,
+              source: 'LRCLIB Open Database',
+            );
+          }
+        }
+      }
+    } catch (_) {}
+    return Lyrics.unavailable;
   }
 
   Future<List<Track>> radio(Track seed, {int limit = 20}) async {

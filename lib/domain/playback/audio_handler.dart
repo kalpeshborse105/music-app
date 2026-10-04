@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
-import '../../core/errors/app_exception.dart';
+
 import '../../core/utils/logger.dart';
 import '../models/stream_source.dart';
 import '../models/track.dart';
@@ -254,9 +256,21 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
     try {
       _broadcastState(processingState: AudioProcessingState.loading);
       final StreamSource source = await _resolver(track);
+      final String rawUrl = source.url;
+      final Uri uri;
+      if (rawUrl.startsWith('file://')) {
+        uri = Uri.parse(rawUrl);
+      } else if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
+        uri = Uri.parse(rawUrl);
+      } else if (!kIsWeb && File(rawUrl).existsSync()) {
+        uri = Uri.file(rawUrl);
+      } else {
+        uri = Uri.parse(rawUrl);
+      }
+
       await _player.setAudioSource(
         AudioSource.uri(
-          Uri.parse(source.url),
+          uri,
           headers: source.headers.isEmpty ? null : source.headers,
           tag: _mediaItemFor(track),
         ),
@@ -274,10 +288,9 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
       _schedulePersist();
     } catch (e) {
       Logger.warn('Playback load failed', error: e);
-      final AppException ex = toAppException(e);
       _broadcastState(
         processingState: AudioProcessingState.error,
-        errorMessage: ex.message,
+        errorMessage: 'Unable to play this track. Please retry or try another source.',
       );
     }
   }

@@ -1,11 +1,11 @@
 {
-    "name": "echo_flow_music",
-    "short_name": "echo_flow_music",
+    "name": "EchoFlow Music",
+    "short_name": "EchoFlow",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0D0B14",
+    "theme_color": "#0D0B14",
+    "description": "EchoFlow Music by Kalpkrut Infotech - High Fidelity Audio Streaming & Offline Music.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

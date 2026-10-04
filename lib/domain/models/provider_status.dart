@@ -11,6 +11,9 @@ enum ProviderStatus {
   /// Explicitly disabled by configuration or operational status.
   disabled,
 
+  /// Evaluation or integration pending.
+  pending,
+
   /// Provider abstraction in place, pending signed partner rights & licenses.
   licensePending;
 
@@ -22,6 +25,8 @@ enum ProviderStatus {
         return 'DEVELOPMENT_ONLY';
       case ProviderStatus.disabled:
         return 'DISABLED';
+      case ProviderStatus.pending:
+        return 'PENDING';
       case ProviderStatus.licensePending:
         return 'LICENSE_PENDING';
     }

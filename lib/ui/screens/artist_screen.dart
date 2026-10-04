@@ -69,15 +69,26 @@ class _ArtistScreenState extends State<ArtistScreen> {
                       ),
                     ),
                     Positioned(
-                      bottom: 4,
-                      right: 4,
+                      bottom: 6,
+                      right: 6,
                       child: Container(
                         padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: AppColors.secondary,
                           shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Theme.of(context).scaffoldBackgroundColor,
+                            width: 2.5,
+                          ),
+                          boxShadow: const <BoxShadow>[
+                            BoxShadow(
+                              color: Colors.black38,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
                         ),
-                        child: const Icon(Icons.check, size: 16, color: AppColors.onSecondary),
+                        child: const Icon(Icons.check, size: 14, color: AppColors.onSecondary),
                       ),
                     ),
                   ],
