@@ -43,7 +43,7 @@ class _BootstrapState extends State<_Bootstrap> {
         if (!snapshot.hasData) {
           return const _SplashScreen();
         }
-        return EchoFlowApp(dependencies: snapshot.data!);
+        return KalpkrutBeatsApp(dependencies: snapshot.data!);
       },
     );
   }
@@ -88,18 +88,27 @@ class _Logo extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Container(
-          width: 84,
-          height: 84,
-          decoration: const BoxDecoration(
-            gradient: AppColors.heroGradient,
-            borderRadius: BorderRadius.all(Radius.circular(24)),
+        ClipRRect(
+          borderRadius: const BorderRadius.all(Radius.circular(20)),
+          child: Image.asset(
+            'assets/icon/app_icon.png',
+            width: 84,
+            height: 84,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(
+              width: 84,
+              height: 84,
+              decoration: const BoxDecoration(
+                gradient: AppColors.heroGradient,
+                borderRadius: BorderRadius.all(Radius.circular(20)),
+              ),
+              child: const Icon(Icons.graphic_eq_rounded, color: Colors.white, size: 44),
+            ),
           ),
-          child: const Icon(Icons.graphic_eq_rounded, color: Colors.white, size: 44),
         ),
         const SizedBox(height: 18),
         const Text(
-          'EchoFlow',
+          'Kalpkrut Beats',
           style: TextStyle(
             color: Colors.white,
             fontSize: 26,
@@ -107,9 +116,9 @@ class _Logo extends StatelessWidget {
             letterSpacing: -0.5,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         const Text(
-          'Music, flowing',
+          'Developed by Kalpkrut Infotech',
           style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 13),
         ),
       ],
@@ -137,7 +146,7 @@ class _BootstrapError extends StatelessWidget {
                 const Icon(Icons.error_outline, color: AppColors.error, size: 48),
                 const SizedBox(height: 16),
                 const Text(
-                  'EchoFlow could not start',
+                  'Kalpkrut Beats could not start',
                   style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 8),

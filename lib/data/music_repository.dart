@@ -18,6 +18,7 @@ import '../domain/models/playlist.dart';
 import '../domain/models/search_result.dart';
 import '../domain/models/stream_source.dart';
 import '../domain/models/track.dart';
+import '../domain/providers/custom_api_provider.dart';
 import '../domain/providers/music_provider.dart';
 import 'provider_registry.dart';
 
@@ -150,8 +151,13 @@ class MusicRepository {
   // ---------------------------------------------------------------------------
   // Discovery feeds (merged + de-duplicated)
   // ---------------------------------------------------------------------------
-  Future<List<Track>> trending({int limit = 20, int offset = 0}) =>
-      _aggregateTracks((MusicProvider p) => p.getTrending(limit: limit, offset: offset), limit: limit);
+  Future<List<Track>> trending({int limit = 20, int offset = 0, String? language}) =>
+      _aggregateTracks((MusicProvider p) {
+        if (p is CustomApiProvider && language != null && language.isNotEmpty && language.toLowerCase() != 'all') {
+          return p.getTrending(limit: limit, offset: offset, language: language);
+        }
+        return p.getTrending(limit: limit, offset: offset);
+      }, limit: limit);
 
   Future<List<Track>> newReleases({int limit = 20, int offset = 0}) =>
       _aggregateTracks((MusicProvider p) => p.getNewReleases(limit: limit, offset: offset), limit: limit);
@@ -354,7 +360,7 @@ class MusicRepository {
         },
       );
       final http.Response res = await http.get(uri, headers: const <String, String>{
-        'User-Agent': 'EchoFlowMusic/1.0.0 (Android; Mobile)',
+        'User-Agent': 'KalpkrutBeats/1.0.1 (Android; Mobile)',
       }).timeout(const Duration(seconds: 5));
 
       if (res.statusCode == 200) {
@@ -407,8 +413,24 @@ class MusicRepository {
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
-  List<Track> _dedupeTracks(List<Track> tracks) =>
-      _dedupeBy(tracks, (Track t) => t.id);
+  static String _normalize(String s) {
+    return s.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  List<Track> _dedupeTracks(List<Track> tracks) {
+    final Set<String> seenIds = <String>{};
+    final Set<String> seenKeys = <String>{};
+    final List<Track> out = <Track>[];
+    for (final Track t in tracks) {
+      final String normTitle = _normalize(t.title);
+      final String normArtist = _normalize(t.artistNames);
+      final String normKey = '$normTitle|$normArtist';
+      if (seenIds.add(t.id) && (normTitle.isEmpty || seenKeys.add(normKey))) {
+        out.add(t);
+      }
+    }
+    return out;
+  }
 
   List<T> _dedupeBy<T>(List<T> items, String Function(T) keyOf) {
     final Set<String> seen = <String>{};
@@ -421,24 +443,18 @@ class MusicRepository {
   }
 
   List<Track> _interleave(List<List<Track>> lists, int limit) {
-    final List<Track> out = <Track>[];
-    final Set<String> seen = <String>{};
-    int index = 0;
-    bool progressed = true;
-    while (out.length < limit && progressed) {
-      progressed = false;
+    final List<Track> combined = <Track>[];
+    for (int index = 0; ; index++) {
+      bool anyAdded = false;
       for (final List<Track> list in lists) {
         if (index < list.length) {
-          final Track t = list[index];
-          if (seen.add(t.id)) {
-            out.add(t);
-            progressed = true;
-            if (out.length >= limit) break;
-          }
+          combined.add(list[index]);
+          anyAdded = true;
         }
       }
-      index++;
+      if (!anyAdded) break;
     }
-    return out;
+    final List<Track> deduped = _dedupeTracks(combined);
+    return deduped.length > limit ? deduped.sublist(0, limit) : deduped;
   }
 }

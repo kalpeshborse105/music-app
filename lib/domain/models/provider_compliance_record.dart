@@ -1,7 +1,7 @@
 import 'provider_status.dart';
 
 /// Compliance record describing rights, capabilities, licensing, and
-/// distribution terms for an audio provider in EchoFlow Music.
+/// distribution terms for an audio provider in Kalpkrut Beats.
 class ProviderComplianceRecord {
   final String provider;
   final String displayName;

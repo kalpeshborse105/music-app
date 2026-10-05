@@ -21,7 +21,7 @@ class MiniPlayer extends StatelessWidget {
     final PlaybackController pc = context.watch<PlaybackController>();
     final LibraryController library = context.watch<LibraryController>();
     final track = pc.currentTrack;
-    if (track == null) return const SizedBox.shrink();
+    if (track == null || pc.isMiniPlayerDismissed) return const SizedBox.shrink();
 
     final Duration duration =
         pc.snapshot.duration > Duration.zero ? pc.snapshot.duration : track.duration;
@@ -144,9 +144,9 @@ class MiniPlayer extends StatelessWidget {
                   ),
                   // Quick Like Button
                   IconButton(
-                    iconSize: 21,
+                    iconSize: 20,
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 36),
+                    constraints: const BoxConstraints(minWidth: 30, minHeight: 36),
                     icon: Icon(
                       liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
                       color: liked ? AppColors.tertiary : context.textSecondary,
@@ -156,9 +156,9 @@ class MiniPlayer extends StatelessWidget {
                   ),
                   // Previous Track
                   IconButton(
-                    iconSize: 22,
+                    iconSize: 21,
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 36),
                     icon: Icon(Icons.skip_previous_rounded, color: context.textSecondary),
                     onPressed: pc.previous,
                     tooltip: 'Previous track',
@@ -174,26 +174,35 @@ class MiniPlayer extends StatelessWidget {
                       onTap: pc.togglePlayPause,
                       customBorder: const CircleBorder(),
                       child: Container(
-                        width: 40,
-                        height: 40,
+                        width: 38,
+                        height: 38,
                         alignment: Alignment.center,
                         child: Icon(
                           pc.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                           color: Colors.white,
-                          size: 24,
+                          size: 22,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 2),
                   // Next Track
                   IconButton(
-                    iconSize: 22,
+                    iconSize: 21,
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 36),
                     icon: Icon(Icons.skip_next_rounded, color: context.textSecondary),
                     onPressed: pc.next,
                     tooltip: 'Next track',
+                  ),
+                  // Close X Button (hides mini-player UI without stopping audio)
+                  IconButton(
+                    iconSize: 18,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 36),
+                    icon: Icon(Icons.close_rounded, color: context.textMuted),
+                    onPressed: pc.dismissMiniPlayer,
+                    tooltip: 'Hide mini player',
                   ),
                 ],
               ),

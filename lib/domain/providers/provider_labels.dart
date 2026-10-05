@@ -17,7 +17,7 @@ String providerShortLabel(String providerId) {
     case 'regional_indian':
       return 'Regional Indic';
     case 'demo':
-      return 'EchoFlow Masters';
+      return 'Kalpkrut Originals';
     case 'custom_api':
       return 'Cloud Catalog';
     default:
@@ -64,7 +64,7 @@ String providerDescription(String providerId) {
     case 'regional_indian':
       return 'Regional Indian-language catalog (Hindi, Marathi, Khandeshi & Indic languages)';
     case 'demo':
-      return 'EchoFlow Studio Master recordings (ambient & electronic archives)';
+      return 'Kalpkrut Studio Master recordings (ambient & electronic archives)';
     case 'custom_api':
       return 'High-performance cloud audio gateway with cached lossless streaming';
     default:

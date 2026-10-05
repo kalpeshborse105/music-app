@@ -62,7 +62,7 @@ class AppDependencies {
   /// Initializes local storage, providers, playback and controllers.
   ///
   /// Note: provider network availability checks and queue restore are kicked
-  /// off *after* the first frame (see [EchoFlowApp]) so they never delay
+  /// off *after* the first frame (see [KalpkrutBeatsApp]) so they never delay
   /// startup.
   static Future<AppDependencies> bootstrap() async {
     await Hive.initFlutter();
@@ -104,7 +104,7 @@ class AppDependencies {
       handler = await AudioService.init(
         builder: () => EchoAudioHandler(resolver: repository.resolveStream),
         config: const AudioServiceConfig(
-          androidNotificationChannelId: 'com.echoflowmusic.player.audio',
+          androidNotificationChannelId: 'com.kalpkrut.beats.audio',
           androidNotificationChannelName: AppConstants.appName,
           androidNotificationOngoing: true,
           androidStopForegroundOnPause: true,

@@ -146,7 +146,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
       backgroundColor: const Color(0xFF0F0F1A),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text('EchoFlow Music', style: TextStyle(color: Colors.white)),
+        title: const Text('Kalpkrut Beats', style: TextStyle(color: Colors.white)),
         centerTitle: true,
       ),
       body: Column(

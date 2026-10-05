@@ -1,4 +1,4 @@
-/// Formal compliance lifecycle state for every music provider in EchoFlow Music.
+/// Formal compliance lifecycle state for every music provider in Kalpkrut Beats.
 ///
 /// Only [ProviderStatus.active] providers appear in the production catalog.
 enum ProviderStatus {

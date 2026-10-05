@@ -337,37 +337,25 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   ),
                 ),
 
-                // Audio Quality Tags
+                // Audio Format Tag
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: 8),
                   child: Row(
                     children: <Widget>[
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
                         decoration: BoxDecoration(
                           color: AppColors.surfaceContainerHigh,
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text(
-                          'HI-RES AUDIO',
-                          style: TextStyle(
+                        child: Text(
+                          settings.effectiveStreamQuality.label.toUpperCase(),
+                          style: const TextStyle(
                             fontSize: 9.5,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w700,
                             letterSpacing: 0.5,
                             color: AppColors.secondary,
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceContainerLow,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '${settings.effectiveStreamQuality.label} Lossless',
-                          style: const TextStyle(fontSize: 10, color: AppColors.textSecondaryDark),
                         ),
                       ),
                     ],

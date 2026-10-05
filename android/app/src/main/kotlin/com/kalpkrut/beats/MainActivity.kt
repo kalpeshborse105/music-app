@@ -1,4 +1,4 @@
-package com.echoflowmusic.player
+package com.kalpkrut.beats
 
 import android.content.ContentUris
 import android.provider.MediaStore
@@ -16,7 +16,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : AudioServiceActivity() {
 
     private companion object {
-        const val CHANNEL = "com.echoflowmusic.player/media"
+        const val CHANNEL = "com.kalpkrut.beats/media"
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

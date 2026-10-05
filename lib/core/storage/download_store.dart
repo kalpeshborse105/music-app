@@ -44,7 +44,7 @@ class DownloadRecord {
 /// Only providers that explicitly permit downloading (per [ProviderCapabilities])
 /// ever reach this store — the UI hides the download action otherwise (spec §12).
 class DownloadStore {
-  static const String _boxName = 'echoflow_downloads';
+  static const String _boxName = 'kalpkrut_downloads';
   Box<dynamic>? _box;
 
   Future<void> init() async {

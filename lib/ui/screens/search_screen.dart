@@ -37,18 +37,18 @@ class _SearchScreenState extends State<SearchScreen> {
   ];
 
   static const List<_GenreCardData> _genres = <_GenreCardData>[
-    _GenreCardData('Bollywood', Color(0xFFE11D48), Color(0xFFF97316), Icons.movie_filter_rounded),
-    _GenreCardData('Pop & Top Hits', Color(0xFF8B5CF6), Color(0xFF3B82F6), Icons.star_rounded),
+    _GenreCardData('Bollywood Hits', Color(0xFFE11D48), Color(0xFFF97316), Icons.movie_filter_rounded),
     _GenreCardData('Punjabi Hits', Color(0xFFF59E0B), Color(0xFFD97706), Icons.speaker_group_rounded),
+    _GenreCardData('Bhojpuri Top', Color(0xFF8B5CF6), Color(0xFFEC4899), Icons.star_rounded),
+    _GenreCardData('Haryanvi Hits', Color(0xFF10B981), Color(0xFF059669), Icons.graphic_eq_rounded),
+    _GenreCardData('Marathi Hits', Color(0xFF3B82F6), Color(0xFF06B6D4), Icons.audiotrack_rounded),
+    _GenreCardData('Gujarati Garba', Color(0xFFEF4444), Color(0xFFF97316), Icons.celebration_rounded),
+    _GenreCardData('Tamil Hits', Color(0xFFA855F7), Color(0xFF6366F1), Icons.queue_music_rounded),
+    _GenreCardData('Telugu Hits', Color(0xFF06B6D4), Color(0xFF3B82F6), Icons.library_music_rounded),
+    _GenreCardData('Bengali Melodies', Color(0xFFEC4899), Color(0xFFF43F5E), Icons.music_note_rounded),
+    _GenreCardData('Bhakti & Aarti', Color(0xFFF97316), Color(0xFFEAB308), Icons.self_improvement_rounded),
     _GenreCardData('Romantic & Love', Color(0xFFEC4899), Color(0xFFF43F5E), Icons.favorite_rounded),
     _GenreCardData('Lo-Fi & Chill', Color(0xFF06B6D4), Color(0xFF0D9488), Icons.coffee_rounded),
-    _GenreCardData('Hip-Hop & Rap', Color(0xFFA855F7), Color(0xFFEC4899), Icons.mic_external_on_rounded),
-    _GenreCardData('Workout & Energy', Color(0xFFEF4444), Color(0xFFF97316), Icons.fitness_center_rounded),
-    _GenreCardData('Devotional', Color(0xFFF97316), Color(0xFFEAB308), Icons.self_improvement_rounded),
-    _GenreCardData('Electronic & Dance', Color(0xFF3B82F6), Color(0xFF06B6D4), Icons.graphic_eq_rounded),
-    _GenreCardData('Acoustic & Folk', Color(0xFF10B981), Color(0xFF059669), Icons.nature_people_rounded),
-    _GenreCardData('Rock & Metal', Color(0xFF6366F1), Color(0xFF4F46E5), Icons.electric_bolt_rounded),
-    _GenreCardData('Classical & Instrumental', Color(0xFF64748B), Color(0xFF334155), Icons.piano_rounded),
   ];
 
   @override
@@ -106,22 +106,31 @@ class _SearchScreenState extends State<SearchScreen> {
                   padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.xs),
                   child: Row(
                     children: <Widget>[
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: const BoxDecoration(
-                          gradient: AppColors.heroGradient,
-                          borderRadius: BorderRadius.all(Radius.circular(10)),
+                      ClipRRect(
+                        borderRadius: const BorderRadius.all(Radius.circular(8)),
+                        child: Image.asset(
+                          'assets/icon/app_icon.png',
+                          width: 32,
+                          height: 32,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 32,
+                            height: 32,
+                            decoration: const BoxDecoration(
+                              gradient: AppColors.heroGradient,
+                              borderRadius: BorderRadius.all(Radius.circular(8)),
+                            ),
+                            child: const Icon(Icons.graphic_eq_rounded, color: Colors.white, size: 18),
+                          ),
                         ),
-                        child: const Icon(Icons.graphic_eq_rounded, color: Colors.white, size: 18),
                       ),
                       const SizedBox(width: 10),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          Text(
-                            'EchoFlow',
+                          const Text(
+                            'Kalpkrut Beats',
                             style: TextStyle(
                               fontFamily: 'Plus Jakarta Sans',
                               fontWeight: FontWeight.w700,

@@ -1,11 +1,11 @@
 {
-    "name": "EchoFlow Music",
-    "short_name": "EchoFlow",
+    "name": "Kalpkrut Beats",
+    "short_name": "Kalpkrut Beats",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0D0B14",
     "theme_color": "#0D0B14",
-    "description": "EchoFlow Music by Kalpkrut Infotech - High Fidelity Audio Streaming & Offline Music.",
+    "description": "Discover music, playlists and radio with Kalpkrut Beats.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

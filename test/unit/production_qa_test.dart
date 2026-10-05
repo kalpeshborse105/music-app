@@ -97,7 +97,7 @@ void main() {
     });
 
     test('Offline local playback source generation creates valid file URI', () {
-      const String localPath = '/data/user/0/com.echoflowmusic.player/app_flutter/downloads/audius_123.mp3';
+      const String localPath = '/data/user/0/com.kalpkrut.beats/app_flutter/downloads/audius_123.mp3';
       final Uri fileUri = Uri.file(localPath);
       expect(fileUri.isScheme('file'), isTrue);
       expect(fileUri.toFilePath(windows: false), equals(localPath));

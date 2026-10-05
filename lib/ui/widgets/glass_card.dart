@@ -104,14 +104,14 @@ class EchoAmbientGlowOrb extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: color.withValues(alpha: opacity),
-          boxShadow: <BoxShadow>[
-            BoxShadow(
-              color: color.withValues(alpha: opacity),
-              blurRadius: blurRadius,
-              spreadRadius: blurRadius * 0.4,
-            ),
-          ],
+          gradient: RadialGradient(
+            colors: <Color>[
+              color.withValues(alpha: opacity),
+              color.withValues(alpha: opacity * 0.5),
+              color.withValues(alpha: 0.0),
+            ],
+            stops: const <double>[0.0, 0.45, 1.0],
+          ),
         ),
       ),
     );

@@ -47,7 +47,7 @@ class ApiClient {
     bool retry = true,
   }) async {
     final Map<String, String> mergedHeaders = <String, String>{
-      'User-Agent': 'EchoFlowMusic/1.0.0 (Android; Mobile; Web)',
+      'User-Agent': 'KalpkrutBeats/1.0.1 (Android; Mobile; Web)',
       'Accept': 'application/json, text/plain, */*',
       if (headers != null) ...headers,
     };

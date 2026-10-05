@@ -1,5 +1,5 @@
 -- ====================================================================
--- EchoFlow Music Streaming Platform - Database Schema
+-- Kalpkrut Beats Music Streaming Platform - Database Schema
 -- Owner: Kalpkrut Infotech
 -- Supabase PostgreSQL with Strict Row Level Security (RLS)
 -- ====================================================================

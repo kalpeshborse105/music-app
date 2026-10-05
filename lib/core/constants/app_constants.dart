@@ -2,8 +2,10 @@
 class AppConstants {
   AppConstants._();
 
-  static const String appName = 'EchoFlow Music';
-  static const String appVersion = '1.0.0';
+  static const String appName = 'Kalpkrut Beats';
+  static const String appVersion = '1.0.1';
+  static const String companyName = 'Kalpkrut Infotech';
+  static const String officialWebUrl = 'https://beats.kalpkrutinfotech.com/';
 
   // Provider ids
   static const String providerDemo = 'demo';
@@ -12,9 +14,9 @@ class AppConstants {
   static const String providerLicensed = 'licensed';
 
   /// Local-first settings/box keys.
-  static const String prefsBox = 'echoflow_prefs';
-  static const String libraryBox = 'echoflow_library';
-  static const String cacheBox = 'echoflow_cache';
+  static const String prefsBox = 'kalpkrut_prefs';
+  static const String libraryBox = 'kalpkrut_library';
+  static const String cacheBox = 'kalpkrut_cache';
 
   // Cache TTLs (see spec §11 caching strategy).
   static const Duration searchCacheTtl = Duration(minutes: 5);

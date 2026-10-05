@@ -161,7 +161,7 @@ class ArchiveProvider extends BaseMusicProvider {
         }
       }
       // On Web, archive.org/services/img lacks CORS headers and is blocked by browser security.
-      // Return null so EchoFlow's high-fidelity gradient fallback is rendered with zero console errors.
+      // Return null so Kalpkrut Beats' high-fidelity gradient fallback is rendered with zero console errors.
       return null;
     }
     // Android / native apps handle services/img directly without CORS restrictions

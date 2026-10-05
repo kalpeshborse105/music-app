@@ -139,9 +139,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     final Stopwatch stopwatch = Stopwatch()..start();
     try {
       final http.Response res = await http.get(
-        Uri.parse('https://api.audius.co/v1/tracks/trending?app_name=EchoFlowMusic&limit=1'),
+        Uri.parse('https://api.audius.co/v1/tracks/trending?app_name=KalpkrutBeats&limit=1'),
         headers: <String, String>{
-          'User-Agent': 'EchoFlowMusic/1.0.0 (Android; Mobile; Web)',
+          'User-Agent': 'KalpkrutBeats/1.0.1 (Android; Mobile; Web)',
           'Accept': 'application/json',
         },
       ).timeout(const Duration(seconds: 8));
@@ -182,7 +182,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       final http.Response res = await http.get(
         Uri.parse('https://api.jamendo.com/v3.0/tracks/?client_id=56d30c95&format=json&limit=1'),
         headers: <String, String>{
-          'User-Agent': 'EchoFlowMusic/1.0.0 (Android; Mobile; Web)',
+          'User-Agent': 'KalpkrutBeats/1.0.1 (Android; Mobile; Web)',
           'Accept': 'application/json',
         },
       ).timeout(const Duration(seconds: 8));
@@ -294,7 +294,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             ),
             const SizedBox(width: 8),
             Text(
-              'EchoFlow Operations Center',
+              'Kalpkrut Beats Operations Center',
               style: TextStyle(
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: FontWeight.w700,
@@ -823,7 +823,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         ),
         const SizedBox(height: 4),
         Text(
-          'Active connectors feeding legal audio into EchoFlow streaming pipelines.',
+          'Active connectors feeding legal audio into Kalpkrut Beats streaming pipelines.',
           style: TextStyle(fontSize: 13, color: context.textSecondary),
         ),
         const SizedBox(height: 16),
@@ -1210,7 +1210,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         ),
         const SizedBox(height: 4),
         Text(
-          'Every stream on EchoFlow respects explicit Creative Commons or direct streaming authorizations.',
+          'Every stream on Kalpkrut Beats respects explicit Creative Commons or direct streaming authorizations.',
           style: TextStyle(fontSize: 13, color: context.textSecondary),
         ),
         const SizedBox(height: 16),

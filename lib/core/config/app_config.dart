@@ -52,7 +52,7 @@ class AppConfig {
 
   static String audiusAppName = const String.fromEnvironment(
     'AUDIUS_APP_NAME',
-    defaultValue: 'EchoFlowMusic',
+    defaultValue: 'KalpkrutBeats',
   );
 
   static String audiusApiKey = const String.fromEnvironment(

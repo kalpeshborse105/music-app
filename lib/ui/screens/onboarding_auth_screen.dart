@@ -6,7 +6,7 @@ import '../../data/services/supabase_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/glass_card.dart';
 
-/// Screen representing Stitch UI "EchoFlow Music - Onboarding & Auth"
+/// Screen representing Stitch UI "Kalpkrut Beats - Onboarding & Auth"
 /// (Screen ID: f44179deb8b14f2f84a5766edd493fc7)
 /// Fully integrated with real Supabase authentication (Sign In, Sign Up,
 /// Password Recovery, Session Persistence, and Guest Mode).
@@ -90,7 +90,8 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Google sign-in was cancelled or encountered an error.';
+          _errorMessage =
+              'Google sign-in was cancelled or encountered an error.';
         });
       }
     }
@@ -137,7 +138,8 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
         } else {
           setState(() {
             _isLoading = false;
-            _errorMessage = 'Could not create account. Please check your credentials.';
+            _errorMessage =
+                'Could not create account. Please check your credentials.';
           });
         }
       } else {
@@ -166,9 +168,11 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
           if (msg.contains('invalid login credentials')) {
             _errorMessage = 'Email or password is incorrect.';
           } else if (msg.contains('email not confirmed')) {
-            _errorMessage = 'Please verify your email address before signing in.';
+            _errorMessage =
+                'Please verify your email address before signing in.';
           } else if (msg.contains('user already registered')) {
-            _errorMessage = 'This email is already registered. Please sign in instead.';
+            _errorMessage =
+                'This email is already registered. Please sign in instead.';
           } else {
             _errorMessage = e.message;
           }
@@ -178,7 +182,8 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Connection unavailable. Check your internet connection.';
+          _errorMessage =
+              'Connection unavailable. Check your internet connection.';
         });
       }
     }
@@ -194,16 +199,25 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
           children: <Widget>[
             Icon(Icons.mark_email_read_rounded, color: AppColors.neonCyan),
             SizedBox(width: 10),
-            Text('Check Your Inbox', style: TextStyle(color: Colors.white, fontSize: 18)),
+            Text(
+              'Check Your Inbox',
+              style: TextStyle(color: Colors.white, fontSize: 18),
+            ),
           ],
         ),
         content: Text(
           'An account confirmation link was sent to $email. Please check your email and verify your account to sign in.',
-          style: const TextStyle(color: AppColors.onSurfaceVariant, fontSize: 13, height: 1.4),
+          style: const TextStyle(
+            color: AppColors.onSurfaceVariant,
+            fontSize: 13,
+            height: 1.4,
+          ),
         ),
         actions: <Widget>[
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.electricViolet),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.electricViolet,
+            ),
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Got It'),
           ),
@@ -213,8 +227,9 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
   }
 
   void _showForgotPasswordDialog() {
-    final TextEditingController resetEmailController =
-        TextEditingController(text: _emailController.text.trim());
+    final TextEditingController resetEmailController = TextEditingController(
+      text: _emailController.text.trim(),
+    );
     bool isSending = false;
 
     showDialog<void>(
@@ -222,12 +237,17 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
       builder: (BuildContext ctx) => StatefulBuilder(
         builder: (BuildContext dialogCtx, StateSetter setDialogState) => AlertDialog(
           backgroundColor: AppColors.surfaceContainerHigh,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: const Row(
             children: <Widget>[
               Icon(Icons.lock_reset_rounded, color: AppColors.neonCyan),
               SizedBox(width: 10),
-              Text('Reset Password', style: TextStyle(color: Colors.white, fontSize: 18)),
+              Text(
+                'Reset Password',
+                style: TextStyle(color: Colors.white, fontSize: 18),
+              ),
             ],
           ),
           content: Column(
@@ -236,7 +256,10 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
             children: <Widget>[
               const Text(
                 'Enter your registered email address. A password recovery link will be sent to your inbox.',
-                style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 13),
+                style: TextStyle(
+                  color: AppColors.onSurfaceVariant,
+                  fontSize: 13,
+                ),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -259,12 +282,17 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: AppColors.onSurfaceVariant)),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: AppColors.onSurfaceVariant),
+              ),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.electricViolet,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               onPressed: isSending
                   ? null
@@ -272,7 +300,9 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                       final String email = resetEmailController.text.trim();
                       if (!email.contains('@')) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please enter a valid email address')),
+                          const SnackBar(
+                            content: Text('Please enter a valid email address'),
+                          ),
                         );
                         return;
                       }
@@ -285,7 +315,9 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('Password reset instructions sent to $email'),
+                              content: Text(
+                                'Password reset instructions sent to $email',
+                              ),
                               backgroundColor: AppColors.electricViolet,
                             ),
                           );
@@ -294,7 +326,9 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                         setDialogState(() => isSending = false);
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Could not send reset link: $e')),
+                            SnackBar(
+                              content: Text('Could not send reset link: $e'),
+                            ),
                           );
                         }
                       }
@@ -303,9 +337,15 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
-                  : const Text('Send Link', style: TextStyle(color: Colors.white)),
+                  : const Text(
+                      'Send Link',
+                      style: TextStyle(color: Colors.white),
+                    ),
             ),
           ],
         ),
@@ -322,7 +362,9 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
           backgroundColor: Colors.white,
           foregroundColor: const Color(0xFF1F1F1F),
           side: BorderSide.none,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
           elevation: 2,
         ),
         onPressed: _isLoading ? null : _handleGoogleSignIn,
@@ -351,14 +393,18 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
       backgroundColor: AppColors.background,
       body: Stack(
         children: <Widget>[
-          // Background ambient glows
-          Positioned(
-            top: -60,
-            left: MediaQuery.of(context).size.width * 0.2,
-            child: const EchoAmbientGlowOrb(
-              color: AppColors.electricViolet,
-              size: 320,
-              opacity: 0.20,
+          // Background ambient glows (centered)
+          Positioned.fill(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Transform.translate(
+                offset: const Offset(0, -60),
+                child: const EchoAmbientGlowOrb(
+                  color: AppColors.electricViolet,
+                  size: 420,
+                  opacity: 0.20,
+                ),
+              ),
             ),
           ),
           Positioned(
@@ -367,7 +413,7 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
             child: const EchoAmbientGlowOrb(
               color: AppColors.neonCyan,
               size: 300,
-              opacity: 0.15,
+              opacity: 0.12,
             ),
           ),
 
@@ -380,92 +426,63 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: IconButton(
-                        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                        icon: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: Colors.white,
+                        ),
                         tooltip: 'Back',
                         onPressed: () => Navigator.pop(context),
                       ),
                     ),
-                  const SizedBox(height: 12),
-                  // Header Logo & Glow Brand
-                  Center(
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: <Widget>[
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            boxShadow: <BoxShadow>[
-                              BoxShadow(
-                                color: AppColors.electricViolet.withValues(alpha: 0.4),
-                                blurRadius: 36,
-                                spreadRadius: 8,
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          width: 72,
-                          height: 72,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: <Color>[AppColors.electricViolet, AppColors.neonCyan],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Icon(
-                            Icons.graphic_eq_rounded,
-                            size: 40,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                   const SizedBox(height: 16),
-
-                  // Verified pure hi-res badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceContainerHighest.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: AppColors.neonCyan.withValues(alpha: 0.4),
-                        width: 1,
+                  // Centered Official Logo
+                  Center(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(22),
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: AppColors.electricViolet.withValues(alpha: 0.35),
+                            blurRadius: 30,
+                            spreadRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(22),
+                        child: Image.asset(
+                          'assets/icon/app_icon.png',
+                          width: 84,
+                          height: 84,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 84,
+                            height: 84,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: <Color>[
+                                  AppColors.electricViolet,
+                                  AppColors.neonCyan,
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(22),
+                            ),
+                            child: const Icon(
+                              Icons.graphic_eq_rounded,
+                              size: 44,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Container(
-                          width: 7,
-                          height: 7,
-                          decoration: const BoxDecoration(
-                            color: AppColors.neonCyan,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'VERIFIED PURE HI-RES STREAM',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.2,
-                            color: AppColors.neonCyan,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 18),
 
                   const Text(
-                    'EchoFlow',
+                    'Kalpkrut Beats',
                     style: TextStyle(
                       fontSize: 34,
                       fontWeight: FontWeight.w800,
@@ -475,7 +492,7 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Pure Sound. Infinite Flow. Legal Hi-Res Audio by Kalpkrut Infotech',
+                    'Discover music, playlists and radio. Developed by Kalpkrut Infotech',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
@@ -487,47 +504,47 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
 
                   if (!_showAuthForm) ...<Widget>[
                     // Progress indicator matching Stitch Step 3 of 4
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: <Widget>[
-                        const Text(
-                          'Personalize Your Experience',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primaryFixedDim,
-                          ),
-                        ),
-                        Text(
-                          'High-Fidelity Audio',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.white.withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: Container(
-                        height: 5,
-                        width: double.infinity,
-                        color: AppColors.surfaceContainerHighest,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Container(
-                            width: MediaQuery.of(context).size.width * 0.75,
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: <Color>[AppColors.electricViolet, AppColors.neonCyan],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
+                    // Row(
+                    //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    //   children: <Widget>[
+                    //     const Text(
+                    //       'Personalize Your Experience',
+                    //       style: TextStyle(
+                    //         fontSize: 12,
+                    //         fontWeight: FontWeight.w600,
+                    //         color: AppColors.primaryFixedDim,
+                    //       ),
+                    //     ),
+                    //     Text(
+                    //       'High-Fidelity Audio',
+                    //       style: TextStyle(
+                    //         fontSize: 11,
+                    //         color: Colors.white.withValues(alpha: 0.6),
+                    //       ),
+                    //     ),
+                    //   ],
+                    // ),
+                    // const SizedBox(height: 6),
+                    // ClipRRect(
+                    //   borderRadius: BorderRadius.circular(4),
+                    //   child: Container(
+                    //     height: 5,
+                    //     width: double.infinity,
+                    //     color: AppColors.surfaceContainerHighest,
+                    //     child: Align(
+                    //       alignment: Alignment.centerLeft,
+                    //       child: Container(
+                    //         width: MediaQuery.of(context).size.width * 0.75,
+                    //         decoration: const BoxDecoration(
+                    //           gradient: LinearGradient(
+                    //             colors: <Color>[AppColors.electricViolet, AppColors.neonCyan],
+                    //           ),
+                    //         ),
+                    //       ),
+                    //     ),
+                    //   ),
+                    // ),
+                    // const SizedBox(height: 20),
 
                     // Feature highlights matching Stitch Bento Card
                     EchoGlassCard(
@@ -541,7 +558,11 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                             children: <Widget>[
                               const Row(
                                 children: <Widget>[
-                                  Icon(Icons.verified_user_rounded, color: AppColors.neonCyan, size: 20),
+                                  Icon(
+                                    Icons.verified_user_rounded,
+                                    color: AppColors.neonCyan,
+                                    size: 20,
+                                  ),
                                   SizedBox(width: 8),
                                   Text(
                                     'Curated Music Flow',
@@ -554,9 +575,14 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                                 ],
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.neonCyan.withValues(alpha: 0.15),
+                                  color: AppColors.neonCyan.withValues(
+                                    alpha: 0.15,
+                                  ),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: const Text(
@@ -577,21 +603,24 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                             icon: Icons.library_music_rounded,
                             iconColor: AppColors.electricViolet,
                             title: 'Unlimited Music Streaming',
-                            desc: 'Stream your favorite tracks, trending hits, and curated playlists seamlessly.',
+                            desc:
+                                'Stream your favorite tracks, trending hits, and curated playlists seamlessly.',
                           ),
                           const SizedBox(height: 12),
                           _buildFeatureRow(
                             icon: Icons.graphic_eq_rounded,
                             iconColor: AppColors.neonCyan,
                             title: 'High-Fidelity Audio',
-                            desc: 'Crystal-clear sound quality with continuous background playback.',
+                            desc:
+                                'Crystal-clear sound quality with continuous background playback.',
                           ),
                           const SizedBox(height: 12),
                           _buildFeatureRow(
                             icon: Icons.folder_shared_rounded,
                             iconColor: AppColors.hyperMagenta,
                             title: 'Local Device Music Player',
-                            desc: 'Instant zero-latency playback of your device audio files.',
+                            desc:
+                                'Instant zero-latency playback of your device audio files.',
                           ),
                         ],
                       ),
@@ -606,9 +635,13 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
                           padding: EdgeInsets.zero,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
                           elevation: 8,
-                          shadowColor: AppColors.electricViolet.withValues(alpha: 0.4),
+                          shadowColor: AppColors.electricViolet.withValues(
+                            alpha: 0.4,
+                          ),
                         ),
                         onPressed: () => setState(() {
                           _showAuthForm = true;
@@ -617,7 +650,10 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                         child: Ink(
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
-                              colors: <Color>[AppColors.electricViolet, Color(0xFFA078FF)],
+                              colors: <Color>[
+                                AppColors.electricViolet,
+                                Color(0xFFA078FF),
+                              ],
                               begin: Alignment.centerLeft,
                               end: Alignment.centerRight,
                             ),
@@ -636,7 +672,11 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                                   ),
                                 ),
                                 SizedBox(width: 8),
-                                Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 20),
+                                Icon(
+                                  Icons.arrow_forward_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
                               ],
                             ),
                           ),
@@ -650,9 +690,14 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                       height: 48,
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
-                          backgroundColor: AppColors.surfaceContainerHighest.withValues(alpha: 0.6),
-                          side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                          backgroundColor: AppColors.surfaceContainerHighest
+                              .withValues(alpha: 0.6),
+                          side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.12),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
                         ),
                         onPressed: () {
                           setState(() {
@@ -660,7 +705,11 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                             _isSignUp = false;
                           });
                         },
-                        icon: const Icon(Icons.lock_open_rounded, color: AppColors.onSurfaceVariant, size: 18),
+                        icon: const Icon(
+                          Icons.lock_open_rounded,
+                          color: AppColors.onSurfaceVariant,
+                          size: 18,
+                        ),
                         label: const Text(
                           'Sign In to Existing Account',
                           style: TextStyle(
@@ -679,7 +728,10 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                     // Interactive Auth Form Card
                     // Interactive Auth Form Card matching screenshot reference
                     EchoGlassCard(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 26),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 26,
+                      ),
                       borderRadius: 28,
                       child: Form(
                         key: _formKey,
@@ -688,22 +740,31 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                           children: <Widget>[
                             // Top purple pill badge
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 6,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF281C44),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                  color: const Color(0xFF6B4EE6).withValues(alpha: 0.5),
+                                  color: const Color(
+                                    0xFF6B4EE6,
+                                  ).withValues(alpha: 0.5),
                                   width: 1,
                                 ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: const <Widget>[
-                                  Icon(Icons.auto_awesome_rounded, color: Color(0xFFB488FF), size: 14),
+                                  Icon(
+                                    Icons.auto_awesome_rounded,
+                                    color: Color(0xFFB488FF),
+                                    size: 14,
+                                  ),
                                   SizedBox(width: 6),
                                   Text(
-                                    'ECHOFLOW MUSIC ACCOUNT',
+                                    'KALPKRUT BEATS ACCOUNT',
                                     style: TextStyle(
                                       color: Color(0xFFD2B8FF),
                                       fontSize: 11,
@@ -718,7 +779,9 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
 
                             // Main Title
                             Text(
-                              _isSignUp ? 'Create EchoFlow Account' : 'Sign In to EchoFlow Music',
+                              _isSignUp
+                                  ? 'Create Kalpkrut Beats Account'
+                                  : 'Sign In to Kalpkrut Beats',
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 fontSize: 24,
@@ -748,20 +811,32 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                             // OR EMAIL divider
                             Row(
                               children: <Widget>[
-                                Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.15))),
+                                Expanded(
+                                  child: Divider(
+                                    color: Colors.white.withValues(alpha: 0.15),
+                                  ),
+                                ),
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                  ),
                                   child: Text(
                                     'OR EMAIL',
                                     style: TextStyle(
-                                      color: Colors.white.withValues(alpha: 0.4),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.4,
+                                      ),
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600,
                                       letterSpacing: 1.2,
                                     ),
                                   ),
                                 ),
-                                Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.15))),
+                                Expanded(
+                                  child: Divider(
+                                    color: Colors.white.withValues(alpha: 0.15),
+                                  ),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 18),
@@ -782,30 +857,56 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                               const SizedBox(height: 6),
                               TextFormField(
                                 controller: _nameController,
-                                style: const TextStyle(color: Colors.white, fontSize: 14),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
                                 validator: (String? val) {
-                                  if (val == null || val.trim().isEmpty) return 'Please enter your name';
-                                  if (val.trim().length < 2) return 'Name must be at least 2 characters';
+                                  if (val == null || val.trim().isEmpty) {
+                                    return 'Please enter your name';
+                                  }
+                                  if (val.trim().length < 2) {
+                                    return 'Name must be at least 2 characters';
+                                  }
                                   return null;
                                 },
                                 decoration: InputDecoration(
                                   hintText: 'Your name',
-                                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
-                                  prefixIcon: const Icon(Icons.person_outline_rounded, color: AppColors.onSurfaceVariant),
+                                  hintStyle: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.3),
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.person_outline_rounded,
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
                                   filled: true,
                                   fillColor: const Color(0xFF14141E),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                    borderSide: BorderSide(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.1,
+                                      ),
+                                    ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                    borderSide: BorderSide(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.1,
+                                      ),
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: AppColors.electricViolet, width: 1.5),
+                                    borderSide: const BorderSide(
+                                      color: AppColors.electricViolet,
+                                      width: 1.5,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -827,30 +928,52 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                             TextFormField(
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
-                              style: const TextStyle(color: Colors.white, fontSize: 14),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
                               validator: (String? val) {
-                                if (val == null || val.trim().isEmpty) return 'Email is required';
-                                if (!val.contains('@') || !val.contains('.')) return 'Enter a valid email address';
+                                if (val == null || val.trim().isEmpty) {
+                                  return 'Email is required';
+                                }
+                                if (!val.contains('@') || !val.contains('.')) {
+                                  return 'Enter a valid email address';
+                                }
                                 return null;
                               },
                               decoration: InputDecoration(
                                 hintText: 'name@example.com',
-                                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
-                                prefixIcon: const Icon(Icons.mail_outline_rounded, color: AppColors.onSurfaceVariant),
+                                hintStyle: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.3),
+                                ),
+                                prefixIcon: const Icon(
+                                  Icons.mail_outline_rounded,
+                                  color: AppColors.onSurfaceVariant,
+                                ),
                                 filled: true,
                                 fillColor: const Color(0xFF14141E),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                  borderSide: BorderSide(
+                                    color: Colors.white.withValues(alpha: 0.1),
+                                  ),
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                  borderSide: BorderSide(
+                                    color: Colors.white.withValues(alpha: 0.1),
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: AppColors.electricViolet, width: 1.5),
+                                  borderSide: const BorderSide(
+                                    color: AppColors.electricViolet,
+                                    width: 1.5,
+                                  ),
                                 ),
                               ),
                             ),
@@ -871,29 +994,49 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                             TextFormField(
                               controller: _passwordController,
                               obscureText: true,
-                              style: const TextStyle(color: Colors.white, fontSize: 14),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
                               validator: (String? val) {
-                                if (val == null || val.length < 6) return 'Password must be at least 6 characters';
+                                if (val == null || val.length < 6) {
+                                  return 'Password must be at least 6 characters';
+                                }
                                 return null;
                               },
                               decoration: InputDecoration(
                                 hintText: '••••••••',
-                                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
-                                prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppColors.onSurfaceVariant),
+                                hintStyle: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.3),
+                                ),
+                                prefixIcon: const Icon(
+                                  Icons.lock_outline_rounded,
+                                  color: AppColors.onSurfaceVariant,
+                                ),
                                 filled: true,
                                 fillColor: const Color(0xFF14141E),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                  borderSide: BorderSide(
+                                    color: Colors.white.withValues(alpha: 0.1),
+                                  ),
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                  borderSide: BorderSide(
+                                    color: Colors.white.withValues(alpha: 0.1),
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: AppColors.electricViolet, width: 1.5),
+                                  borderSide: const BorderSide(
+                                    color: AppColors.electricViolet,
+                                    width: 1.5,
+                                  ),
                                 ),
                               ),
                             ),
@@ -915,30 +1058,56 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                               TextFormField(
                                 controller: _confirmPasswordController,
                                 obscureText: true,
-                                style: const TextStyle(color: Colors.white, fontSize: 14),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
                                 validator: (String? val) {
-                                  if (val == null || val.isEmpty) return 'Please confirm your password';
-                                  if (val != _passwordController.text) return 'Passwords do not match';
+                                  if (val == null || val.isEmpty) {
+                                    return 'Please confirm your password';
+                                  }
+                                  if (val != _passwordController.text) {
+                                    return 'Passwords do not match';
+                                  }
                                   return null;
                                 },
                                 decoration: InputDecoration(
                                   hintText: '••••••••',
-                                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
-                                  prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppColors.onSurfaceVariant),
+                                  hintStyle: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.3),
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.lock_outline_rounded,
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
                                   filled: true,
                                   fillColor: const Color(0xFF14141E),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                    borderSide: BorderSide(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.1,
+                                      ),
+                                    ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                    borderSide: BorderSide(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.1,
+                                      ),
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: AppColors.electricViolet, width: 1.5),
+                                    borderSide: const BorderSide(
+                                      color: AppColors.electricViolet,
+                                      width: 1.5,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -968,18 +1137,31 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: AppColors.error.withValues(alpha: 0.15),
+                                    color: AppColors.error.withValues(
+                                      alpha: 0.15,
+                                    ),
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                                    border: Border.all(
+                                      color: AppColors.error.withValues(
+                                        alpha: 0.3,
+                                      ),
+                                    ),
                                   ),
                                   child: Row(
                                     children: <Widget>[
-                                      const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 16),
+                                      const Icon(
+                                        Icons.error_outline_rounded,
+                                        color: AppColors.error,
+                                        size: 16,
+                                      ),
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: Text(
                                           _errorMessage!,
-                                          style: const TextStyle(color: AppColors.error, fontSize: 12),
+                                          style: const TextStyle(
+                                            color: AppColors.error,
+                                            fontSize: 12,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -994,14 +1176,19 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                               child: Container(
                                 decoration: BoxDecoration(
                                   gradient: const LinearGradient(
-                                    colors: <Color>[Color(0xFF6B4EE6), Color(0xFF00D2FF)],
+                                    colors: <Color>[
+                                      Color(0xFF6B4EE6),
+                                      Color(0xFF00D2FF),
+                                    ],
                                     begin: Alignment.centerLeft,
                                     end: Alignment.centerRight,
                                   ),
                                   borderRadius: BorderRadius.circular(30),
                                   boxShadow: <BoxShadow>[
                                     BoxShadow(
-                                      color: const Color(0xFF6B4EE6).withValues(alpha: 0.35),
+                                      color: const Color(
+                                        0xFF6B4EE6,
+                                      ).withValues(alpha: 0.35),
                                       blurRadius: 16,
                                       offset: const Offset(0, 4),
                                     ),
@@ -1011,20 +1198,30 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.transparent,
                                     shadowColor: Colors.transparent,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                    ),
                                   ),
-                                  onPressed: _isLoading ? null : _handleAuthSubmit,
+                                  onPressed: _isLoading
+                                      ? null
+                                      : _handleAuthSubmit,
                                   child: _isLoading
                                       ? const SizedBox(
                                           width: 20,
                                           height: 20,
-                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
                                         )
                                       : Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
                                           children: <Widget>[
                                             Text(
-                                              _isSignUp ? 'Create Account' : 'Sign In to Listen',
+                                              _isSignUp
+                                                  ? 'Create Account'
+                                                  : 'Sign In to Listen',
                                               style: const TextStyle(
                                                 fontSize: 15,
                                                 fontWeight: FontWeight.w700,
@@ -1032,7 +1229,11 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                                               ),
                                             ),
                                             const SizedBox(width: 8),
-                                            const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
+                                            const Icon(
+                                              Icons.arrow_forward_rounded,
+                                              color: Colors.white,
+                                              size: 18,
+                                            ),
                                           ],
                                         ),
                                 ),
@@ -1064,7 +1265,8 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                                 ),
                                 GestureDetector(
                                   onTap: () {
-                                    if (widget.initialShowAuthForm && Navigator.canPop(context)) {
+                                    if (widget.initialShowAuthForm &&
+                                        Navigator.canPop(context)) {
                                       Navigator.pop(context);
                                     } else {
                                       widget.onComplete();
@@ -1073,7 +1275,9 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                                   child: Text(
                                     'Skip for now',
                                     style: TextStyle(
-                                      color: Colors.white.withValues(alpha: 0.6),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.6,
+                                      ),
                                       fontSize: 12.5,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -1087,8 +1291,11 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: <Widget>[
-                                const Icon(Icons.check_circle_outline_rounded,
-                                    color: Color(0xFF00E676), size: 14),
+                                const Icon(
+                                  Icons.check_circle_outline_rounded,
+                                  color: Color(0xFF00E676),
+                                  size: 14,
+                                ),
                                 const SizedBox(width: 6),
                                 Text(
                                   'Secured via Supabase Real-Time Auth & Cloud Sync',
@@ -1203,9 +1410,7 @@ class _OfficialGoogleGLogo extends StatelessWidget {
     return SizedBox(
       width: size,
       height: size,
-      child: CustomPaint(
-        painter: _GoogleGPainter(),
-      ),
+      child: CustomPaint(painter: _GoogleGPainter()),
     );
   }
 }

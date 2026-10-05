@@ -124,7 +124,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (user?.email != null && user!.email!.isNotEmpty) {
       return user.email!.split('@').first;
     }
-    return 'EchoFlow Member';
+    return 'Kalpkrut Beats Member';
   }
 
   String _getEffectiveAvatarUrl(Map<String, dynamic>? profile, User? user) {
@@ -161,15 +161,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 .withValues(alpha: 0.94),
             title: Row(
               children: <Widget>[
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: const BoxDecoration(
-                    gradient: AppColors.heroGradient,
-                    borderRadius: BorderRadius.all(Radius.circular(10)),
+                ClipRRect(
+                  borderRadius: const BorderRadius.all(Radius.circular(8)),
+                  child: Image.asset(
+                    'assets/icon/app_icon.png',
+                    width: 32,
+                    height: 32,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 32,
+                      height: 32,
+                      decoration: const BoxDecoration(
+                        gradient: AppColors.heroGradient,
+                        borderRadius: BorderRadius.all(Radius.circular(8)),
+                      ),
+                      child: const Icon(Icons.graphic_eq_rounded,
+                          color: Colors.white, size: 18),
+                    ),
                   ),
-                  child: const Icon(Icons.graphic_eq_rounded,
-                      color: Colors.white, size: 18),
                 ),
                 const SizedBox(width: 10),
                 Column(
@@ -177,7 +186,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     Text(
-                      'EchoFlow',
+                      'Kalpkrut Beats',
                       style: TextStyle(
                         fontFamily: 'Plus Jakarta Sans',
                         fontWeight: FontWeight.w700,
@@ -422,7 +431,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
 
                   // About & Legal Compliance
-                  _buildSectionTitle(context, 'About EchoFlow'),
+                  _buildSectionTitle(context, 'About Kalpkrut Beats'),
                   EchoGlassCard(
                     padding: const EdgeInsets.all(AppSpacing.md),
                     borderRadius: AppSpacing.radiusLg,
@@ -441,7 +450,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'EchoFlow Music',
+                              'Kalpkrut Beats',
                               style: TextStyle(
                                   fontWeight: FontWeight.w700, fontSize: 14, color: context.textPrimary),
                             ),
@@ -449,8 +458,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'EchoFlow Music streams authorized Creative Commons audio, public-domain '
-                          'recordings, and local device media. Privacy-first architecture without DRM circumvention.',
+                          'Kalpkrut Beats streams authorized Creative Commons audio, public-domain '
+                          'recordings, and local device media. Developed by Kalpkrut Infotech.',
                           style: TextStyle(
                             fontSize: 12,
                             color: context.textSecondary,
@@ -464,7 +473,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               onPressed: () => _showLegalDialog(
                                 context,
                                 'Privacy Policy',
-                                'EchoFlow Music respects your privacy. We collect minimal telemetry required to keep '
+                                'Kalpkrut Beats respects your privacy. We collect minimal telemetry required to keep '
                                 'streaming latency low. We never sell personal listener information or audio listening patterns.',
                               ),
                               child: const Text('Privacy Policy', style: TextStyle(fontSize: 12)),
@@ -474,7 +483,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               onPressed: () => _showLegalDialog(
                                 context,
                                 'Terms of Service',
-                                'By using EchoFlow Music, you agree to stream audio strictly in accordance with copyright licenses '
+                                'By using Kalpkrut Beats, you agree to stream audio strictly in accordance with copyright licenses '
                                 'provided by source artists. Commercial rebroadcasting is prohibited without direct license.',
                               ),
                               child: const Text('Terms of Service', style: TextStyle(fontSize: 12)),
@@ -1185,7 +1194,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
         content: const Text(
-          'This permanently deletes your EchoFlow account and associated data (favorites, playlists, and history). This action cannot be undone.\n\nFor external deletion requests or Play Store data compliance, you can also visit our account deletion portal at https://kalpkrut.com/echoflow/delete-account.',
+          'This permanently deletes your Kalpkrut Beats account and associated data (favorites, playlists, and history). This action cannot be undone.\n\nFor external deletion requests or Play Store data compliance, you can also visit our account deletion portal at https://beats.kalpkrutinfotech.com/delete-account.',
           style: TextStyle(fontSize: 13, height: 1.4),
         ),
         actions: <Widget>[

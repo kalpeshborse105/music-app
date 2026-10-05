@@ -26,7 +26,7 @@ import 'base_provider.dart';
 class LocalMusicProvider extends BaseMusicProvider {
   LocalMusicProvider({required super.api, required super.cache});
 
-  static const MethodChannel _channel = MethodChannel('com.echoflowmusic.player/media');
+  static const MethodChannel _channel = MethodChannel('com.kalpkrut.beats/media');
 
   List<Track> _tracks = <Track>[];
   bool _scanned = false;

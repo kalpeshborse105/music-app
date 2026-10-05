@@ -19,7 +19,7 @@
         android:maxSdkVersion="32" />
 
     <application
-        android:label="EchoFlow Music"
+        android:label="Kalpkrut Beats"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true"
@@ -52,7 +52,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="io.supabase.echoflow"
+                    android:scheme="com.kalpkrut.beats"
                     android:host="login-callback" />
             </intent-filter>
         </activity>

@@ -24,7 +24,7 @@ class RadioStation {
     required this.artworkUrl,
   });
 
-  /// Converts this radio station into a standard EchoFlow [Track] for the audio engine.
+  /// Converts this radio station into a standard Kalpkrut Beats [Track] for the audio engine.
   Track toTrack() {
     return Track(
       id: 'radio:$id',

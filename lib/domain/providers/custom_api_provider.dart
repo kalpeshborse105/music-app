@@ -151,17 +151,22 @@ class CustomApiProvider extends BaseMusicProvider {
   }
 
   @override
-  Future<PagedResult<Track>> getTrending({int offset = 0, int limit = 20}) async {
+  Future<PagedResult<Track>> getTrending({int offset = 0, int limit = 20, String? language}) async {
     if (_baseUrl.isEmpty) {
       return const PagedResult<Track>(items: <Track>[], total: 0);
     }
 
     final int page = (offset ~/ limit) + 1;
+    final Map<String, String> queryParams = <String, String>{
+      'limit': limit.toString(),
+      'p': page.toString(),
+    };
+    if (language != null && language.isNotEmpty && language.toLowerCase() != 'all') {
+      queryParams['lang'] = language.toLowerCase();
+    }
+
     final Uri uri = Uri.parse('$_baseUrl/api/trending').replace(
-      queryParameters: <String, String>{
-        'limit': limit.toString(),
-        'p': page.toString(),
-      },
+      queryParameters: queryParams,
     );
 
     try {

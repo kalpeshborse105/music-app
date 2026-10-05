@@ -9,7 +9,7 @@ class Logger {
 
   static void _log(String level, String message, {Object? error}) {
     if (!kDebugMode) return;
-    final String prefix = '[EchoFlow][$level]';
+    final String prefix = '[KalpkrutBeats][$level]';
     if (error != null) {
       debugPrint('$prefix $message :: $error');
     } else {

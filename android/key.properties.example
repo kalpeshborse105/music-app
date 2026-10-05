@@ -1,4 +1,4 @@
-# EchoFlow Music - Android Release Signing Template
+# Kalpkrut Beats - Android Release Signing Template
 # Copy this file to `android/key.properties` for production builds.
 # Never commit key.properties or upload-keystore.jks to version control!
 keyAlias=upload

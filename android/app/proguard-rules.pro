@@ -1,9 +1,9 @@
-# EchoFlow Music - release (minify) ProGuard/R8 rules.
+# Kalpkrut Beats - release (minify) ProGuard/R8 rules.
 
 # Keep the audio_service + just_audio native bridges used via reflection/JNI.
 -keep class com.ryanheise.audioservice.** { *; }
 -keep class com.ryanheise.just_audio.** { *; }
--keep class com.echoflowmusic.player.** { *; }
+-keep class com.kalpkrut.beats.** { *; }
 
 # AndroidX MediaSession
 -keep class androidx.media.** { *; }

@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../../core/utils/formatters.dart';
 import '../../data/music_repository.dart';
-import '../../domain/models/search_result.dart';
 import '../../domain/models/track.dart';
 import '../../domain/playback/playback_controller.dart';
 import '../../state/library_controller.dart';
@@ -19,7 +18,6 @@ import '../widgets/track_tile.dart';
 import 'app_shell.dart';
 import 'list_screen.dart';
 import 'radio_screen.dart';
-import 'search_screen.dart';
 
 /// Stitch Nocturnal Home Screen combining ambient glowing background, mood filters,
 /// 6-card bento grid, Jump Back In carousel, Featured Spotlight, Made For You mixes,
@@ -42,26 +40,31 @@ class _HomeScreenState extends State<HomeScreen> {
 
   static const List<String> _moods = <String>[
     'All',
-    'Trending',
-    'Bollywood',
-    'Chill',
-    'Workout',
-    'Pop',
-    'Focus',
+    'Hindi',
+    'Punjabi',
+    'Bhojpuri',
+    'Haryanvi',
+    'Marathi',
+    'Gujarati',
+    'Tamil',
+    'Telugu',
+    'Bengali',
     'Devotional',
-    'Party',
-    'Acoustic',
+    'Romantic',
+    'Chill',
   ];
 
   late Future<List<Track>> _trendingFuture;
   late Future<List<Track>> _newReleasesFuture;
   late Future<List<Track>> _spotlightFuture;
-  Future<List<Track>>? _categoryTracksFuture;
   bool _initialized = false;
 
   final ScrollController _scrollController = ScrollController();
   final List<Track> _infiniteTracks = <Track>[];
+  bool _isLoadingInitial = false;
   bool _isLoadingMore = false;
+  bool _hasMore = true;
+  int _currentOffset = 0;
 
   @override
   void initState() {
@@ -87,27 +90,69 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final MusicRepository repo = context.read<MusicRepository>();
     setState(() {
-      _infiniteTracks.clear();
-      _trendingFuture = repo.trending(limit: 20);
+      final String? lang = _selectedMood == 'All' ? null : _selectedMood.toLowerCase();
+      _trendingFuture = repo.trending(limit: 20, language: lang);
       _newReleasesFuture = repo.newReleases(limit: 10);
     });
+    _loadInitialTracks();
+  }
+
+  Future<void> _loadInitialTracks() async {
+    if (_isLoadingInitial) return;
+    setState(() {
+      _isLoadingInitial = true;
+      _infiniteTracks.clear();
+      _currentOffset = 0;
+      _hasMore = true;
+    });
+    try {
+      final MusicRepository repo = context.read<MusicRepository>();
+      final String? lang = _selectedMood == 'All' ? null : _selectedMood.toLowerCase();
+      final List<Track> initial = await repo.trending(
+        limit: 20,
+        offset: _currentOffset,
+        language: lang,
+      );
+      if (mounted) {
+        setState(() {
+          _currentOffset += 20;
+          _infiniteTracks.addAll(initial);
+          if (initial.isEmpty) {
+            _hasMore = false;
+          }
+        });
+      }
+    } catch (_) {} finally {
+      if (mounted) setState(() => _isLoadingInitial = false);
+    }
   }
 
   Future<void> _loadMore() async {
-    if (_isLoadingMore) return;
-    _isLoadingMore = true;
+    if (_isLoadingMore || !_hasMore) return;
+    setState(() => _isLoadingMore = true);
     try {
       final MusicRepository repo = context.read<MusicRepository>();
+      final String? lang = _selectedMood == 'All' ? null : _selectedMood.toLowerCase();
       final List<Track> more = await repo.trending(
         limit: 20,
-        offset: _infiniteTracks.length,
+        offset: _currentOffset,
+        language: lang,
       );
-      if (more.isNotEmpty && mounted) {
+      if (mounted) {
         setState(() {
-          final Set<String> existingIds = _infiniteTracks.map((Track t) => t.id).toSet();
-          for (final Track t in more) {
-            if (existingIds.add(t.id)) {
-              _infiniteTracks.add(t);
+          if (more.isEmpty) {
+            _hasMore = false;
+          } else {
+            _currentOffset += 20;
+            final Set<String> existingIds = _infiniteTracks.map((Track t) => t.id).toSet();
+            for (final Track t in more) {
+              final String normKey = '${t.title.toLowerCase().trim()}|${t.artistNames.toLowerCase().trim()}';
+              final bool duplicate = _infiniteTracks.any((Track existing) =>
+                  existing.id == t.id ||
+                  '${existing.title.toLowerCase().trim()}|${existing.artistNames.toLowerCase().trim()}' == normKey);
+              if (!duplicate && existingIds.add(t.id)) {
+                _infiniteTracks.add(t);
+              }
             }
           }
         });
@@ -133,9 +178,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_initialized) {
       _initialized = true;
       final MusicRepository repo = context.read<MusicRepository>();
-      _trendingFuture = repo.trending(limit: 10);
+      _trendingFuture = repo.trending(limit: 20);
       _newReleasesFuture = repo.newReleases(limit: 8);
       _spotlightFuture = repo.trending(limit: 1);
+      _loadInitialTracks();
     }
   }
 
@@ -143,22 +189,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_selectedMood == mood) return;
     setState(() {
       _selectedMood = mood;
-      if (mood != 'All') {
-        _categoryTracksFuture = _fetchCategoryTracks(mood, repo);
-      } else {
-        _categoryTracksFuture = null;
-      }
+      final String? lang = mood == 'All' ? null : mood.toLowerCase();
+      _trendingFuture = repo.trending(limit: 20, language: lang);
     });
-  }
-
-  Future<List<Track>> _fetchCategoryTracks(String category, MusicRepository repo) async {
-    try {
-      final SearchResult res = await repo.search(category, limit: 16);
-      if (res.tracks.isNotEmpty) {
-        return res.tracks;
-      }
-    } catch (_) {}
-    return repo.trending(limit: 16);
+    _loadInitialTracks();
   }
 
   @override
@@ -287,22 +321,31 @@ class _HomeScreenState extends State<HomeScreen> {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Container(
-                width: 36,
-                height: 36,
-                decoration: const BoxDecoration(
-                  gradient: AppColors.heroGradient,
-                  borderRadius: BorderRadius.all(Radius.circular(10)),
+              ClipRRect(
+                borderRadius: const BorderRadius.all(Radius.circular(8)),
+                child: Image.asset(
+                  'assets/icon/app_icon.png',
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 36,
+                    height: 36,
+                    decoration: const BoxDecoration(
+                      gradient: AppColors.heroGradient,
+                      borderRadius: BorderRadius.all(Radius.circular(8)),
+                    ),
+                    child: const Icon(Icons.graphic_eq_rounded, color: Colors.white, size: 20),
+                  ),
                 ),
-                child: const Icon(Icons.graphic_eq_rounded, color: Colors.white, size: 20),
               ),
               const SizedBox(width: 10),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  Text(
-                    'EchoFlow',
+                  const Text(
+                    'Kalpkrut Beats',
                     style: TextStyle(
                       fontFamily: 'Plus Jakarta Sans',
                       fontWeight: FontWeight.w800,
@@ -529,8 +572,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 16),
                 _buildNotificationTile(
                   context,
-                  title: 'Welcome to EchoFlow Music',
-                  message: 'Stream millions of tracks in Hi-Res Lossless quality anytime, anywhere.',
+                  title: 'Welcome to Kalpkrut Beats',
+                  message: 'Stream millions of tracks in crystal-clear studio sound anytime, anywhere.',
                   timestamp: 'Just now',
                   icon: Icons.graphic_eq_rounded,
                   color: AppColors.secondary,
@@ -823,141 +866,155 @@ class _HomeScreenState extends State<HomeScreen> {
     MusicRepository repo,
     PlaybackController playback,
   ) {
-    return FutureBuilder<List<Track>>(
-      future: _categoryTracksFuture,
-      builder: (BuildContext context, AsyncSnapshot<List<Track>> snapshot) {
-        final bool isLoading = snapshot.connectionState == ConnectionState.waiting;
-        final List<Track> tracks = snapshot.data ?? <Track>[];
+    final bool isLoading = _isLoadingInitial && _infiniteTracks.isEmpty;
+    final List<Track> tracks = _infiniteTracks;
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              const SizedBox(height: 12),
-              // Category Hero Banner
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                decoration: BoxDecoration(
-                  gradient: AppColors.brandGradient,
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
-                  boxShadow: <BoxShadow>[
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.35),
-                      blurRadius: 18,
-                      offset: const Offset(0, 6),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const SizedBox(height: 12),
+          // Category Hero Banner
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            decoration: BoxDecoration(
+              gradient: AppColors.brandGradient,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.35),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '$_selectedMood SOUNDSCAPE'.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
                     ),
+                    if (tracks.isNotEmpty)
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () => TrackActions.play(context, tracks.first, queue: tracks),
+                        icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                        label: const Text('Play All', style: TextStyle(fontWeight: FontWeight.w700)),
+                      ),
                   ],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: <Widget>[
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.3),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '$_selectedMood SOUNDSCAPE'.toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                        ),
-                        if (tracks.isNotEmpty)
-                          FilledButton.icon(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.black,
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            onPressed: () => TrackActions.play(context, tracks.first, queue: tracks),
-                            icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                            label: const Text('Play All', style: TextStyle(fontWeight: FontWeight.w700)),
-                          ),
-                      ],
+                const SizedBox(height: 12),
+                Text(
+                  'Curated $_selectedMood',
+                  style: const TextStyle(
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: -0.4,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Streaming tracks in $_selectedMood category',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 12.5,
+                    color: Colors.white.withValues(alpha: 0.85),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Tracks List
+          if (isLoading)
+            Column(
+              children: List<Widget>.generate(
+                5,
+                (_) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Container(
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: context.isDarkMode
+                          ? AppColors.surfaceContainerHigh.withValues(alpha: 0.5)
+                          : AppColors.lightElevatedSurface,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Curated $_selectedMood',
-                      style: const TextStyle(
-                        fontFamily: 'Plus Jakarta Sans',
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: -0.4,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Streaming tracks in $_selectedMood category',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 12.5,
-                        color: Colors.white.withValues(alpha: 0.85),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-
-              const SizedBox(height: 16),
-
-              // Tracks List
-              if (isLoading)
-                Column(
-                  children: List<Widget>.generate(
-                    5,
-                    (_) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Container(
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: context.isDarkMode
-                              ? AppColors.surfaceContainerHigh.withValues(alpha: 0.5)
-                              : AppColors.lightElevatedSurface,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+            )
+          else if (tracks.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(
+                child: Text('No tracks found in this category'),
+              ),
+            )
+          else
+            Column(
+              children: <Widget>[
+                for (int i = 0; i < tracks.length; i++) ...<Widget>[
+                  TrackTile(
+                    index: i,
+                    track: tracks[i],
+                    dense: false,
+                    isPlaying: playback.currentTrack?.id == tracks[i].id && playback.isPlaying,
+                    onTap: () => TrackActions.play(context, tracks[i], queue: tracks),
+                    onMenu: () => showTrackActionsSheet(context, tracks[i]),
+                  ),
+                  if (i < tracks.length - 1)
+                    const Divider(height: 1, indent: 64),
+                ],
+                if (_isLoadingMore)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2.2),
                       ),
                     ),
+                  )
+                else if (!_hasMore && tracks.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: Text('You\'ve reached the end', style: TextStyle(color: context.textMuted, fontSize: 12)),
+                    ),
                   ),
-                )
-              else if (tracks.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
-                  child: Center(
-                    child: Text('No tracks found in this category'),
-                  ),
-                )
-              else
-                Column(
-                  children: <Widget>[
-                    for (int i = 0; i < tracks.length; i++) ...<Widget>[
-                      TrackTile(
-                        track: tracks[i],
-                        dense: false,
-                        isPlaying: playback.currentTrack?.id == tracks[i].id && playback.isPlaying,
-                        onTap: () => TrackActions.play(context, tracks[i], queue: tracks),
-                        onMenu: () => showTrackActionsSheet(context, tracks[i]),
-                      ),
-                      if (i < tracks.length - 1)
-                        const Divider(height: 1, indent: 64),
-                    ],
-                  ],
-                ),
-            ],
-          ),
-        );
-      },
+              ],
+            ),
+        ],
+      ),
     );
   }
 
@@ -1195,7 +1252,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                'Lossless 24-bit',
+                                'Studio Master',
                                 style: TextStyle(fontSize: 11, color: context.textMuted),
                               ),
                             ],
@@ -1218,7 +1275,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '48k Hi-Res Lossless',
+                          'Premium Audio',
                           style: TextStyle(fontSize: 11.5, color: context.textSecondary),
                         ),
                       ],

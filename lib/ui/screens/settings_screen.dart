@@ -120,7 +120,7 @@ class SettingsScreen extends StatelessWidget {
             _section(context, 'About'),
             ListTile(
               leading: const Icon(Icons.info_outline_rounded),
-              title: const Text('EchoFlow Music'),
+              title: const Text('Kalpkrut Beats'),
               subtitle: Text('Version ${AppConstants.appVersion}'),
             ),
             const ListTile(
@@ -131,7 +131,7 @@ class SettingsScreen extends StatelessWidget {
             Padding(
               padding: AppSpacing.screen,
               child: Text(
-                'EchoFlow Music streams authorized Creative Commons audio, '
+                'Kalpkrut Beats streams authorized Creative Commons audio, '
                 'public-domain recordings, and local device media. '
                 'Privacy-first architecture.',
                 style: Theme.of(context).textTheme.bodySmall,
@@ -140,7 +140,7 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(height: 8),
             Center(
               child: Text(
-                'Kalpkrut Infotech',
+                'Developed by Kalpkrut Infotech',
                 style: TextStyle(
                   fontFamily: 'Inter',
                   fontSize: 11,

@@ -14,7 +14,9 @@ import 'search_screen.dart';
 /// (Bottom Bar for Mobile, Navigation Rail for Desktop/Tablet Web) and a
 /// persistent floating MiniPlayer.
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  const AppShell({super.key, this.initialIndex = 0});
+
+  final int initialIndex;
 
   static void selectTab(BuildContext context, int index) {
     final _AppShellState? state = context.findAncestorStateOfType<_AppShellState>();
@@ -26,7 +28,7 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  int _index = 0;
+  late int _index = widget.initialIndex;
 
   static const List<Widget> _pages = <Widget>[
     HomeScreen(),
@@ -193,7 +195,7 @@ class _AppShellState extends State<AppShell> {
         final bool? exitApp = await showDialog<bool>(
           context: context,
           builder: (BuildContext ctx) => AlertDialog(
-            title: const Text('Exit EchoFlow?'),
+            title: const Text('Exit Kalpkrut Beats?'),
             content: const Text('Are you sure you want to close the application?'),
             actions: <Widget>[
               TextButton(

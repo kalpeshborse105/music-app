@@ -52,7 +52,7 @@ class DemoProvider extends BaseMusicProvider {
   String get id => 'demo';
 
   @override
-  String get displayName => 'EchoFlow Masters';
+  String get displayName => 'Kalpkrut Originals';
 
   @override
   ProviderStatus get status => ProviderStatus.developmentOnly;

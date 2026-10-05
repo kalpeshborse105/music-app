@@ -136,7 +136,13 @@ class PlaybackQueue {
 
   void appendAll(List<Track> tracks) {
     for (final Track t in tracks) {
-      if (!_tracks.any((Track e) => e.id == t.id)) _tracks.add(t);
+      final String normTitle = t.title.toLowerCase().trim();
+      final String normArtist = t.artistNames.toLowerCase().trim();
+      final bool duplicate = _tracks.any((Track e) =>
+          e.id == t.id ||
+          (e.title.toLowerCase().trim() == normTitle &&
+           e.artistNames.toLowerCase().trim() == normArtist));
+      if (!duplicate) _tracks.add(t);
     }
   }
 

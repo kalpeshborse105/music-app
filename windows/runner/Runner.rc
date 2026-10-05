@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.echoflowmusic" "\0"
-            VALUE "FileDescription", "echo_flow_music" "\0"
+            VALUE "CompanyName", "Kalpkrut Infotech" "\0"
+            VALUE "FileDescription", "Kalpkrut Beats" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "echo_flow_music" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.echoflowmusic. All rights reserved." "\0"
-            VALUE "OriginalFilename", "echo_flow_music.exe" "\0"
-            VALUE "ProductName", "echo_flow_music" "\0"
+            VALUE "InternalName", "kalpkrut_beats" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Kalpkrut Infotech. All rights reserved." "\0"
+            VALUE "OriginalFilename", "kalpkrut_beats.exe" "\0"
+            VALUE "ProductName", "Kalpkrut Beats" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

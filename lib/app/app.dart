@@ -26,16 +26,16 @@ import 'app_dependencies.dart';
 /// Root of the application. Injects dependencies via [provider] and builds the
 /// MaterialApp. Startup is non-blocking: [AppDependencies.warmUp] runs after the
 /// first frame (spec §37).
-class EchoFlowApp extends StatefulWidget {
-  const EchoFlowApp({super.key, required this.dependencies});
+class KalpkrutBeatsApp extends StatefulWidget {
+  const KalpkrutBeatsApp({super.key, required this.dependencies});
 
   final AppDependencies dependencies;
 
   @override
-  State<EchoFlowApp> createState() => _EchoFlowAppState();
+  State<KalpkrutBeatsApp> createState() => _KalpkrutBeatsAppState();
 }
 
-class _EchoFlowAppState extends State<EchoFlowApp> {
+class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
   @override
   void initState() {
     super.initState();
@@ -63,7 +63,7 @@ class _EchoFlowAppState extends State<EchoFlowApp> {
       child: Consumer<SettingsStore>(
         builder: (BuildContext context, SettingsStore settings, Widget? _) {
           return MaterialApp(
-            title: 'EchoFlow Music',
+            title: 'Kalpkrut Beats',
             debugShowCheckedModeBanner: false,
             scaffoldMessengerKey: AppMessenger.key,
             theme: AppTheme.light(),
@@ -71,7 +71,7 @@ class _EchoFlowAppState extends State<EchoFlowApp> {
             themeMode: settings.themeMode,
             home: const AuthGate(),
             onGenerateRoute: (RouteSettings routeSettings) {
-              if (routeSettings.name == '/operations') {
+              if (routeSettings.name == '/operations' || routeSettings.name == '/admin') {
                 return MaterialPageRoute<void>(
                   settings: routeSettings,
                   builder: (BuildContext context) {
@@ -80,7 +80,7 @@ class _EchoFlowAppState extends State<EchoFlowApp> {
                       return OnboardingAuthScreen(
                         initialShowAuthForm: true,
                         onComplete: () {
-                          Navigator.pushReplacementNamed(context, '/operations');
+                          Navigator.pushReplacementNamed(context, routeSettings.name ?? '/admin');
                         },
                       );
                     }
@@ -88,7 +88,7 @@ class _EchoFlowAppState extends State<EchoFlowApp> {
                   },
                 );
               }
-              if (routeSettings.name == '/login') {
+              if (routeSettings.name == '/login' || routeSettings.name == '/signup') {
                 return MaterialPageRoute<void>(
                   settings: routeSettings,
                   builder: (BuildContext context) {
@@ -103,6 +103,24 @@ class _EchoFlowAppState extends State<EchoFlowApp> {
                       },
                     );
                   },
+                );
+              }
+              if (routeSettings.name == '/search') {
+                return MaterialPageRoute<void>(
+                  settings: routeSettings,
+                  builder: (BuildContext context) => const AppShell(initialIndex: 1),
+                );
+              }
+              if (routeSettings.name == '/library') {
+                return MaterialPageRoute<void>(
+                  settings: routeSettings,
+                  builder: (BuildContext context) => const AppShell(initialIndex: 2),
+                );
+              }
+              if (routeSettings.name == '/profile') {
+                return MaterialPageRoute<void>(
+                  settings: routeSettings,
+                  builder: (BuildContext context) => const AppShell(initialIndex: 3),
                 );
               }
               return null;

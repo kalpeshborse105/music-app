@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// EchoFlow Music brand palette matching the frozen Stitch design system.
+/// Kalpkrut Beats brand palette matching the Stitch design system.
 /// Nocturnal depth, bioluminescent violet & cyan accents, and glassmorphic surfaces.
 class AppColors {
   AppColors._();

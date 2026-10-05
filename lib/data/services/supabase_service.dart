@@ -101,9 +101,9 @@ class SupabaseService {
       if (redirectTo != null && redirectTo.isNotEmpty) {
         redirect = redirectTo;
       } else if (kIsWeb) {
-        redirect = Uri.base.origin;
+        redirect = kReleaseMode ? 'https://beats.kalpkrutinfotech.com/' : Uri.base.origin;
       } else {
-        redirect = 'io.supabase.echoflow://login-callback';
+        redirect = 'com.kalpkrut.beats://login-callback';
       }
 
       return await client.auth.signInWithOAuth(
@@ -124,7 +124,9 @@ class SupabaseService {
   Future<void> resetPasswordForEmail(String email, {String? redirectTo}) async {
     if (!_isInitialized) return;
     final String redirect = redirectTo ??
-        (kIsWeb ? Uri.base.origin : 'io.supabase.echoflow://login-callback');
+        (kIsWeb
+            ? (kReleaseMode ? 'https://beats.kalpkrutinfotech.com/' : Uri.base.origin)
+            : 'com.kalpkrut.beats://login-callback');
     await client.auth.resetPasswordForEmail(
       email,
       redirectTo: redirect,
@@ -226,7 +228,7 @@ class SupabaseService {
         'email': userEmail,
         'display_name': (metaName != null && metaName.isNotEmpty)
             ? metaName
-            : (userEmail?.split('@').first ?? 'EchoFlow Listener'),
+            : (userEmail?.split('@').first ?? 'Kalpkrut Listener'),
         if (metaAvatar != null && metaAvatar.isNotEmpty) 'avatar_url': metaAvatar,
         'role': 'user',
         'created_at': DateTime.now().toIso8601String(),

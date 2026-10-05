@@ -146,12 +146,12 @@ class Artwork extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'EchoFlow',
+                  'Kalpkrut Beats',
                   style: TextStyle(
                     fontFamily: 'Plus Jakarta Sans',
                     fontWeight: FontWeight.w700,
-                    fontSize: (size * 0.08).clamp(11.0, 16.0),
-                    letterSpacing: 0.8,
+                    fontSize: (size * 0.08).clamp(10.0, 15.0),
+                    letterSpacing: 0.6,
                     color: Colors.white.withValues(alpha: 0.9),
                   ),
                 ),

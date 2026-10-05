@@ -96,7 +96,7 @@ class TrackActions {
   static Future<void> share(BuildContext context, Track track) async {
     try {
       final String text = 'Listening to “${track.title}” by ${track.artistNames}'
-          '${track.album != null ? ' — ${track.album!.title}' : ''} on EchoFlow Music';
+          '${track.album != null ? ' — ${track.album!.title}' : ''} on Kalpkrut Beats';
       await Share.share(text);
     } catch (_) {
       AppMessenger.show('Sharing is not available here');

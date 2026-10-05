@@ -64,8 +64,24 @@ class PlaybackController extends ChangeNotifier {
   Stream<void> get queueChanges => _handler.queueChanges;
   String? lastErrorMessage;
 
+  bool _isMiniPlayerDismissed = false;
+  bool get isMiniPlayerDismissed => _isMiniPlayerDismissed;
+
+  void dismissMiniPlayer() {
+    _isMiniPlayerDismissed = true;
+    notifyListeners();
+  }
+
+  void showMiniPlayer() {
+    _isMiniPlayerDismissed = false;
+    notifyListeners();
+  }
+
   void _init() {
     _snapSub = _handler.snapshots.listen((PlaybackSnapshot s) {
+      if (s.track?.id != _snapshot.track?.id && s.track != null) {
+        _isMiniPlayerDismissed = false;
+      }
       _snapshot = s;
       notifyListeners();
     });
@@ -131,6 +147,7 @@ class PlaybackController extends ChangeNotifier {
   // Playback intents
   // ---------------------------------------------------------------------------
   Future<void> playTrack(Track track, {List<Track>? queue}) async {
+    _isMiniPlayerDismissed = false;
     final List<Track> list = queue ?? <Track>[track];
     int index = list.indexWhere((Track t) => t.id == track.id);
     if (index < 0) {
@@ -141,17 +158,24 @@ class PlaybackController extends ChangeNotifier {
   }
 
   Future<void> playAll(List<Track> tracks, {int startIndex = 0}) async {
+    _isMiniPlayerDismissed = false;
     if (tracks.isEmpty) return;
     await _handler.setQueue(tracks, startIndex: startIndex);
   }
 
-  Future<void> playNext(Track track) => _handler.playNext(track);
+  Future<void> playNext(Track track) {
+    _isMiniPlayerDismissed = false;
+    return _handler.playNext(track);
+  }
 
   Future<void> addToQueue(Track track) => _handler.appendToQueue(<Track>[track]);
 
   Future<void> addAllToQueue(List<Track> tracks) => _handler.appendToQueue(tracks);
 
-  Future<void> play() => _handler.play();
+  Future<void> play() {
+    _isMiniPlayerDismissed = false;
+    return _handler.play();
+  }
   Future<void> pause() => _handler.pause();
 
   Future<void> togglePlayPause() async {
