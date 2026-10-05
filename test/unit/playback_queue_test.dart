@@ -1,14 +1,10 @@
 import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:echo_flow_music/domain/models/track.dart';
-import 'package:echo_flow_music/domain/playback/playback_queue.dart';
+import 'package:kalpkrut_beats/domain/models/track.dart';
+import 'package:kalpkrut_beats/domain/playback/playback_queue.dart';
 
-Track t(String id) => Track(
-      id: id,
-      providerId: 'demo',
-      providerTrackId: id,
-      title: 'Track $id',
-    );
+Track t(String id) =>
+    Track(id: id, providerId: 'demo', providerTrackId: id, title: 'Track $id');
 
 void main() {
   group('PlaybackQueue', () {
@@ -38,7 +34,8 @@ void main() {
     });
 
     test('previous goes back', () {
-      final q = PlaybackQueue()..setQueue(<Track>[t('a'), t('b'), t('c')], startIndex: 2);
+      final q = PlaybackQueue()
+        ..setQueue(<Track>[t('a'), t('b'), t('c')], startIndex: 2);
       expect(q.previous()!.id, 'b');
     });
 
@@ -50,25 +47,29 @@ void main() {
     });
 
     test('removeAt keeps current valid', () {
-      final q = PlaybackQueue()..setQueue(<Track>[t('a'), t('b'), t('c')], startIndex: 1);
+      final q = PlaybackQueue()
+        ..setQueue(<Track>[t('a'), t('b'), t('c')], startIndex: 1);
       final removedCurrent = q.removeAt(1);
       expect(removedCurrent, isTrue);
       expect(q.length, 2);
       expect(q.current, isNotNull);
     });
 
-    test('shuffle produces a full permutation and next never null with repeat off', () {
-      final q = PlaybackQueue(random: Random(1))
-        ..setQueue(<Track>[t('a'), t('b'), t('c'), t('d')]);
-      q.setShuffle(true);
-      final Set<String> seen = <String>{};
-      Track? cur = q.current;
-      while (cur != null) {
-        seen.add(cur.id);
-        cur = q.next();
-      }
-      expect(seen.length, 4);
-    });
+    test(
+      'shuffle produces a full permutation and next never null with repeat off',
+      () {
+        final q = PlaybackQueue(random: Random(1))
+          ..setQueue(<Track>[t('a'), t('b'), t('c'), t('d')]);
+        q.setShuffle(true);
+        final Set<String> seen = <String>{};
+        Track? cur = q.current;
+        while (cur != null) {
+          seen.add(cur.id);
+          cur = q.next();
+        }
+        expect(seen.length, 4);
+      },
+    );
 
     test('queue dedupes on appendAll', () {
       final q = PlaybackQueue()..setQueue(<Track>[t('a')]);

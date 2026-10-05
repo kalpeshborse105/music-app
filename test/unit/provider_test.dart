@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:echo_flow_music/core/cache/cache_store.dart';
-import 'package:echo_flow_music/core/network/api_client.dart';
-import 'package:echo_flow_music/domain/models/audio_quality.dart';
-import 'package:echo_flow_music/domain/models/track.dart';
-import 'package:echo_flow_music/domain/providers/demo_provider.dart';
-import 'package:echo_flow_music/domain/providers/licensed_provider_stub.dart';
+import 'package:kalpkrut_beats/core/cache/cache_store.dart';
+import 'package:kalpkrut_beats/core/network/api_client.dart';
+import 'package:kalpkrut_beats/domain/models/audio_quality.dart';
+import 'package:kalpkrut_beats/domain/models/track.dart';
+import 'package:kalpkrut_beats/domain/providers/demo_provider.dart';
+import 'package:kalpkrut_beats/domain/providers/licensed_provider_stub.dart';
 
 void main() {
   group('AudioQuality data estimate', () {
