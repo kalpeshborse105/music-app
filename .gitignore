@@ -32,3 +32,6 @@ Thumbs.db
 
 # Server
 server/cookies.txt
+android/key.properties
+*.jks
+*.keystore
