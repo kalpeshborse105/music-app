@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../domain/playback/playback_controller.dart';
+import '../../state/library_controller.dart';
 import '../screens/player_screen.dart';
+import '../services/track_actions.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import 'artwork.dart';
@@ -17,6 +19,7 @@ class MiniPlayer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final PlaybackController pc = context.watch<PlaybackController>();
+    final LibraryController library = context.watch<LibraryController>();
     final track = pc.currentTrack;
     if (track == null) return const SizedBox.shrink();
 
@@ -27,6 +30,7 @@ class MiniPlayer extends StatelessWidget {
         : 0.0;
 
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final bool liked = library.isLiked(track.id);
 
     void openPlayer() {
       Navigator.of(context).push(
@@ -51,9 +55,20 @@ class MiniPlayer extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onVerticalDragEnd: (DragEndDetails details) {
           if (details.primaryVelocity != null && details.primaryVelocity! < -180) {
             openPlayer();
+          }
+        },
+        onHorizontalDragEnd: (DragEndDetails details) {
+          final double? v = details.primaryVelocity;
+          if (v != null) {
+            if (v < -200) {
+              pc.next();
+            } else if (v > 200) {
+              pc.previous();
+            }
           }
         },
         child: EchoGlassCard(
@@ -126,6 +141,18 @@ class MiniPlayer extends StatelessWidget {
                         ),
                       ],
                     ),
+                  ),
+                  // Quick Like Button
+                  IconButton(
+                    iconSize: 21,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 36),
+                    icon: Icon(
+                      liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                      color: liked ? AppColors.tertiary : context.textSecondary,
+                    ),
+                    onPressed: () => TrackActions.toggleFavorite(context, track),
+                    tooltip: liked ? 'Unlike' : 'Like',
                   ),
                   // Previous Track
                   IconButton(

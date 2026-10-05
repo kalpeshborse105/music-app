@@ -101,7 +101,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: <Widget>[
                             const Text(
-                              'PLAYING FROM SOURCE',
+                              'NOW PLAYING',
                               style: TextStyle(
                                 fontFamily: 'Inter',
                                 fontSize: 10,
@@ -124,6 +124,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             ),
                           ],
                         ),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          pc.sleepTimerRemaining != null
+                              ? Icons.bedtime_rounded
+                              : Icons.bedtime_outlined,
+                          color: pc.sleepTimerRemaining != null
+                              ? AppColors.secondary
+                              : Colors.white,
+                          size: 22,
+                        ),
+                        tooltip: pc.sleepTimerRemaining != null
+                            ? 'Sleep Timer: ${pc.sleepTimerRemaining!.inMinutes}m left'
+                            : 'Sleep Timer',
+                        onPressed: () => showSleepTimerSheet(context),
                       ),
                       IconButton(
                         icon: const Icon(Icons.more_horiz_rounded, color: Colors.white, size: 24),

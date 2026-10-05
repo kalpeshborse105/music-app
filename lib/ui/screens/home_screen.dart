@@ -36,10 +36,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   static const List<String> _moods = <String>[
     'All',
-    'Workout',
+    'Trending',
+    'Bollywood',
     'Chill',
+    'Workout',
+    'Pop',
     'Focus',
-    'Electronic',
+    'Devotional',
+    'Party',
     'Acoustic',
   ];
 
@@ -312,8 +316,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 16),
                 _buildNotificationTile(
                   context,
-                  title: 'Audius & Jamendo Live',
-                  message: 'Official decentralized audio nodes connected with lossless streaming.',
+                  title: 'Welcome to EchoFlow Music',
+                  message: 'Stream millions of tracks in Hi-Res Lossless quality anytime, anywhere.',
                   timestamp: 'Just now',
                   icon: Icons.graphic_eq_rounded,
                   color: AppColors.secondary,
@@ -321,19 +325,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 10),
                 _buildNotificationTile(
                   context,
-                  title: 'Sound System Active',
-                  message: 'Dynamic 320 kbps MP3 quality and background audio service ready.',
+                  title: 'Your Daily Mix is Ready',
+                  message: 'Personalized recommendations and trending hits curated for your mood.',
                   timestamp: '1h ago',
-                  icon: Icons.surround_sound_rounded,
+                  icon: Icons.auto_awesome_rounded,
                   color: AppColors.primary,
                 ),
                 const SizedBox(height: 10),
                 _buildNotificationTile(
                   context,
-                  title: 'Cloud Database Synced',
-                  message: 'Supabase PostgreSQL authentication and cloud playlist storage operational.',
+                  title: 'Offline Music Ready',
+                  message: 'Download your favorite songs and playlists to listen seamlessly without internet.',
                   timestamp: 'Today',
-                  icon: Icons.cloud_done_rounded,
+                  icon: Icons.download_done_rounded,
                   color: AppColors.success,
                 ),
                 const SizedBox(height: 12),
@@ -413,7 +417,7 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            'NOCTURNAL SOUNDSCAPE',
+            'DISCOVER & STREAM',
             style: TextStyle(
               fontFamily: 'Inter',
               fontSize: 10.5,
@@ -555,7 +559,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: <Widget>[
             SectionHeader(
               title: 'Trending Right Now',
-              subtitle: 'Top charts from Audius & decentralized streams',
+              subtitle: 'Top global charts and viral hits',
               topPadding: AppSpacing.sm,
               actionLabel: 'See all',
               onAction: () async {
@@ -759,7 +763,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: <Widget>[
             SectionHeader(
               title: 'Fresh Releases',
-              subtitle: 'New music across the network',
+              subtitle: 'Latest tracks and singles hot off the press',
               topPadding: AppSpacing.sm,
               actionLabel: 'See all',
               onAction: () async {

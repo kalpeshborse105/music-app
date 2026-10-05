@@ -24,12 +24,15 @@ void main() {
       expect(settings.themeMode, equals(ThemeMode.dark));
     });
 
-    test('Provider settings default: Audius ON, Jamendo OFF', () {
-      expect(settings.audiusEnabled, isTrue);
+    test('Provider settings default: Custom API ON, others OFF', () {
+      expect(settings.customApiEnabled, isTrue);
+      expect(settings.audiusEnabled, isFalse);
       expect(settings.jamendoEnabled, isFalse);
+      expect(settings.archiveEnabled, isFalse);
+      expect(settings.localEnabled, isFalse);
     });
 
-    test('ProviderRegistry excludes Jamendo from discovery by default', () async {
+    test('ProviderRegistry discovery uses Custom API by default', () async {
       final ProviderRegistry registry = ProviderRegistry(
         api: ApiClient(),
         cache: CacheStore(),
@@ -40,10 +43,12 @@ void main() {
           registry.discoveryProviders.map((p) => p.id).toList();
 
       expect(discoveryIds, isNot(contains('jamendo')));
-      expect(discoveryIds, contains('audius'));
+      expect(discoveryIds, isNot(contains('audius')));
+      expect(discoveryIds, contains('custom_api'));
 
       // Available check respects jamendoEnabled
       expect(registry.isAvailable('jamendo'), isFalse);
+      expect(registry.isAvailable('custom_api'), isTrue);
     });
 
     test('ProviderRegistry dynamically enables Jamendo when toggled on by admin', () async {

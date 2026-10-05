@@ -66,20 +66,22 @@ class MusicRepository {
     list.sort((MusicProvider a, MusicProvider b) {
       int rank(MusicProvider p) {
         switch (p.id) {
-          case 'licensed':
+          case 'custom_api':
             return 0;
-          case 'jamendo':
+          case 'licensed':
             return 1;
-          case 'audius':
+          case 'jamendo':
             return 2;
-          case 'local':
+          case 'audius':
             return 3;
-          case 'archive':
+          case 'local':
             return 4;
-          case 'demo':
+          case 'archive':
             return 5;
-          default:
+          case 'demo':
             return 6;
+          default:
+            return 7;
         }
       }
 

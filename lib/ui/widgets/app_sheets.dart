@@ -9,6 +9,7 @@ import '../../state/downloads_controller.dart';
 import '../../state/library_controller.dart';
 import '../screens/lyrics_screen.dart';
 import '../services/track_actions.dart';
+import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import 'artwork.dart';
 import 'sheet_scaffolds.dart';
@@ -146,6 +147,14 @@ Future<void> showTrackActionsSheet(BuildContext context, Track track) async {
                   }
                 },
               ),
+            _SheetAction(
+              icon: Icons.bedtime_rounded,
+              label: 'Sleep timer',
+              onTap: () {
+                Navigator.pop(ctx);
+                showSleepTimerSheet(context);
+              },
+            ),
             _SheetAction(
               icon: Icons.ios_share_rounded,
               label: 'Share',
@@ -370,6 +379,123 @@ Future<void> showQueueSheet(BuildContext context) async {
             },
           );
         },
+      );
+    },
+  );
+}
+
+/// Spotify/JioSaavn-style Sleep Timer modal sheet.
+Future<void> showSleepTimerSheet(BuildContext context) async {
+  final PlaybackController pc = context.read<PlaybackController>();
+
+  await showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (BuildContext ctx) {
+      final bool hasTimer = pc.hasActiveSleepTimer;
+      final Duration? remaining = pc.sleepTimerRemaining;
+
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.xs,
+              ),
+              child: Row(
+                children: <Widget>[
+                  const Icon(Icons.bedtime_rounded, color: AppColors.secondary, size: 22),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Sleep timer',
+                    style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                  const Spacer(),
+                  if (hasTimer)
+                    Text(
+                      pc.stopAtTrackEnd
+                          ? 'Ends with track'
+                          : (remaining != null ? '${remaining.inMinutes}m left' : 'Active'),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.secondary,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.timer_outlined),
+              title: const Text('15 minutes'),
+              trailing: !pc.stopAtTrackEnd && remaining != null && remaining.inMinutes <= 15 && remaining.inMinutes > 5
+                  ? const Icon(Icons.check_rounded, color: AppColors.secondary)
+                  : null,
+              onTap: () {
+                pc.setSleepTimer(const Duration(minutes: 15));
+                Navigator.pop(ctx);
+                AppMessenger.show('Sleep timer set for 15 minutes');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.timer_outlined),
+              title: const Text('30 minutes'),
+              onTap: () {
+                pc.setSleepTimer(const Duration(minutes: 30));
+                Navigator.pop(ctx);
+                AppMessenger.show('Sleep timer set for 30 minutes');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.timer_outlined),
+              title: const Text('45 minutes'),
+              onTap: () {
+                pc.setSleepTimer(const Duration(minutes: 45));
+                Navigator.pop(ctx);
+                AppMessenger.show('Sleep timer set for 45 minutes');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.timer_outlined),
+              title: const Text('1 hour'),
+              onTap: () {
+                pc.setSleepTimer(const Duration(hours: 1));
+                Navigator.pop(ctx);
+                AppMessenger.show('Sleep timer set for 1 hour');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.skip_next_rounded),
+              title: const Text('End of track'),
+              trailing: pc.stopAtTrackEnd ? const Icon(Icons.check_rounded, color: AppColors.secondary) : null,
+              onTap: () {
+                pc.setSleepTimer(null, endOfTrack: true);
+                Navigator.pop(ctx);
+                AppMessenger.show('Sleep timer set to end of track');
+              },
+            ),
+            if (hasTimer)
+              ListTile(
+                leading: const Icon(Icons.timer_off_outlined, color: AppColors.error),
+                title: const Text(
+                  'Turn off timer',
+                  style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w600),
+                ),
+                onTap: () {
+                  pc.cancelSleepTimer();
+                  Navigator.pop(ctx);
+                  AppMessenger.show('Sleep timer turned off');
+                },
+              ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
       );
     },
   );

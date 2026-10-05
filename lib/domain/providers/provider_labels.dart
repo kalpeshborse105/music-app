@@ -18,6 +18,8 @@ String providerShortLabel(String providerId) {
       return 'Regional Indic';
     case 'demo':
       return 'EchoFlow Masters';
+    case 'custom_api':
+      return 'Cloud Catalog';
     default:
       return providerId;
   }
@@ -39,6 +41,8 @@ IconData providerIcon(String providerId) {
       return Icons.translate_rounded;
     case 'demo':
       return Icons.graphic_eq_rounded;
+    case 'custom_api':
+      return Icons.cloud_sync_rounded;
     default:
       return Icons.cloud_queue_rounded;
   }
@@ -50,7 +54,7 @@ String providerDescription(String providerId) {
     case 'jamendo':
       return 'Creative-Commons licensed global catalog via Jamendo';
     case 'audius':
-      return 'Decentralized high-fidelity streaming catalog via Audius Protocol';
+      return 'High-fidelity streaming catalog via Audius';
     case 'archive':
       return 'Public-domain & openly-licensed audio archives';
     case 'local':
@@ -61,6 +65,8 @@ String providerDescription(String providerId) {
       return 'Regional Indian-language catalog (Hindi, Marathi, Khandeshi & Indic languages)';
     case 'demo':
       return 'EchoFlow Studio Master recordings (ambient & electronic archives)';
+    case 'custom_api':
+      return 'High-performance cloud audio gateway with cached lossless streaming';
     default:
       return 'Music provider';
   }

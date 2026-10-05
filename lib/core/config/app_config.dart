@@ -60,8 +60,17 @@ class AppConfig {
     defaultValue: '',
   );
 
+  /// Custom Audio Gateway API Base URL (Python FastAPI server)
+  static String customApiUrl = const String.fromEnvironment(
+    'CUSTOM_API_URL',
+    defaultValue: 'https://music-api-tq5i.onrender.com',
+  );
+
   /// Load environment from .env if available
   static void loadFromEnv(Map<String, String> env) {
+    if (env.containsKey('CUSTOM_API_URL') && env['CUSTOM_API_URL']!.isNotEmpty) {
+      customApiUrl = env['CUSTOM_API_URL']!;
+    }
     if (env.containsKey('SUPABASE_URL') && env['SUPABASE_URL']!.isNotEmpty) {
       supabaseUrl = env['SUPABASE_URL']!;
     }

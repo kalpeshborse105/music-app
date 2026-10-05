@@ -90,6 +90,11 @@ class PlaybackController extends ChangeNotifier {
 
   Future<void> _handleEnded(Track track, bool completed) async {
     if (track.id == 'empty') return;
+    if (_stopAtTrackEnd && completed) {
+      await pause();
+      cancelSleepTimer();
+      return;
+    }
     if (completed) {
       final double completion = _completionRatio();
       if (_settings.saveHistory) {
@@ -146,6 +151,9 @@ class PlaybackController extends ChangeNotifier {
 
   Future<void> addAllToQueue(List<Track> tracks) => _handler.appendToQueue(tracks);
 
+  Future<void> play() => _handler.play();
+  Future<void> pause() => _handler.pause();
+
   Future<void> togglePlayPause() async {
     if (_snapshot.track == null) return;
     if (_snapshot.playing) {
@@ -153,6 +161,52 @@ class PlaybackController extends ChangeNotifier {
     } else {
       await _handler.play();
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sleep Timer (Spotify & JioSaavn Standard Feature)
+  // ---------------------------------------------------------------------------
+  Timer? _sleepTimer;
+  DateTime? _sleepTimerEndTime;
+  bool _stopAtTrackEnd = false;
+
+  bool get hasActiveSleepTimer => _sleepTimer != null || _stopAtTrackEnd;
+  DateTime? get sleepTimerEndTime => _sleepTimerEndTime;
+  bool get stopAtTrackEnd => _stopAtTrackEnd;
+
+  Duration? get sleepTimerRemaining {
+    if (_sleepTimerEndTime == null) return null;
+    final Duration diff = _sleepTimerEndTime!.difference(DateTime.now());
+    return diff.isNegative ? Duration.zero : diff;
+  }
+
+  void setSleepTimer(Duration? duration, {bool endOfTrack = false}) {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    _sleepTimerEndTime = null;
+    _stopAtTrackEnd = endOfTrack;
+
+    if (endOfTrack) {
+      notifyListeners();
+      return;
+    }
+
+    if (duration != null && duration > Duration.zero) {
+      _sleepTimerEndTime = DateTime.now().add(duration);
+      _sleepTimer = Timer(duration, () {
+        pause();
+        cancelSleepTimer();
+      });
+    }
+    notifyListeners();
+  }
+
+  void cancelSleepTimer() {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    _sleepTimerEndTime = null;
+    _stopAtTrackEnd = false;
+    notifyListeners();
   }
 
   Future<void> next() => _handler.skipToNext();

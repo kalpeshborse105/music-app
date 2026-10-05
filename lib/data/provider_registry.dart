@@ -1,4 +1,5 @@
 import '../core/cache/cache_store.dart';
+import '../core/config/app_config.dart';
 import '../core/network/api_client.dart';
 import '../core/storage/settings_store.dart';
 import '../core/utils/logger.dart';
@@ -6,6 +7,7 @@ import '../domain/models/provider_compliance_record.dart';
 import '../domain/models/provider_status.dart';
 import '../domain/providers/archive_provider.dart';
 import '../domain/providers/audius_provider.dart';
+import '../domain/providers/custom_api_provider.dart';
 import '../domain/providers/demo_provider.dart';
 import '../domain/providers/jamendo_provider.dart';
 import '../domain/providers/licensed_provider_stub.dart';
@@ -34,6 +36,7 @@ class ProviderRegistry {
       RegionalMusicProvider(api: _api, cache: _cache),
       LicensedProviderStub(api: _api, cache: _cache),
       ListenFreeProvider(api: _api, cache: _cache),
+      CustomApiProvider(api: _api, cache: _cache),
     ];
   }
 
@@ -108,6 +111,9 @@ class ProviderRegistry {
     if (providerId == 'regional_indian' && _settings?.regionalEnabled != true) {
       return false;
     }
+    if (providerId == 'custom_api' && _settings?.customApiEnabled == false) {
+      return false;
+    }
     return !_unavailable.contains(providerId);
   }
 
@@ -132,6 +138,9 @@ class ProviderRegistry {
         if (p.id == 'regional_indian' && _settings?.regionalEnabled != true) {
           return false;
         }
+        if (p.id == 'custom_api' && _settings?.customApiEnabled == false) {
+          return false;
+        }
         return true;
       })
       .toList();
@@ -146,7 +155,7 @@ class ProviderRegistry {
         ProviderComplianceRecord(
           provider: 'audius',
           displayName: 'Audius Discovery Protocol',
-          enabled: _settings?.audiusEnabled ?? true,
+          enabled: _settings?.audiusEnabled ?? false,
           searchSupported: true,
           streamSupported: true,
           downloadSupported: false,
@@ -156,14 +165,14 @@ class ProviderRegistry {
           licenseUrl: 'https://audius.co/legal/terms-of-use',
           sourceUrl: 'https://api.audius.co',
           attributionRequired: true,
-          status: (_settings?.audiusEnabled ?? true)
+          status: (_settings?.audiusEnabled ?? false)
               ? ProviderStatus.active
               : ProviderStatus.disabled,
         ),
         ProviderComplianceRecord(
           provider: 'archive',
           displayName: 'Internet Archive (Live Music)',
-          enabled: _settings?.archiveEnabled ?? true,
+          enabled: _settings?.archiveEnabled ?? false,
           searchSupported: true,
           streamSupported: true,
           downloadSupported: true,
@@ -173,14 +182,14 @@ class ProviderRegistry {
           licenseUrl: 'https://archive.org/about/terms.php',
           sourceUrl: 'https://archive.org',
           attributionRequired: true,
-          status: (_settings?.archiveEnabled ?? true)
+          status: (_settings?.archiveEnabled ?? false)
               ? ProviderStatus.active
               : ProviderStatus.disabled,
         ),
         ProviderComplianceRecord(
           provider: 'local',
           displayName: 'Local Device MediaStore',
-          enabled: _settings?.localEnabled ?? true,
+          enabled: _settings?.localEnabled ?? false,
           searchSupported: true,
           streamSupported: true,
           downloadSupported: true,
@@ -190,7 +199,7 @@ class ProviderRegistry {
           licenseUrl: 'content://media/external/audio/media',
           sourceUrl: 'content://media/external/audio/media',
           attributionRequired: false,
-          status: (_settings?.localEnabled ?? true)
+          status: (_settings?.localEnabled ?? false)
               ? ProviderStatus.active
               : ProviderStatus.disabled,
         ),
@@ -240,6 +249,23 @@ class ProviderRegistry {
           sourceUrl: 'https://github.com/listenfree',
           attributionRequired: true,
           status: ProviderStatus.disabled,
+        ),
+        ProviderComplianceRecord(
+          provider: 'custom_api',
+          displayName: 'Cloud Audio Gateway (Self-Hosted)',
+          enabled: _settings?.customApiEnabled ?? true,
+          searchSupported: true,
+          streamSupported: true,
+          downloadSupported: false,
+          commercialUseStatus: 'PRIVATE SELF-HOSTED GATEWAY',
+          backgroundPlaybackStatus: 'SUPPORTED',
+          license: 'Private Microservice Proxy',
+          licenseUrl: '${AppConfig.customApiUrl}/docs',
+          sourceUrl: AppConfig.customApiUrl,
+          attributionRequired: false,
+          status: (_settings?.customApiEnabled ?? true)
+              ? ProviderStatus.active
+              : ProviderStatus.disabled,
         ),
       ];
 

@@ -54,6 +54,7 @@ dependencies:
   supabase_flutter: ^2.8.4
   flutter_dotenv: ^5.2.1
   image_picker: ^1.2.3
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:

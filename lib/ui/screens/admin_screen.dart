@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import '../../core/config/app_config.dart';
 import '../../core/storage/settings_store.dart';
 import '../../data/services/supabase_service.dart';
 import '../theme/app_colors.dart';
@@ -1075,6 +1076,20 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           capabilities: const <String>['Compliance Gated', 'Language Architecture', 'Clean Metadata'],
           enabled: settings.regionalEnabled,
           onToggle: (bool v) => settings.setRegionalEnabled(v),
+        ),
+        const SizedBox(height: 12),
+
+        // Custom Python / Node Cloud Audio Gateway
+        _buildProviderStatusCard(
+          context,
+          name: 'Cloud Audio Gateway (Self-Hosted Python API)',
+          type: 'Cached yt-dlp Microservice (Direct Lossless Stream & Search)',
+          status: settings.customApiEnabled ? 'ACTIVE (CONNECTED)' : 'DISABLED (OFF)',
+          statusColor: settings.customApiEnabled ? AppColors.secondary : Colors.grey,
+          stats: 'Endpoint: ${AppConfig.customApiUrl} • Dual-Tier In-Memory Cache • Lossless m4a',
+          capabilities: const <String>['High Concurrency', 'Fast Search', 'Stream Cache', '4h TTL'],
+          enabled: settings.customApiEnabled,
+          onToggle: (bool v) => settings.setCustomApiEnabled(v),
         ),
       ],
     );

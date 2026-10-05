@@ -50,7 +50,7 @@ class AudiusProvider extends BaseMusicProvider {
   String get id => 'audius';
 
   @override
-  String get displayName => 'Audius (Decentralized Stream)';
+  String get displayName => 'Audius';
 
   @override
   ProviderStatus get status => ProviderStatus.active;

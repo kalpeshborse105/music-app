@@ -123,6 +123,7 @@ class SettingsStore extends ChangeNotifier {
   static const String _kArchiveEnabled = 'provider_archive_enabled';
   static const String _kLocalEnabled = 'provider_local_enabled';
   static const String _kRegionalEnabled = 'provider_regional_enabled';
+  static const String _kCustomApiEnabled = 'provider_custom_api_enabled';
 
   /// Jamendo provider toggle. Strictly defaulted to OFF per project specifications.
   bool get jamendoEnabled => _p.getBool(_kJamendoEnabled) ?? false;
@@ -136,8 +137,8 @@ class SettingsStore extends ChangeNotifier {
     jamendoEnabled = value;
   }
 
-  /// Audius decentralized catalog provider toggle. Defaulted to ON.
-  bool get audiusEnabled => _p.getBool(_kAudiusEnabled) ?? true;
+  /// Audius decentralized catalog provider toggle. Defaulted to OFF.
+  bool get audiusEnabled => _p.getBool(_kAudiusEnabled) ?? false;
 
   set audiusEnabled(bool value) {
     _p.setBool(_kAudiusEnabled, value);
@@ -148,8 +149,8 @@ class SettingsStore extends ChangeNotifier {
     audiusEnabled = value;
   }
 
-  /// Internet Archive legal/live recordings provider toggle. Defaulted to ON.
-  bool get archiveEnabled => _p.getBool(_kArchiveEnabled) ?? true;
+  /// Internet Archive legal/live recordings provider toggle. Defaulted to OFF.
+  bool get archiveEnabled => _p.getBool(_kArchiveEnabled) ?? false;
 
   set archiveEnabled(bool value) {
     _p.setBool(_kArchiveEnabled, value);
@@ -160,8 +161,8 @@ class SettingsStore extends ChangeNotifier {
     archiveEnabled = value;
   }
 
-  /// Local Device MediaStore provider toggle. Defaulted to ON.
-  bool get localEnabled => _p.getBool(_kLocalEnabled) ?? true;
+  /// Local Device MediaStore provider toggle. Defaulted to OFF.
+  bool get localEnabled => _p.getBool(_kLocalEnabled) ?? false;
 
   set localEnabled(bool value) {
     _p.setBool(_kLocalEnabled, value);
@@ -182,6 +183,18 @@ class SettingsStore extends ChangeNotifier {
 
   Future<void> setRegionalEnabled(bool value) async {
     regionalEnabled = value;
+  }
+
+  /// Custom Python/Node API Gateway provider toggle. Defaulted to ON.
+  bool get customApiEnabled => _p.getBool(_kCustomApiEnabled) ?? true;
+
+  set customApiEnabled(bool value) {
+    _p.setBool(_kCustomApiEnabled, value);
+    notifyListeners();
+  }
+
+  Future<void> setCustomApiEnabled(bool value) async {
+    customApiEnabled = value;
   }
 
   // ---- Privacy ----

@@ -37,14 +37,18 @@ class _SearchScreenState extends State<SearchScreen> {
   ];
 
   static const List<_GenreCardData> _genres = <_GenreCardData>[
-    _GenreCardData('Synthwave', Color(0xFF8B5CF6), Color(0xFF3B82F6), Icons.electric_bolt_rounded),
-    _GenreCardData('Ambient Chill', Color(0xFF06B6D4), Color(0xFF0D9488), Icons.spa_rounded),
-    _GenreCardData('Lo-Fi Beats', Color(0xFFEC4899), Color(0xFFF43F5E), Icons.coffee_rounded),
-    _GenreCardData('Cyberpunk', Color(0xFFA855F7), Color(0xFFEC4899), Icons.videogame_asset_rounded),
-    _GenreCardData('Electronic', Color(0xFF3B82F6), Color(0xFF06B6D4), Icons.graphic_eq_rounded),
-    _GenreCardData('Classical Archive', Color(0xFF6366F1), Color(0xFF8B5CF6), Icons.piano_rounded),
-    _GenreCardData('Jazz & Blues', Color(0xFFF59E0B), Color(0xFFD97706), Icons.music_note_rounded),
-    _GenreCardData('Acoustic Soul', Color(0xFF10B981), Color(0xFF059669), Icons.nature_people_rounded),
+    _GenreCardData('Bollywood', Color(0xFFE11D48), Color(0xFFF97316), Icons.movie_filter_rounded),
+    _GenreCardData('Pop & Top Hits', Color(0xFF8B5CF6), Color(0xFF3B82F6), Icons.star_rounded),
+    _GenreCardData('Punjabi Hits', Color(0xFFF59E0B), Color(0xFFD97706), Icons.speaker_group_rounded),
+    _GenreCardData('Romantic & Love', Color(0xFFEC4899), Color(0xFFF43F5E), Icons.favorite_rounded),
+    _GenreCardData('Lo-Fi & Chill', Color(0xFF06B6D4), Color(0xFF0D9488), Icons.coffee_rounded),
+    _GenreCardData('Hip-Hop & Rap', Color(0xFFA855F7), Color(0xFFEC4899), Icons.mic_external_on_rounded),
+    _GenreCardData('Workout & Energy', Color(0xFFEF4444), Color(0xFFF97316), Icons.fitness_center_rounded),
+    _GenreCardData('Devotional', Color(0xFFF97316), Color(0xFFEAB308), Icons.self_improvement_rounded),
+    _GenreCardData('Electronic & Dance', Color(0xFF3B82F6), Color(0xFF06B6D4), Icons.graphic_eq_rounded),
+    _GenreCardData('Acoustic & Folk', Color(0xFF10B981), Color(0xFF059669), Icons.nature_people_rounded),
+    _GenreCardData('Rock & Metal', Color(0xFF6366F1), Color(0xFF4F46E5), Icons.electric_bolt_rounded),
+    _GenreCardData('Classical & Instrumental', Color(0xFF64748B), Color(0xFF334155), Icons.piano_rounded),
   ];
 
   @override
