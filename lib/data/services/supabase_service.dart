@@ -133,6 +133,12 @@ class SupabaseService {
     );
   }
 
+  /// Updates the current authenticated user's password in Supabase DB.
+  Future<void> updateUserPassword(String newPassword) async {
+    if (!_isInitialized) return;
+    await client.auth.updateUser(UserAttributes(password: newPassword));
+  }
+
   // ==========================================
   // AUTHORIZATION & ROLES
   // ==========================================
