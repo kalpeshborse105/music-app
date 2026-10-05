@@ -169,16 +169,121 @@ def search_tracks():
     })
 
 
+LANGUAGE_QUERIES = {
+    "all": [
+        "Latest Bollywood Hits",
+        "Trending Hindi Songs",
+        "Top Bollywood Songs",
+        "Arijit Singh Hits",
+        "Punjabi Top Hits",
+        "Romantic Hindi Hits",
+        "Bollywood Dance Mashup",
+        "Indian Pop Hits",
+        "New Hindi Releases",
+        "Trending India Hits",
+    ],
+    "hindi": [
+        "Latest Bollywood Hits",
+        "Trending Hindi Songs",
+        "Top Bollywood Hits",
+        "Arijit Singh Best",
+        "Romantic Hindi Songs",
+        "Hindi Retro Classics",
+        "90s Hindi Hits",
+        "Sad Hindi Songs",
+    ],
+    "punjabi": [
+        "Latest Punjabi Hits",
+        "Trending Punjabi Songs",
+        "Sidhu Moosewala Hits",
+        "Diljit Dosanjh Hits",
+        "Karan Aujla Top Songs",
+        "Punjabi Party Songs",
+    ],
+    "bhojpuri": [
+        "Top Bhojpuri Hits",
+        "Pawan Singh Hits",
+        "Khesari Lal Yadav Songs",
+        "Latest Bhojpuri Songs",
+    ],
+    "haryanvi": [
+        "Top Haryanvi Hits",
+        "Latest Haryanvi Songs",
+        "Renuka Panwar Hits",
+        "Gulzaar Chhaniwala Songs",
+    ],
+    "marathi": [
+        "Top Marathi Hits",
+        "Ajay Atul Hits",
+        "Latest Marathi Songs",
+        "Marathi Romantic Songs",
+    ],
+    "gujarati": [
+        "Top Gujarati Hits",
+        "Kinjal Dave Hits",
+        "Geeta Rabari Songs",
+        "Latest Gujarati Garba Songs",
+    ],
+    "tamil": [
+        "Top Tamil Hits",
+        "Anirudh Ravichander Hits",
+        "AR Rahman Tamil Classics",
+        "Latest Tamil Songs",
+    ],
+    "telugu": [
+        "Top Telugu Hits",
+        "SS Thaman Hits",
+        "Devi Sri Prasad Hits",
+        "Latest Telugu Songs",
+    ],
+    "bengali": [
+        "Top Bengali Hits",
+        "Arijit Singh Bengali",
+        "Rabindra Sangeet Melodies",
+        "Latest Bengali Songs",
+    ],
+    "devotional": [
+        "Shree Hanuman Chalisa",
+        "Top Bhakti Songs",
+        "Shiv Bhajan Hits",
+        "Krishna Bhakti Songs",
+    ],
+    "romantic": [
+        "Romantic Hindi Hits",
+        "Love Songs Bollywood",
+        "Arijit Singh Romantic",
+        "Soulful Hindi Melodies",
+    ],
+    "chill": [
+        "Hindi Acoustic Songs",
+        "Lo-Fi Hindi Hits",
+        "Bollywood Unplugged",
+        "Late Night Hindi",
+    ],
+}
+
 # ─── /api/trending — Top hits for Flutter home screen ─────────────────────────
 @app.route("/api/trending", methods=["GET"])
 def trending_tracks():
     limit = int(request.args.get("limit", 20))
-    tracks = _jio_search("Latest Bollywood Hits", limit=limit)
+    page = int(request.args.get("p") or request.args.get("page") or 1)
+    lang = (request.args.get("lang") or request.args.get("language") or "all").lower().strip()
+
+    query_list = LANGUAGE_QUERIES.get(lang, LANGUAGE_QUERIES["all"])
+    q_index = (page - 1) % len(query_list)
+    page_within_q = ((page - 1) // len(query_list)) + 1
+    selected_query = query_list[q_index]
+
+    tracks = _jio_search(selected_query, limit=limit, page=page_within_q)
     if not tracks:
-        tracks = _jio_search("Trending Hindi", limit=limit)
+        tracks = _jio_search("Latest Bollywood Hits", limit=limit, page=page)
+
     return jsonify({
         "tracks": tracks,
         "total": len(tracks),
+        "page": page,
+        "language": lang,
+        "query": selected_query,
     })
 
 

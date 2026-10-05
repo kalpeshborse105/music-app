@@ -326,21 +326,12 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
           elevation: 2,
         ),
         onPressed: _isLoading ? null : _handleGoogleSignIn,
-        child: Row(
+        child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            Image.network(
-              'https://lh3.googleusercontent.com/COxitqgJr1sJnIDe8-jiKhxDx1FrYbtRHKJ9zOIoGJ2cEWKLoceukqh4BQ8wzsWCmAgg=w64',
-              width: 18,
-              height: 18,
-              errorBuilder: (_, __, ___) => const Icon(
-                Icons.g_mobiledata_rounded,
-                color: Color(0xFF4285F4),
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Text(
+            _OfficialGoogleGLogo(size: 20),
+            SizedBox(width: 10),
+            Text(
               'Continue with Google',
               style: TextStyle(
                 fontSize: 14,
@@ -500,7 +491,7 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: <Widget>[
                         const Text(
-                          'Personalize & Legal Catalog',
+                          'Personalize Your Experience',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -508,7 +499,7 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                           ),
                         ),
                         Text(
-                          '100% Free & Legal',
+                          'High-Fidelity Audio',
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.white.withValues(alpha: 0.6),
@@ -553,7 +544,7 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                                   Icon(Icons.verified_user_rounded, color: AppColors.neonCyan, size: 20),
                                   SizedBox(width: 8),
                                   Text(
-                                    'Curated Architecture',
+                                    'Curated Music Flow',
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w700,
@@ -569,7 +560,7 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: const Text(
-                                  'LOSSLESS 24-BIT',
+                                  '320KBPS HD',
                                   style: TextStyle(
                                     fontSize: 9,
                                     fontWeight: FontWeight.w800,
@@ -585,22 +576,22 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                           _buildFeatureRow(
                             icon: Icons.library_music_rounded,
                             iconColor: AppColors.electricViolet,
-                            title: '100% Legal & Independent',
-                            desc: 'Licensed catalog powered by Jamendo, Free Music Archive, and ccMixter.',
+                            title: 'Unlimited Music Streaming',
+                            desc: 'Stream your favorite tracks, trending hits, and curated playlists seamlessly.',
                           ),
                           const SizedBox(height: 12),
                           _buildFeatureRow(
                             icon: Icons.graphic_eq_rounded,
                             iconColor: AppColors.neonCyan,
-                            title: '24-Bit / 96kHz Fidelity',
-                            desc: 'Uncompressed streaming with continuous background session engine.',
+                            title: 'High-Fidelity Audio',
+                            desc: 'Crystal-clear sound quality with continuous background playback.',
                           ),
                           const SizedBox(height: 12),
                           _buildFeatureRow(
                             icon: Icons.folder_shared_rounded,
                             iconColor: AppColors.hyperMagenta,
                             title: 'Local Device Music Player',
-                            desc: 'Instant zero-latency playback of your device FLAC & MP3 storage.',
+                            desc: 'Instant zero-latency playback of your device audio files.',
                           ),
                         ],
                       ),
@@ -686,41 +677,109 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                     const SizedBox(height: 12),
                   ] else ...<Widget>[
                     // Interactive Auth Form Card
+                    // Interactive Auth Form Card matching screenshot reference
                     EchoGlassCard(
-                      padding: const EdgeInsets.all(20),
-                      borderRadius: 24,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 26),
+                      borderRadius: 28,
                       child: Form(
                         key: _formKey,
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: <Widget>[
+                            // Top purple pill badge
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF281C44),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: const Color(0xFF6B4EE6).withValues(alpha: 0.5),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const <Widget>[
+                                  Icon(Icons.auto_awesome_rounded, color: Color(0xFFB488FF), size: 14),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'ECHOFLOW MUSIC ACCOUNT',
+                                    style: TextStyle(
+                                      color: Color(0xFFD2B8FF),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // Main Title
+                            Text(
+                              _isSignUp ? 'Create EchoFlow Account' : 'Sign In to EchoFlow Music',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+
+                            // Subtitle
+                            Text(
+                              'Sync personalized playlists, offline downloads, and community favorites across all your devices.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.white.withValues(alpha: 0.65),
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 22),
+
+                            // Continue with Google Button
+                            _buildGoogleButton(),
+                            const SizedBox(height: 18),
+
+                            // OR EMAIL divider
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: <Widget>[
-                                Text(
-                                  _isSignUp ? 'Create Account' : 'Welcome Back',
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
+                                Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.15))),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                                  child: Text(
+                                    'OR EMAIL',
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.4),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 1.2,
+                                    ),
                                   ),
                                 ),
-                                TextButton.icon(
-                                  icon: const Icon(Icons.arrow_back_rounded, color: AppColors.onSurfaceVariant, size: 16),
-                                  label: const Text('Back', style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 13)),
-                                  onPressed: () {
-                                    if (widget.initialShowAuthForm && Navigator.canPop(context)) {
-                                      Navigator.pop(context);
-                                    } else {
-                                      setState(() => _showAuthForm = false);
-                                    }
-                                  },
-                                ),
+                                Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.15))),
                               ],
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 18),
 
+                            // Fields
                             if (_isSignUp) ...<Widget>[
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'Full Name',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white.withValues(alpha: 0.85),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
                               TextFormField(
                                 controller: _nameController,
                                 style: const TextStyle(color: Colors.white, fontSize: 14),
@@ -730,20 +789,41 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                                   return null;
                                 },
                                 decoration: InputDecoration(
-                                  hintText: 'Full Name',
-                                  hintStyle: const TextStyle(color: AppColors.outline),
-                                  prefixIcon: const Icon(Icons.person_outline_rounded, color: AppColors.electricViolet),
+                                  hintText: 'Your name',
+                                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                                  prefixIcon: const Icon(Icons.person_outline_rounded, color: AppColors.onSurfaceVariant),
                                   filled: true,
-                                  fillColor: AppColors.surfaceContainerLowest,
+                                  fillColor: const Color(0xFF14141E),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                   border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                    borderSide: BorderSide.none,
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: AppColors.electricViolet, width: 1.5),
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 14),
                             ],
 
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Email Address',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white.withValues(alpha: 0.85),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
                             TextFormField(
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
@@ -754,19 +834,40 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                                 return null;
                               },
                               decoration: InputDecoration(
-                                hintText: 'Email address',
-                                hintStyle: const TextStyle(color: AppColors.outline),
-                                prefixIcon: const Icon(Icons.email_outlined, color: AppColors.electricViolet),
+                                hintText: 'name@example.com',
+                                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                                prefixIcon: const Icon(Icons.mail_outline_rounded, color: AppColors.onSurfaceVariant),
                                 filled: true,
-                                fillColor: AppColors.surfaceContainerLowest,
+                                fillColor: const Color(0xFF14141E),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: BorderSide.none,
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppColors.electricViolet, width: 1.5),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 14),
 
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Password',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white.withValues(alpha: 0.85),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
                             TextFormField(
                               controller: _passwordController,
                               obscureText: true,
@@ -776,20 +877,41 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                                 return null;
                               },
                               decoration: InputDecoration(
-                                hintText: 'Password',
-                                hintStyle: const TextStyle(color: AppColors.outline),
-                                prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppColors.electricViolet),
+                                hintText: '••••••••',
+                                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                                prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppColors.onSurfaceVariant),
                                 filled: true,
-                                fillColor: AppColors.surfaceContainerLowest,
+                                fillColor: const Color(0xFF14141E),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: BorderSide.none,
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppColors.electricViolet, width: 1.5),
                                 ),
                               ),
                             ),
 
                             if (_isSignUp) ...<Widget>[
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 14),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'Confirm Password',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white.withValues(alpha: 0.85),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
                               TextFormField(
                                 controller: _confirmPasswordController,
                                 obscureText: true,
@@ -800,20 +922,29 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                                   return null;
                                 },
                                 decoration: InputDecoration(
-                                  hintText: 'Confirm Password',
-                                  hintStyle: const TextStyle(color: AppColors.outline),
-                                  prefixIcon: const Icon(Icons.lock_clock_outlined, color: AppColors.electricViolet),
+                                  hintText: '••••••••',
+                                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                                  prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppColors.onSurfaceVariant),
                                   filled: true,
-                                  fillColor: AppColors.surfaceContainerLowest,
+                                  fillColor: const Color(0xFF14141E),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                   border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                    borderSide: BorderSide.none,
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: AppColors.electricViolet, width: 1.5),
                                   ),
                                 ),
                               ),
                             ],
 
-                            if (!_isSignUp) ...<Widget>[
+                            if (!_isSignUp)
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: TextButton(
@@ -827,9 +958,9 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                                     ),
                                   ),
                                 ),
-                              ),
-                            ] else
-                              const SizedBox(height: 12),
+                              )
+                            else
+                              const SizedBox(height: 14),
 
                             if (_errorMessage != null)
                               Padding(
@@ -856,58 +987,119 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                                 ),
                               ),
 
+                            // Glowing Gradient CTA Button
                             SizedBox(
                               width: double.infinity,
-                              height: 50,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.electricViolet,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              height: 52,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: <Color>[Color(0xFF6B4EE6), Color(0xFF00D2FF)],
+                                    begin: Alignment.centerLeft,
+                                    end: Alignment.centerRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(30),
+                                  boxShadow: <BoxShadow>[
+                                    BoxShadow(
+                                      color: const Color(0xFF6B4EE6).withValues(alpha: 0.35),
+                                      blurRadius: 16,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
                                 ),
-                                onPressed: _isLoading ? null : _handleAuthSubmit,
-                                child: _isLoading
-                                    ? const SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                      )
-                                    : Text(
-                                        _isSignUp ? 'Sign Up' : 'Sign In',
-                                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
-                                      ),
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    shadowColor: Colors.transparent,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                                  ),
+                                  onPressed: _isLoading ? null : _handleAuthSubmit,
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        )
+                                      : Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: <Widget>[
+                                            Text(
+                                              _isSignUp ? 'Create Account' : 'Sign In to Listen',
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w700,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
+                                          ],
+                                        ),
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 16),
 
-                            Center(
-                              child: TextButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _isSignUp = !_isSignUp;
-                                    _errorMessage = null;
-                                  });
-                                },
-                                child: Text(
-                                  _isSignUp
-                                      ? 'Already have an account? Sign In'
-                                      : "Don't have an account? Create one",
-                                  style: const TextStyle(color: AppColors.onSurfaceVariant, fontSize: 13),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            const Row(
+                            // Footer Row: Toggle & Skip for now
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: <Widget>[
-                                Expanded(child: Divider(color: AppColors.outlineVariant)),
-                                Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 12),
-                                  child: Text('OR', style: TextStyle(color: AppColors.outline, fontSize: 11)),
+                                GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _isSignUp = !_isSignUp;
+                                      _errorMessage = null;
+                                    });
+                                  },
+                                  child: Text(
+                                    _isSignUp
+                                        ? 'Already have an account? Sign In'
+                                        : 'Need an account? Sign up',
+                                    style: const TextStyle(
+                                      color: Color(0xFFB488FF),
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                 ),
-                                Expanded(child: Divider(color: AppColors.outlineVariant)),
+                                GestureDetector(
+                                  onTap: () {
+                                    if (widget.initialShowAuthForm && Navigator.canPop(context)) {
+                                      Navigator.pop(context);
+                                    } else {
+                                      widget.onComplete();
+                                    }
+                                  },
+                                  child: Text(
+                                    'Skip for now',
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.6),
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
-                            const SizedBox(height: 12),
-                            _buildGoogleButton(),
+                            const SizedBox(height: 18),
+
+                            // Security line
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: <Widget>[
+                                const Icon(Icons.check_circle_outline_rounded,
+                                    color: Color(0xFF00E676), size: 14),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Secured via Supabase Real-Time Auth & Cloud Sync',
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.45),
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       ),
@@ -1000,4 +1192,69 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
       ),
     );
   }
+}
+
+class _OfficialGoogleGLogo extends StatelessWidget {
+  final double size;
+  const _OfficialGoogleGLogo({this.size = 20});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _GoogleGPainter(),
+      ),
+    );
+  }
+}
+
+class _GoogleGPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double w = size.width;
+    final double h = size.height;
+    final Rect rect = Rect.fromLTWH(0, 0, w, h);
+    final double strokeWidth = w * 0.22;
+
+    final Paint paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.butt;
+
+    final Rect arcRect = rect.deflate(strokeWidth / 2);
+
+    // Red: 200° to 330°
+    paint.color = const Color(0xFFEA4335);
+    canvas.drawArc(arcRect, 3.49, 1.85, false, paint);
+
+    // Yellow: 140° to 220°
+    paint.color = const Color(0xFFFBBC05);
+    canvas.drawArc(arcRect, 2.27, 1.40, false, paint);
+
+    // Green: 45° to 145°
+    paint.color = const Color(0xFF34A853);
+    canvas.drawArc(arcRect, 0.70, 1.65, false, paint);
+
+    // Blue: -15° to 45°
+    paint.color = const Color(0xFF4285F4);
+    canvas.drawArc(arcRect, -0.26, 1.05, false, paint);
+
+    // Blue center horizontal bar
+    final Paint barPaint = Paint()
+      ..color = const Color(0xFF4285F4)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTRB(w * 0.44, h * 0.38, w * 0.98, h * 0.62),
+        const Radius.circular(2),
+      ),
+      barPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

@@ -44,7 +44,7 @@ class CustomApiProvider extends BaseMusicProvider {
         lyrics: false,
         playlists: false,
         favorites: true,
-        radio: false,
+        radio: true,
         search: true,
         browse: true,
         recommendations: true,
@@ -85,10 +85,12 @@ class CustomApiProvider extends BaseMusicProvider {
       return SearchResult(query: query, tracks: const <Track>[]);
     }
 
+    final int page = (offset ~/ limit) + 1;
     final Uri uri = Uri.parse('$_baseUrl/api/search').replace(
       queryParameters: <String, String>{
         'q': query,
         'limit': limit.toString(),
+        'p': page.toString(),
       },
     );
 
@@ -154,8 +156,12 @@ class CustomApiProvider extends BaseMusicProvider {
       return const PagedResult<Track>(items: <Track>[], total: 0);
     }
 
+    final int page = (offset ~/ limit) + 1;
     final Uri uri = Uri.parse('$_baseUrl/api/trending').replace(
-      queryParameters: <String, String>{'limit': limit.toString()},
+      queryParameters: <String, String>{
+        'limit': limit.toString(),
+        'p': page.toString(),
+      },
     );
 
     try {
@@ -269,7 +275,10 @@ class CustomApiProvider extends BaseMusicProvider {
 
   @override
   Future<List<Track>> getRadio(Track track, {int limit = 20}) async {
-    final SearchResult s = await search('${track.artistNames} mix', limit: limit);
-    return s.tracks;
+    final String query = track.artists.isNotEmpty && track.artists.first.name.isNotEmpty
+        ? track.artists.first.name
+        : track.title;
+    final SearchResult s = await search(query, limit: limit);
+    return s.tracks.where((Track t) => t.id != track.id).toList();
   }
 }

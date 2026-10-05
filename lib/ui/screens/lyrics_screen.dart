@@ -49,10 +49,8 @@ class _LyricsScreenState extends State<LyricsScreen> {
             if (lyrics == null || lyrics.isEmpty) {
               return const MessageView(
                 icon: Icons.lyrics_outlined,
-                title: 'Lyrics unavailable',
-                subtitle:
-                    'Lyrics are not supplied for this track. EchoFlow only shows '
-                    'licensed lyrics.',
+                title: 'Lyrics coming soon',
+                subtitle: "We're working on bringing synced lyrics for this track.",
               );
             }
             if (lyrics.isSynced && lyrics.synced.isNotEmpty) {

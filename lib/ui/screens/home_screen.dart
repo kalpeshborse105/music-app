@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../../core/utils/formatters.dart';
 import '../../data/music_repository.dart';
-import '../../domain/models/artist.dart';
 import '../../domain/models/search_result.dart';
 import '../../domain/models/track.dart';
 import '../../domain/playback/playback_controller.dart';
@@ -17,8 +16,9 @@ import '../widgets/cards.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/state_views.dart';
 import '../widgets/track_tile.dart';
-import 'artist_screen.dart';
+import 'app_shell.dart';
 import 'list_screen.dart';
+import 'radio_screen.dart';
 import 'search_screen.dart';
 
 /// Stitch Nocturnal Home Screen combining ambient glowing background, mood filters,
@@ -26,6 +26,12 @@ import 'search_screen.dart';
 /// ranked trending tracks with live soundbars, and featured curator avatars.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  static _HomeScreenState? _activeState;
+
+  static void scrollToTopAndRefresh() {
+    _activeState?._onScrollToTop();
+  }
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -53,13 +59,81 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<List<Track>>? _categoryTracksFuture;
   bool _initialized = false;
 
+  final ScrollController _scrollController = ScrollController();
+  final List<Track> _infiniteTracks = <Track>[];
+  bool _isLoadingMore = false;
+
+  @override
+  void initState() {
+    super.initState();
+    HomeScreen._activeState = this;
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (_scrollController.hasClients &&
+        _scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 400) {
+      _loadMore();
+    }
+  }
+
+  void _onScrollToTop() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOut,
+      );
+    }
+    final MusicRepository repo = context.read<MusicRepository>();
+    setState(() {
+      _infiniteTracks.clear();
+      _trendingFuture = repo.trending(limit: 20);
+      _newReleasesFuture = repo.newReleases(limit: 10);
+    });
+  }
+
+  Future<void> _loadMore() async {
+    if (_isLoadingMore) return;
+    _isLoadingMore = true;
+    try {
+      final MusicRepository repo = context.read<MusicRepository>();
+      final List<Track> more = await repo.trending(
+        limit: 20,
+        offset: _infiniteTracks.length,
+      );
+      if (more.isNotEmpty && mounted) {
+        setState(() {
+          final Set<String> existingIds = _infiniteTracks.map((Track t) => t.id).toSet();
+          for (final Track t in more) {
+            if (existingIds.add(t.id)) {
+              _infiniteTracks.add(t);
+            }
+          }
+        });
+      }
+    } catch (_) {} finally {
+      if (mounted) setState(() => _isLoadingMore = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (HomeScreen._activeState == this) {
+      HomeScreen._activeState = null;
+    }
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_initialized) {
       _initialized = true;
       final MusicRepository repo = context.read<MusicRepository>();
-      _trendingFuture = repo.trending(limit: 8);
+      _trendingFuture = repo.trending(limit: 10);
       _newReleasesFuture = repo.newReleases(limit: 8);
       _spotlightFuture = repo.trending(limit: 1);
     }
@@ -124,11 +198,22 @@ class _HomeScreenState extends State<HomeScreen> {
           SafeArea(
             bottom: false,
             child: CustomScrollView(
+              controller: _scrollController,
               physics: const BouncingScrollPhysics(),
               slivers: <Widget>[
                 // 1. Header with Brand Mark and Actions
                 SliverToBoxAdapter(
                   child: _buildHeader(context),
+                ),
+
+                // Global Search Redirect Bar
+                SliverToBoxAdapter(
+                  child: _buildSearchBar(context),
+                ),
+
+                // Akashvani Live Radio Banner
+                SliverToBoxAdapter(
+                  child: _buildLiveRadioBanner(context),
                 ),
 
                 // 2. Greeting & Mood Filter Carousel
@@ -162,14 +247,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _buildMadeForYouSection(context, repo),
                   ),
 
-                  // 7. Trending Now & Fresh Picks (Ranked 1..5)
+                  // 7. Trending Now & Fresh Picks (Infinite scroll)
                   SliverToBoxAdapter(
                     child: _buildTrendingRankedSection(context, playback),
-                  ),
-
-                  // 8. Featured Artists & Curators
-                  SliverToBoxAdapter(
-                    child: _buildFeaturedCuratorsSection(context),
                   ),
                 ],
 
@@ -247,11 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
               IconButton(
                 icon: const Icon(Icons.search_rounded, size: 22),
                 tooltip: 'Search',
-                onPressed: () {
-                  Navigator.of(context).push(MaterialPageRoute<void>(
-                    builder: (_) => const SearchScreen(),
-                  ));
-                },
+                onPressed: () => AppShell.selectTab(context, 1),
               ),
               IconButton(
                 icon: const Icon(Icons.notifications_none_rounded, size: 22),
@@ -261,6 +337,143 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(BuildContext context) {
+    final bool isDark = context.isDarkMode;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xs, AppSpacing.lg, AppSpacing.sm),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: () => AppShell.selectTab(context, 1),
+        child: Container(
+          height: 46,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: isDark
+                ? AppColors.surfaceContainerHigh.withValues(alpha: 0.8)
+                : AppColors.lightElevatedSurface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
+            ),
+          ),
+          child: Row(
+            children: <Widget>[
+              Icon(
+                Icons.search_rounded,
+                size: 20,
+                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Search songs, artists, albums...',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLiveRadioBanner(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          Navigator.of(context).push(MaterialPageRoute<void>(
+            builder: (_) => const RadioScreen(),
+          ));
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: <Color>[Color(0xFF2B1842), Color(0xFF132036)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppColors.neonCyan.withValues(alpha: 0.35),
+              width: 1,
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: AppColors.electricViolet.withValues(alpha: 0.15),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: <Widget>[
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: <Color>[Color(0xFFFF9933), Color(0xFF138808)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.radio_rounded, color: Colors.white, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Text(
+                          'AKASHVANI LIVE RADIO',
+                          style: TextStyle(
+                            color: AppColors.neonCyan,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        SizedBox(width: 6),
+                        Icon(Icons.fiber_manual_record_rounded, color: Colors.redAccent, size: 8),
+                        SizedBox(width: 3),
+                        Text(
+                          'LIVE',
+                          style: TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'All India Radio Vividh Bharati, FM Gold & Regional Stations',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: Colors.white70),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1157,7 +1370,24 @@ class _HomeScreenState extends State<HomeScreen> {
         FutureBuilder<List<Track>>(
           future: _trendingFuture,
           builder: (BuildContext context, AsyncSnapshot<List<Track>> snapshot) {
-            final List<Track> tracks = (snapshot.data ?? <Track>[]).take(5).toList();
+            if (snapshot.hasData && _infiniteTracks.isEmpty) {
+              _infiniteTracks.addAll(snapshot.data ?? <Track>[]);
+            }
+            final List<Track> tracks = _infiniteTracks.isNotEmpty
+                ? _infiniteTracks
+                : (snapshot.data ?? <Track>[]);
+            if (tracks.isEmpty && snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2.2),
+                  ),
+                ),
+              );
+            }
             if (tracks.isEmpty) {
               return const SizedBox.shrink();
             }
@@ -1176,131 +1406,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     if (i < tracks.length - 1) const SizedBox(height: 4),
                   ],
+                  if (_isLoadingMore)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Center(
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             );
           },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFeaturedCuratorsSection(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        SectionHeader(
-          title: 'Featured Artists & Curators',
-          subtitle: 'Creators shaping your daily sound',
-          actionLabel: 'Explore',
-          onAction: () {
-            Navigator.of(context).push(MaterialPageRoute<void>(
-              builder: (_) => const SearchScreen(),
-            ));
-          },
-        ),
-        SizedBox(
-          height: 136,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            children: <Widget>[
-              EchoCuratorCard(
-                name: 'Kaelen Vance',
-                followerCount: '3.4M fans',
-                imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300',
-                onTap: () {
-                  Navigator.of(context).push(MaterialPageRoute<void>(
-                    builder: (_) => const ArtistScreen(
-                      artist: Artist(
-                        id: 'curator:kaelen_vance',
-                        providerId: 'curated',
-                        providerArtistId: 'kaelen_vance',
-                        name: 'Kaelen Vance',
-                        imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300',
-                      ),
-                    ),
-                  ));
-                },
-              ),
-              const SizedBox(width: AppSpacing.md),
-              EchoCuratorCard(
-                name: 'Lyra Nova',
-                followerCount: '5.8M fans',
-                imageUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300',
-                onTap: () {
-                  Navigator.of(context).push(MaterialPageRoute<void>(
-                    builder: (_) => const ArtistScreen(
-                      artist: Artist(
-                        id: 'curator:lyra_nova',
-                        providerId: 'curated',
-                        providerArtistId: 'lyra_nova',
-                        name: 'Lyra Nova',
-                        imageUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300',
-                      ),
-                    ),
-                  ));
-                },
-              ),
-              const SizedBox(width: AppSpacing.md),
-              EchoCuratorCard(
-                name: 'Nox Theory',
-                followerCount: '1.2M fans',
-                imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300',
-                onTap: () {
-                  Navigator.of(context).push(MaterialPageRoute<void>(
-                    builder: (_) => const ArtistScreen(
-                      artist: Artist(
-                        id: 'curator:nox_theory',
-                        providerId: 'curated',
-                        providerArtistId: 'nox_theory',
-                        name: 'Nox Theory',
-                        imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300',
-                      ),
-                    ),
-                  ));
-                },
-              ),
-              const SizedBox(width: AppSpacing.md),
-              EchoCuratorCard(
-                name: 'Echo Editorial',
-                followerCount: 'Official Flow',
-                imageUrl: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=300',
-                onTap: () {
-                  Navigator.of(context).push(MaterialPageRoute<void>(
-                    builder: (_) => const ArtistScreen(
-                      artist: Artist(
-                        id: 'curator:echo_editorial',
-                        providerId: 'curated',
-                        providerArtistId: 'echo_editorial',
-                        name: 'Echo Editorial',
-                        imageUrl: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=300',
-                      ),
-                    ),
-                  ));
-                },
-              ),
-              const SizedBox(width: AppSpacing.md),
-              EchoCuratorCard(
-                name: 'Cora Chen',
-                followerCount: '890K fans',
-                imageUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300',
-                onTap: () {
-                  Navigator.of(context).push(MaterialPageRoute<void>(
-                    builder: (_) => const ArtistScreen(
-                      artist: Artist(
-                        id: 'curator:cora_chen',
-                        providerId: 'curated',
-                        providerArtistId: 'cora_chen',
-                        name: 'Cora Chen',
-                        imageUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300',
-                      ),
-                    ),
-                  ));
-                },
-              ),
-            ],
-          ),
         ),
       ],
     );

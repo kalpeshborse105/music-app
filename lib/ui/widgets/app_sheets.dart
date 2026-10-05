@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../core/utils/app_messenger.dart';
 import '../../domain/models/track.dart';
 import '../../domain/playback/playback_controller.dart';
-import '../../domain/providers/provider_labels.dart';
 import '../../state/downloads_controller.dart';
 import '../../state/library_controller.dart';
 import '../screens/lyrics_screen.dart';
@@ -58,15 +57,20 @@ Future<void> showTrackActionsSheet(BuildContext context, Track track) async {
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(ctx).textTheme.bodySmall,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          providerDescription(track.providerId),
-                          maxLines: 2,
-                          style: Theme.of(ctx)
-                              .textTheme
-                              .labelSmall
-                              ?.copyWith(fontSize: 10),
-                        ),
+                        if (track.album != null &&
+                            track.album!.title.isNotEmpty &&
+                            track.album!.title != 'Single') ...<Widget>[
+                          const SizedBox(height: 2),
+                          Text(
+                            track.album!.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(ctx)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(fontSize: 11),
+                          ),
+                        ],
                       ],
                     ),
                   ),

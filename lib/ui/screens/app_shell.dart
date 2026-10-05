@@ -1,6 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide SearchController;
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
+import '../../state/search_controller.dart';
 import '../theme/app_colors.dart';
 import '../widgets/mini_player.dart';
 import 'home_screen.dart';
@@ -13,6 +15,11 @@ import 'search_screen.dart';
 /// persistent floating MiniPlayer.
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
+
+  static void selectTab(BuildContext context, int index) {
+    final _AppShellState? state = context.findAncestorStateOfType<_AppShellState>();
+    state?._onDestinationSelected(index);
+  }
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -28,6 +35,27 @@ class _AppShellState extends State<AppShell> {
     ProfileScreen(),
   ];
 
+  void _onDestinationSelected(int i) {
+    if (_index == i) {
+      // Re-tapping current active tab
+      if (i == 0) {
+        HomeScreen.scrollToTopAndRefresh();
+      } else if (i == 1) {
+        // Tapped Search again -> reset to fresh explore
+        context.read<SearchController>().clear();
+      }
+      return;
+    }
+
+    final int prevIndex = _index;
+    setState(() => _index = i);
+
+    // If leaving search tab, reset search so returning is clean
+    if (prevIndex == 1 && i != 1) {
+      context.read<SearchController>().clear();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
@@ -41,7 +69,7 @@ class _AppShellState extends State<AppShell> {
             // Desktop Sidebar Navigation Rail
             NavigationRail(
               selectedIndex: _index,
-              onDestinationSelected: (int i) => setState(() => _index = i),
+              onDestinationSelected: _onDestinationSelected,
               backgroundColor: isDark ? AppColors.darkBg : AppColors.lightNavSurface,
               indicatorColor: isDark
                   ? AppColors.primary.withValues(alpha: 0.20)
@@ -121,7 +149,7 @@ class _AppShellState extends State<AppShell> {
               ),
               child: NavigationBar(
                 selectedIndex: _index,
-                onDestinationSelected: (int i) => setState(() => _index = i),
+                onDestinationSelected: _onDestinationSelected,
                 height: 64,
                 elevation: 0,
                 backgroundColor: Colors.transparent,

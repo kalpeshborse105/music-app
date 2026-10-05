@@ -537,7 +537,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   // Subtle Branding Footer
                   Center(
                     child: Text(
-                      'Kalpkrut Infotech',
+                      'Powered by Kalpkrut Infotech',
                       style: TextStyle(
                         fontFamily: 'Inter',
                         fontSize: 11,

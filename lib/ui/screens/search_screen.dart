@@ -76,6 +76,9 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final SearchController search = context.watch<SearchController>();
+    if (search.query.isEmpty && _controller.text.isNotEmpty) {
+      _controller.clear();
+    }
     final LibraryController library = context.watch<LibraryController>();
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -232,7 +235,7 @@ class _SearchScreenState extends State<SearchScreen> {
       case SearchStatus.idle:
         return _buildExploreAndRecent(library, search);
       case SearchStatus.loading:
-        return const LoadingView(message: 'Searching audio catalogs...');
+        return const LoadingView(message: 'Searching music...');
       case SearchStatus.error:
         return MessageView(
           icon: Icons.search_off_rounded,
@@ -246,7 +249,7 @@ class _SearchScreenState extends State<SearchScreen> {
           return const MessageView(
             icon: Icons.music_off_rounded,
             title: 'No music found',
-            subtitle: 'Try a different spelling or broad term across connected providers.',
+            subtitle: 'Try searching with a different song or artist name.',
           );
         }
         return _buildResults(search);

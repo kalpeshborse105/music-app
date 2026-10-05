@@ -74,14 +74,14 @@ class MessageView extends StatelessWidget {
       icon = Icons.hourglass_top_rounded;
       title = 'Service busy';
     } else if (error is AuthenticationException) {
-      icon = Icons.key_off_rounded;
-      title = 'Provider not configured';
+      icon = Icons.error_outline_rounded;
+      title = 'Service unavailable';
     } else if (error is TimeoutException) {
       icon = Icons.timer_off_rounded;
       title = 'Connection timed out';
     } else if (error is NotFoundException || error is TrackUnavailableException) {
       icon = Icons.music_off_rounded;
-      title = 'Not available';
+      title = 'Track unavailable';
     } else {
       icon = Icons.cloud_off_rounded;
       title = 'Something went wrong';

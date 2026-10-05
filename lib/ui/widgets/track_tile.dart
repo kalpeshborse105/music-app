@@ -30,7 +30,7 @@ class TrackTile extends StatelessWidget {
     this.isCurrent = false,
     this.isPlaying = false,
     this.index,
-    this.showSource = true,
+    this.showSource = false,
     this.dense = false,
     this.trailing,
   });

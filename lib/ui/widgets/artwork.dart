@@ -135,11 +135,33 @@ class Artwork extends StatelessWidget {
         gradient: AppColors.heroGradient,
       ),
       alignment: Alignment.center,
-      child: Icon(
-        fallbackIcon,
-        color: Colors.white.withValues(alpha: 0.95),
-        size: size * 0.44,
-      ),
+      child: size >= 100
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Icon(
+                  Icons.graphic_eq_rounded,
+                  color: Colors.white.withValues(alpha: 0.95),
+                  size: size * 0.35,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'EchoFlow',
+                  style: TextStyle(
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: FontWeight.w700,
+                    fontSize: (size * 0.08).clamp(11.0, 16.0),
+                    letterSpacing: 0.8,
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
+                ),
+              ],
+            )
+          : Icon(
+              Icons.graphic_eq_rounded,
+              color: Colors.white.withValues(alpha: 0.95),
+              size: size * 0.44,
+            ),
     );
   }
 }

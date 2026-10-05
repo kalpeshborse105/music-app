@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 /// Model for a track returned from the API
@@ -62,10 +63,10 @@ class MusicApiService {
         return jsonDecode(response.body) as Map<String, dynamic>;
       }
       final err = jsonDecode(response.body);
-      print('[MusicApiService] /stream error: ${err['error']}');
+      debugPrint('[MusicApiService] /stream error: ${err['error']}');
       return null;
     } catch (e) {
-      print('[MusicApiService] Network error: $e');
+      debugPrint('[MusicApiService] Network error: $e');
       return null;
     }
   }
@@ -83,7 +84,7 @@ class MusicApiService {
         return List<Map<String, dynamic>>.from(data['tracks'] as List);
       }
     } catch (e) {
-      print('[MusicApiService] YouTube search error: $e');
+      debugPrint('[MusicApiService] YouTube search error: $e');
     }
     return [];
   }
@@ -106,7 +107,7 @@ class MusicApiService {
             .toList();
       }
     } catch (e) {
-      print('[MusicApiService] JioSaavn search error: $e');
+      debugPrint('[MusicApiService] JioSaavn search error: $e');
     }
     return [];
   }
@@ -123,7 +124,7 @@ class MusicApiService {
         return data['stream_url'] as String?;
       }
     } catch (e) {
-      print('[MusicApiService] JioSaavn stream error: $e');
+      debugPrint('[MusicApiService] JioSaavn stream error: $e');
     }
     return null;
   }

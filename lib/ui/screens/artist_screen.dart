@@ -105,7 +105,7 @@ class _ArtistScreenState extends State<ArtistScreen> {
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Verified Artist • Flow Catalog',
+                  'Verified Artist',
                   style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 13),
                 ),
                 const SizedBox(height: AppSpacing.md),

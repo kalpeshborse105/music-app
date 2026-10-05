@@ -8,7 +8,6 @@ import '../../domain/models/audio_quality.dart';
 import '../../domain/models/track.dart';
 import '../../domain/playback/playback_controller.dart';
 import '../../domain/playback/playback_queue.dart' as pq;
-import '../../domain/providers/provider_labels.dart';
 import '../../state/downloads_controller.dart';
 import '../../state/library_controller.dart';
 import '../services/track_actions.dart';
@@ -112,7 +111,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              providerShortLabel(track.providerId),
+                              track.album?.title.isNotEmpty == true && track.album?.title != 'Single'
+                                  ? track.album!.title
+                                  : track.artistNames,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(

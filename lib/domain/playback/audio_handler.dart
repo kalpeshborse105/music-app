@@ -418,8 +418,8 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> onTaskRemoved() async {
-    // Keep playing unless the user explicitly stopped. Persist first.
     await _persistNow();
+    await stop();
   }
 
   // ---------------------------------------------------------------------------

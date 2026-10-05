@@ -150,14 +150,14 @@ class MusicRepository {
   // ---------------------------------------------------------------------------
   // Discovery feeds (merged + de-duplicated)
   // ---------------------------------------------------------------------------
-  Future<List<Track>> trending({int limit = 20}) =>
-      _aggregateTracks((MusicProvider p) => p.getTrending(limit: limit), limit: limit);
+  Future<List<Track>> trending({int limit = 20, int offset = 0}) =>
+      _aggregateTracks((MusicProvider p) => p.getTrending(limit: limit, offset: offset), limit: limit);
 
-  Future<List<Track>> newReleases({int limit = 20}) =>
-      _aggregateTracks((MusicProvider p) => p.getNewReleases(limit: limit), limit: limit);
+  Future<List<Track>> newReleases({int limit = 20, int offset = 0}) =>
+      _aggregateTracks((MusicProvider p) => p.getNewReleases(limit: limit, offset: offset), limit: limit);
 
-  Future<List<Track>> recommendations({int limit = 20}) =>
-      _aggregateTracks((MusicProvider p) => p.getRecommendations(limit: limit), limit: limit);
+  Future<List<Track>> recommendations({int limit = 20, int offset = 0}) =>
+      _aggregateTracks((MusicProvider p) => p.getRecommendations(limit: limit, offset: offset), limit: limit);
 
   Future<List<GenreRef>> genres({int perProvider = 20}) async {
     final List<MusicProvider> providers = _discoveryProviders;
@@ -311,6 +311,14 @@ class MusicRepository {
       throw const ProviderException(
         'jamendo',
         message: 'Jamendo is currently disabled in provider settings.',
+      );
+    }
+
+    // 3. Live Radio Broadcasts (Akashvani / All India Radio)
+    if (track.providerId == 'radio') {
+      return StreamSource(
+        url: track.providerTrackId,
+        supportsSeek: false,
       );
     }
 
