@@ -56,10 +56,7 @@ class RadioScreen extends StatelessWidget {
                   pinned: false,
                   backgroundColor: Colors.transparent,
                   elevation: 0,
-                  leading: IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
+                  automaticallyImplyLeading: false,
                   title: Row(
                     children: <Widget>[
                       Container(

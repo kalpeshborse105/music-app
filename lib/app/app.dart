@@ -121,13 +121,13 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
               if (routeSettings.name == '/library') {
                 return MaterialPageRoute<void>(
                   settings: routeSettings,
-                  builder: (BuildContext context) => const AppShell(initialIndex: 2),
+                  builder: (BuildContext context) => const AppShell(initialIndex: 3),
                 );
               }
               if (routeSettings.name == '/profile') {
                 return MaterialPageRoute<void>(
                   settings: routeSettings,
-                  builder: (BuildContext context) => const AppShell(initialIndex: 3),
+                  builder: (BuildContext context) => const AppShell(initialIndex: 4),
                 );
               }
               return null;

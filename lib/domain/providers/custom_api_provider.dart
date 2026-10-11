@@ -280,9 +280,38 @@ class CustomApiProvider extends BaseMusicProvider {
 
   @override
   Future<List<Track>> getRadio(Track track, {int limit = 20}) async {
-    final String query = track.artists.isNotEmpty && track.artists.first.name.isNotEmpty
-        ? track.artists.first.name
-        : track.title;
+    final String cleanId = track.providerTrackId.isNotEmpty
+        ? track.providerTrackId
+        : (track.id.contains(':') ? track.id.split(':').last : track.id);
+    final String artistName = track.artists.isNotEmpty ? track.artists.first.name : '';
+
+    if (_baseUrl.isNotEmpty) {
+      try {
+        final Uri uri = Uri.parse('$_baseUrl/api/related').replace(
+          queryParameters: <String, String>{
+            if (cleanId.isNotEmpty) 'id': cleanId,
+            if (track.title.isNotEmpty) 'title': track.title,
+            if (artistName.isNotEmpty) 'artist': artistName,
+            'limit': limit.toString(),
+          },
+        );
+        final http.Response res = await http.get(uri).timeout(const Duration(seconds: 12));
+        if (res.statusCode == 200) {
+          final Map<String, dynamic> body = jsonDecode(res.body) as Map<String, dynamic>;
+          final List<dynamic> rawTracks = (body['tracks'] as List<dynamic>?) ?? <dynamic>[];
+          final List<Track> tracks = rawTracks.map((dynamic item) {
+            return _mapTrack(item as Map<String, dynamic>);
+          }).toList();
+          if (tracks.isNotEmpty) {
+            return tracks.where((Track t) => t.id != track.id).toList();
+          }
+        }
+      } catch (e) {
+        debugPrint('[CustomApiProvider] getRadio error: $e');
+      }
+    }
+
+    final String query = artistName.isNotEmpty ? artistName : track.title;
     final SearchResult s = await search(query, limit: limit);
     return s.tracks.where((Track t) => t.id != track.id).toList();
   }

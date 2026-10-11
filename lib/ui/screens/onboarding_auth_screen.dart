@@ -30,6 +30,8 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
   late bool _showAuthForm;
   late bool _isSignUp;
   bool _isLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
@@ -993,7 +995,7 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                             const SizedBox(height: 6),
                             TextFormField(
                               controller: _passwordController,
-                              obscureText: true,
+                              obscureText: _obscurePassword,
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 14,
@@ -1012,6 +1014,14 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                                 prefixIcon: const Icon(
                                   Icons.lock_outline_rounded,
                                   color: AppColors.onSurfaceVariant,
+                                ),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                                    color: AppColors.onSurfaceVariant,
+                                    size: 20,
+                                  ),
+                                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                                 ),
                                 filled: true,
                                 fillColor: const Color(0xFF14141E),
@@ -1057,7 +1067,7 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                               const SizedBox(height: 6),
                               TextFormField(
                                 controller: _confirmPasswordController,
-                                obscureText: true,
+                                obscureText: _obscureConfirmPassword,
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 14,
@@ -1079,6 +1089,14 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                                   prefixIcon: const Icon(
                                     Icons.lock_outline_rounded,
                                     color: AppColors.onSurfaceVariant,
+                                  ),
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscureConfirmPassword ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                                      color: AppColors.onSurfaceVariant,
+                                      size: 20,
+                                    ),
+                                    onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
                                   ),
                                   filled: true,
                                   fillColor: const Color(0xFF14141E),

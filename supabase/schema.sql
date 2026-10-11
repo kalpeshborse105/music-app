@@ -336,3 +336,38 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ====================================================================
+-- 7. ADVERTISEMENTS & ANNOUNCEMENTS TABLE (ADMIN MANAGED)
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS public.advertisements (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    title TEXT NOT NULL,
+    subtitle TEXT,
+    image_url TEXT NOT NULL,
+    target_url TEXT,
+    is_active BOOLEAN DEFAULT true,
+    close_button_type TEXT DEFAULT 'icon', -- 'icon', 'text_and_cross', 'text_only'
+    display_order INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE public.advertisements ENABLE ROW LEVEL SECURITY;
+
+-- Everyone (authenticated & anon) can read active ads
+CREATE POLICY "Public can view active advertisements"
+    ON public.advertisements FOR SELECT
+    USING (is_active = true);
+
+-- Admins can perform all operations on advertisements
+CREATE POLICY "Admins have full access to advertisements"
+    ON public.advertisements FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles 
+            WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
+        )
+    );
+

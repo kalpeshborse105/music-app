@@ -404,7 +404,8 @@ class MusicRepository {
 
   Future<List<Track>> radio(Track seed, {int limit = 20}) async {
     try {
-      return await _providerFor(seed.providerId).getRadio(seed, limit: limit);
+      final List<Track> tracks = await _providerFor(seed.providerId).getRadio(seed, limit: limit);
+      return _dedupeTracks(tracks);
     } catch (_) {
       return <Track>[];
     }
@@ -414,20 +415,26 @@ class MusicRepository {
   // Helpers
   // ---------------------------------------------------------------------------
   static String _normalize(String s) {
-    return s.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (s.isEmpty) return '';
+    String t = s.toLowerCase();
+    t = t.replaceAll(RegExp(r'\(.*?\)'), '');
+    t = t.replaceAll(RegExp(r'\[.*?\]'), '');
+    t = t.replaceAll(RegExp(r'\b(remix|lofi|lo-fi|acoustic|version|feat|ft|official|audio|video|soundtrack|from\b.*)\b'), '');
+    t = t.replaceAll(RegExp(r'[^\w\s]'), '');
+    t = t.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return t.isNotEmpty ? t : s.toLowerCase().trim();
   }
 
   List<Track> _dedupeTracks(List<Track> tracks) {
     final Set<String> seenIds = <String>{};
-    final Set<String> seenKeys = <String>{};
+    final Set<String> seenTitles = <String>{};
     final List<Track> out = <Track>[];
     for (final Track t in tracks) {
       final String normTitle = _normalize(t.title);
-      final String normArtist = _normalize(t.artistNames);
-      final String normKey = '$normTitle|$normArtist';
-      if (seenIds.add(t.id) && (normTitle.isEmpty || seenKeys.add(normKey))) {
-        out.add(t);
-      }
+      final String cleanId = t.id.toLowerCase().trim();
+      if (!seenIds.add(cleanId)) continue;
+      if (normTitle.isNotEmpty && !seenTitles.add(normTitle)) continue;
+      out.add(t);
     }
     return out;
   }

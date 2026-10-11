@@ -5,8 +5,10 @@ import 'package:provider/provider.dart';
 import '../../core/config/app_config.dart';
 import '../../core/storage/settings_store.dart';
 import '../../data/services/supabase_service.dart';
+import '../../domain/models/advertisement.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
+import '../widgets/ad_popup_dialog.dart';
 import '../widgets/glass_card.dart';
 
 /// Full Production Admin Dashboard — Operations, Real Database Metrics,
@@ -28,6 +30,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   // Real Database Metrics State
   bool _isLoadingMetrics = true;
   Map<String, dynamic> _metrics = <String, dynamic>{};
+
+  // Ads Management State
+  bool _isLoadingAds = false;
+  List<Advertisement> _ads = <Advertisement>[];
 
   // User Management State
   bool _isLoadingUsers = false;
@@ -54,6 +60,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
   static const List<Map<String, dynamic>> _tabs = <Map<String, dynamic>>[
     <String, dynamic>{'title': 'Overview', 'icon': Icons.dashboard_rounded},
+    <String, dynamic>{'title': 'Ads', 'icon': Icons.campaign_rounded},
     <String, dynamic>{'title': 'Users', 'icon': Icons.people_alt_rounded},
     <String, dynamic>{'title': 'Providers', 'icon': Icons.hub_rounded},
     <String, dynamic>{'title': 'Licenses', 'icon': Icons.gavel_rounded},
@@ -76,8 +83,20 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
   void _onTabSelected(int index) {
     if (index == 0) _loadPlatformMetrics();
-    if (index == 1) _loadUsers();
-    if (index == 4) _loadReports();
+    if (index == 1) _loadAds();
+    if (index == 2) _loadUsers();
+    if (index == 5) _loadReports();
+  }
+
+  Future<void> _loadAds() async {
+    setState(() => _isLoadingAds = true);
+    final List<Advertisement> list = await SupabaseService().fetchAdvertisements();
+    if (mounted) {
+      setState(() {
+        _ads = list;
+        _isLoadingAds = false;
+      });
+    }
   }
 
   Future<void> _verifyRole() async {
@@ -374,6 +393,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 ),
                 SingleChildScrollView(
                   padding: const EdgeInsets.all(AppSpacing.md),
+                  child: _buildAdsTab(context),
+                ),
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   child: _buildUsersTab(context),
                 ),
                 SingleChildScrollView(
@@ -402,16 +425,581 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       case 0:
         return _buildOverviewTab(context);
       case 1:
-        return _buildUsersTab(context);
+        return _buildAdsTab(context);
       case 2:
-        return _buildProvidersTab(context);
+        return _buildUsersTab(context);
       case 3:
-        return _buildLicensesTab(context);
+        return _buildProvidersTab(context);
       case 4:
-        return _buildReportsTab(context);
+        return _buildLicensesTab(context);
       case 5:
+        return _buildReportsTab(context);
+      case 6:
       default:
         return _buildSettingsTab(context);
+    }
+  }
+
+  // ==========================================
+  // TAB: ADVERTISEMENTS & ANNOUNCEMENTS
+  // ==========================================
+
+  Widget _buildAdsTab(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: isDark
+                  ? <Color>[
+                      const Color(0xFF2A2010),
+                      const Color(0xFF14121A),
+                    ]
+                  : <Color>[
+                      const Color(0xFFFFF7ED),
+                      const Color(0xFFFBF8F5),
+                    ],
+            ),
+            border: Border.all(
+              color: Colors.amber.withValues(alpha: isDark ? 0.35 : 0.4),
+              width: 1.2,
+            ),
+          ),
+          child: Row(
+            children: <Widget>[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.campaign_rounded,
+                  color: Colors.amber,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'In-App Ads & Announcements',
+                      style: TextStyle(
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Control Amazon Prime style popups, images, target URLs, and whether users see a ✕ cross icon, "Close ✕", or "Skip" button.',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: isDark ? Colors.white70 : Colors.black54,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.icon(
+                onPressed: () => _showAdEditorDialog(context),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Create Ad'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.amber.shade700,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        if (_isLoadingAds)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(40),
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (_ads.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Icon(
+                    Icons.campaign_outlined,
+                    size: 56,
+                    color: isDark ? Colors.white24 : Colors.black26,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No Ads Configured Yet',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Create your first announcement or promo banner using the button above.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? Colors.white38 : Colors.black45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _ads.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 14),
+            itemBuilder: (BuildContext ctx, int index) {
+              final Advertisement ad = _ads[index];
+              return _buildAdItemCard(context, ad);
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildAdItemCard(BuildContext context, Advertisement ad) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
+    String closeBadgeText;
+    switch (ad.closeButtonType) {
+      case 'text_and_cross':
+        closeBadgeText = 'Close: "Close ✕" Button';
+        break;
+      case 'text_only':
+        closeBadgeText = 'Close: "Skip" Text Only';
+        break;
+      case 'icon':
+      default:
+        closeBadgeText = 'Close: ✕ Icon Only';
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceContainerLow : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: ad.isActive
+              ? Colors.amber.withValues(alpha: isDark ? 0.35 : 0.5)
+              : (isDark ? AppColors.borderSubtle : AppColors.lightBorder),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: ad.isActive
+                      ? Colors.green.withValues(alpha: 0.18)
+                      : Colors.grey.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: ad.isActive ? Colors.green : Colors.grey,
+                    width: 0.8,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(
+                      ad.isActive ? Icons.check_circle_rounded : Icons.pause_circle_rounded,
+                      size: 13,
+                      color: ad.isActive ? Colors.green : Colors.grey,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      ad.isActive ? 'ACTIVE & LIVE' : 'INACTIVE',
+                      style: TextStyle(
+                        color: ad.isActive ? Colors.green : Colors.grey,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.withValues(alpha: 0.4), width: 0.8),
+                ),
+                child: Text(
+                  closeBadgeText,
+                  style: const TextStyle(
+                    color: Colors.blue,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Transform.scale(
+                scale: 0.85,
+                child: Switch(
+                  value: ad.isActive,
+                  activeTrackColor: Colors.amber,
+                  onChanged: (bool val) async {
+                    await SupabaseService().toggleAdvertisementActive(ad.id, val);
+                    _loadAds();
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              if (ad.imageUrl.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.network(
+                    ad.imageUrl,
+                    width: 90,
+                    height: 60,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 90,
+                      height: 60,
+                      color: Colors.grey.withValues(alpha: 0.2),
+                      child: const Icon(Icons.image_not_supported_rounded, size: 24),
+                    ),
+                  ),
+                ),
+              if (ad.imageUrl.isNotEmpty) const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      ad.title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    if (ad.subtitle != null && ad.subtitle!.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 4),
+                      Text(
+                        ad.subtitle!,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: isDark ? Colors.white60 : Colors.black54,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    if (ad.targetUrl != null && ad.targetUrl!.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: <Widget>[
+                          const Icon(Icons.link_rounded, size: 14, color: Colors.blueAccent),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              ad.targetUrl!,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.blueAccent,
+                                decoration: TextDecoration.underline,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+          const SizedBox(height: 10),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: <Widget>[
+              OutlinedButton.icon(
+                onPressed: () => AdPopupDialog.preview(context, ad),
+                icon: const Icon(Icons.visibility_rounded, size: 16),
+                label: const Text('Live Preview'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () => _showAdEditorDialog(context, ad: ad),
+                icon: const Icon(Icons.edit_rounded, size: 16),
+                label: const Text('Edit'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: () => _confirmDeleteAd(context, ad),
+                icon: const Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 20),
+                tooltip: 'Delete Ad',
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAdEditorDialog(BuildContext context, {Advertisement? ad}) async {
+    final bool isEditing = ad != null;
+    final TextEditingController titleCtrl =
+        TextEditingController(text: ad?.title ?? '');
+    final TextEditingController subtitleCtrl =
+        TextEditingController(text: ad?.subtitle ?? '');
+    final TextEditingController imageCtrl =
+        TextEditingController(text: ad?.imageUrl ?? '');
+    final TextEditingController targetCtrl =
+        TextEditingController(text: ad?.targetUrl ?? '');
+
+    String closeButtonType = ad?.closeButtonType ?? 'icon';
+    bool isActive = ad?.isActive ?? true;
+
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext dialogContext, StateSetter setDialogState) {
+            final bool isDark = Theme.of(dialogContext).brightness == Brightness.dark;
+
+            return AlertDialog(
+              backgroundColor: isDark ? const Color(0xFF1E1E2C) : Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Row(
+                children: <Widget>[
+                  Icon(
+                    isEditing ? Icons.edit_rounded : Icons.campaign_rounded,
+                    color: Colors.amber,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    isEditing ? 'Edit Advertisement' : 'Create In-App Ad',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 480,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      TextField(
+                        controller: titleCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Title / Heading *',
+                          hintText: 'e.g. Diwali Mega Music Pass',
+                          prefixIcon: Icon(Icons.title_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: subtitleCtrl,
+                        maxLines: 2,
+                        decoration: const InputDecoration(
+                          labelText: 'Description / Subtitle',
+                          hintText: 'e.g. Stream uninterrupted lossless music with 24/7 radio',
+                          prefixIcon: Icon(Icons.notes_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: imageCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Banner Image URL *',
+                          hintText: 'https://images.unsplash.com/... or hosted image',
+                          prefixIcon: Icon(Icons.image_rounded),
+                        ),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                      if (imageCtrl.text.trim().isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: AspectRatio(
+                            aspectRatio: 16 / 9,
+                            child: Image.network(
+                              imageCtrl.text.trim(),
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: Colors.grey.withValues(alpha: 0.2),
+                                alignment: Alignment.center,
+                                child: const Text('Preview failed to load image', style: TextStyle(fontSize: 12)),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: targetCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Redirect URL (on click)',
+                          hintText: 'https://kalpkrut.com or promotional link',
+                          prefixIcon: Icon(Icons.link_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Close Button Display Option (Admin Controlled):',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<String>(
+                        initialValue: closeButtonType,
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.close_fullscreen_rounded),
+                        ),
+                        items: const <DropdownMenuItem<String>>[
+                          DropdownMenuItem<String>(
+                            value: 'icon',
+                            child: Text('✕ Circular Cross Icon Only'),
+                          ),
+                          DropdownMenuItem<String>(
+                            value: 'text_and_cross',
+                            child: Text('Close ✕ (Text with Cross Icon)'),
+                          ),
+                          DropdownMenuItem<String>(
+                            value: 'text_only',
+                            child: Text('Skip / Close (Text Only Button)'),
+                          ),
+                        ],
+                        onChanged: (String? val) {
+                          if (val != null) {
+                            setDialogState(() => closeButtonType = val);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Active / Published Live', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                        subtitle: const Text('When active, shown to users upon opening app', style: TextStyle(fontSize: 12)),
+                        value: isActive,
+                        activeTrackColor: Colors.amber,
+                        onChanged: (bool val) => setDialogState(() => isActive = val),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    final String title = titleCtrl.text.trim();
+                    final String image = imageCtrl.text.trim();
+                    if (title.isEmpty || image.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please enter Title and Image URL')),
+                      );
+                      return;
+                    }
+
+                    final Advertisement toSave = Advertisement(
+                      id: ad?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+                      title: title,
+                      subtitle: subtitleCtrl.text.trim().isNotEmpty ? subtitleCtrl.text.trim() : null,
+                      imageUrl: image,
+                      targetUrl: targetCtrl.text.trim().isNotEmpty ? targetCtrl.text.trim() : null,
+                      closeButtonType: closeButtonType,
+                      isActive: isActive,
+                      createdAt: ad?.createdAt ?? DateTime.now(),
+                    );
+
+                    await SupabaseService().saveAdvertisement(toSave);
+                    if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+                    _loadAds();
+                  },
+                  style: FilledButton.styleFrom(backgroundColor: Colors.amber.shade700, foregroundColor: Colors.black),
+                  child: Text(isEditing ? 'Save Changes' : 'Publish Ad'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmDeleteAd(BuildContext context, Advertisement ad) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('Delete Advertisement?'),
+        content: Text('Are you sure you want to permanently delete "${ad.title}"?'),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await SupabaseService().deleteAdvertisement(ad.id);
+      _loadAds();
     }
   }
 

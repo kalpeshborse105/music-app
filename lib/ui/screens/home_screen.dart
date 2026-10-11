@@ -17,7 +17,6 @@ import '../widgets/state_views.dart';
 import '../widgets/track_tile.dart';
 import 'app_shell.dart';
 import 'list_screen.dart';
-import 'radio_screen.dart';
 
 /// Stitch Nocturnal Home Screen combining ambient glowing background, mood filters,
 /// 6-card bento grid, Jump Back In carousel, Featured Spotlight, Made For You mixes,
@@ -431,9 +430,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () {
-          Navigator.of(context).push(MaterialPageRoute<void>(
-            builder: (_) => const RadioScreen(),
-          ));
+          AppShell.selectTab(context, 2);
         },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),

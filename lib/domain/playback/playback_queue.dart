@@ -56,12 +56,48 @@ class PlaybackQueue {
     return repeat == RepeatMode.all ? _tracks.first : null;
   }
 
+  static String _normalizeTitle(String s) {
+    if (s.isEmpty) return '';
+    String t = s.toLowerCase();
+    t = t.replaceAll(RegExp(r'\(.*?\)'), '');
+    t = t.replaceAll(RegExp(r'\[.*?\]'), '');
+    t = t.replaceAll(RegExp(r'\b(remix|lofi|lo-fi|acoustic|version|feat|ft|official|audio|video|soundtrack|from\b.*)\b'), '');
+    t = t.replaceAll(RegExp(r'[^\w\s]'), '');
+    t = t.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return t.isNotEmpty ? t : s.toLowerCase().trim();
+  }
+
+  static List<Track> _dedupe(List<Track> tracks) {
+    final Set<String> seenIds = <String>{};
+    final Set<String> seenTitles = <String>{};
+    final List<Track> out = <Track>[];
+    for (final Track t in tracks) {
+      final String norm = _normalizeTitle(t.title);
+      final String cleanId = t.id.toLowerCase().trim();
+      if (!seenIds.add(cleanId)) continue;
+      if (norm.isNotEmpty && !seenTitles.add(norm)) continue;
+      out.add(t);
+    }
+    return out;
+  }
+
   /// Replace the queue and start at [startIndex].
   void setQueue(List<Track> tracks, {int startIndex = 0}) {
+    final Track? selected = (startIndex >= 0 && startIndex < tracks.length)
+        ? tracks[startIndex]
+        : (tracks.isNotEmpty ? tracks.first : null);
+
+    final List<Track> deduped = _dedupe(tracks);
     _tracks
       ..clear()
-      ..addAll(tracks);
-    _currentIndex = tracks.isEmpty ? -1 : startIndex.clamp(0, tracks.length - 1);
+      ..addAll(deduped);
+
+    if (selected != null) {
+      final int found = _tracks.indexWhere((Track t) => t.id == selected.id);
+      _currentIndex = found >= 0 ? found : 0;
+    } else {
+      _currentIndex = _tracks.isEmpty ? -1 : 0;
+    }
     _rebuildShuffleOrder(keepCurrent: true);
   }
 
@@ -132,22 +168,48 @@ class PlaybackQueue {
     return _tracks[index];
   }
 
-  void append(Track track) => _tracks.add(track);
+  void append(Track track) {
+    final String norm = _normalizeTitle(track.title);
+    final bool duplicate = _tracks.any((Track e) =>
+        e.id == track.id ||
+        (norm.isNotEmpty && _normalizeTitle(e.title) == norm));
+    if (!duplicate) {
+      _tracks.add(track);
+      _rebuildShuffleOrder(keepCurrent: true);
+    }
+  }
 
   void appendAll(List<Track> tracks) {
+    final Set<String> seenIds = _tracks.map((Track t) => t.id.toLowerCase().trim()).toSet();
+    final Set<String> seenTitles = _tracks.map((Track t) => _normalizeTitle(t.title)).where((String s) => s.isNotEmpty).toSet();
+
     for (final Track t in tracks) {
-      final String normTitle = t.title.toLowerCase().trim();
-      final String normArtist = t.artistNames.toLowerCase().trim();
-      final bool duplicate = _tracks.any((Track e) =>
-          e.id == t.id ||
-          (e.title.toLowerCase().trim() == normTitle &&
-           e.artistNames.toLowerCase().trim() == normArtist));
-      if (!duplicate) _tracks.add(t);
+      final String cleanId = t.id.toLowerCase().trim();
+      final String normTitle = _normalizeTitle(t.title);
+      if (seenIds.add(cleanId) && (normTitle.isEmpty || seenTitles.add(normTitle))) {
+        _tracks.add(t);
+      }
     }
+    _rebuildShuffleOrder(keepCurrent: true);
   }
 
   /// Insert right after the current track ("play next").
   void playNext(Track track) {
+    final String norm = _normalizeTitle(track.title);
+    if (_currentIndex >= 0 && _currentIndex < _tracks.length) {
+      if (_tracks[_currentIndex].id == track.id ||
+          (norm.isNotEmpty && _normalizeTitle(_tracks[_currentIndex].title) == norm)) {
+        return;
+      }
+    }
+
+    final int existingIdx = _tracks.indexWhere((Track t) =>
+        t.id == track.id ||
+        (norm.isNotEmpty && _normalizeTitle(t.title) == norm));
+    if (existingIdx > _currentIndex) {
+      _tracks.removeAt(existingIdx);
+    }
+
     if (_tracks.isEmpty) {
       _tracks.add(track);
       _currentIndex = 0;

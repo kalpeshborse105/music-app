@@ -30,8 +30,15 @@ local.properties
 .DS_Store
 Thumbs.db
 
-# Server
+# Server & Web
 server/cookies.txt
+node_modules/
+dist/
+android_flutter_backup/
 android/key.properties
+android/local.properties
 *.jks
 *.keystore
+*.apk
+*.aab
+__pycache__/

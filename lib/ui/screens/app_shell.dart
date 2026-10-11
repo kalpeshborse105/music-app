@@ -4,15 +4,17 @@ import 'package:provider/provider.dart';
 
 import '../../state/search_controller.dart';
 import '../theme/app_colors.dart';
+import '../widgets/ad_popup_dialog.dart';
 import '../widgets/mini_player.dart';
 import 'home_screen.dart';
 import 'library_screen.dart';
 import 'profile_screen.dart';
+import 'radio_screen.dart';
 import 'search_screen.dart';
 
-/// Root navigation shell: 4 Stitch destinations with responsive navigation
-/// (Bottom Bar for Mobile, Navigation Rail for Desktop/Tablet Web) and a
-/// persistent floating MiniPlayer.
+/// Root navigation shell with 5 destinations:
+/// Home | Search | Radio | Library | Profile
+/// Responsive: Bottom Bar (mobile), Navigation Rail (desktop/tablet).
 class AppShell extends StatefulWidget {
   const AppShell({super.key, this.initialIndex = 0});
 
@@ -30,9 +32,18 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   late int _index = widget.initialIndex;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AdPopupDialog.showIfAvailable(context);
+    });
+  }
+
   static const List<Widget> _pages = <Widget>[
     HomeScreen(),
     SearchScreen(),
+    RadioScreen(),
     LibraryScreen(),
     ProfileScreen(),
   ];
@@ -101,6 +112,11 @@ class _AppShellState extends State<AppShell> {
                   label: const Text('Search'),
                 ),
                 NavigationRailDestination(
+                  icon: const Icon(Icons.radio_outlined),
+                  selectedIcon: Icon(Icons.radio_rounded, color: isDark ? AppColors.primaryLight : AppColors.lightSelectedNav),
+                  label: const Text('Radio'),
+                ),
+                NavigationRailDestination(
                   icon: const Icon(Icons.library_music_outlined),
                   selectedIcon: Icon(Icons.library_music_rounded, color: isDark ? AppColors.primaryLight : AppColors.lightSelectedNav),
                   label: const Text('Library'),
@@ -165,6 +181,11 @@ class _AppShellState extends State<AppShell> {
                     icon: Icon(Icons.search_rounded),
                     selectedIcon: Icon(Icons.search_rounded),
                     label: 'Search',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.radio_outlined),
+                    selectedIcon: Icon(Icons.radio_rounded),
+                    label: 'Radio',
                   ),
                   NavigationDestination(
                     icon: Icon(Icons.library_music_outlined),

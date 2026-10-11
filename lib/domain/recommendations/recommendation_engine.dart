@@ -50,10 +50,19 @@ class RecommendationEngine {
 
     final List<Track> collected = <Track>[];
     final Set<String> seen = <String>{...excludeIds};
+    final Set<String> seenTitles = <String>{};
 
     void addAll(Iterable<Track> tracks) {
       for (final Track t in tracks) {
-        if (seen.add(t.id)) collected.add(t);
+        final String normTitle = t.title
+            .toLowerCase()
+            .replaceAll(RegExp(r'\(.*?\)'), '')
+            .replaceAll(RegExp(r'\[.*?\]'), '')
+            .replaceAll(RegExp(r'[^\w\s]'), '')
+            .trim();
+        if (seen.add(t.id) && (normTitle.isEmpty || seenTitles.add(normTitle))) {
+          collected.add(t);
+        }
         if (collected.length >= limit) break;
       }
     }

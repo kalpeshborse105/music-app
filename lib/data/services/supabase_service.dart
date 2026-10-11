@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/config/app_config.dart';
+import '../../domain/models/advertisement.dart';
 import '../../domain/models/history_entry.dart';
 import '../../domain/models/playlist.dart';
 import '../../domain/models/track.dart';
@@ -825,6 +828,106 @@ class SupabaseService {
     } catch (e) {
       debugPrint('[SupabaseService] updateReportStatus error: $e');
       return false;
+    }
+  }
+
+  // ==========================================
+  // ADVERTISEMENTS & ANNOUNCEMENTS (ADMIN CONTROLLED)
+  // ==========================================
+
+  static const String _adsPrefKey = 'cached_admin_advertisements';
+
+  Future<List<Advertisement>> fetchAdvertisements() async {
+    if (_isInitialized) {
+      try {
+        final List<dynamic> data = await client
+            .from('advertisements')
+            .select()
+            .order('display_order', ascending: true);
+        final List<Advertisement> ads = data
+            .map((dynamic item) => Advertisement.fromJson(item as Map<String, dynamic>))
+            .toList();
+        await _saveLocalAds(ads);
+        return ads;
+      } catch (e) {
+        debugPrint('[SupabaseService] Remote fetchAdvertisements skipped/fallback: $e');
+      }
+    }
+    return _getLocalAds();
+  }
+
+  Future<List<Advertisement>> fetchActiveAdvertisements() async {
+    final List<Advertisement> all = await fetchAdvertisements();
+    return all.where((Advertisement ad) => ad.isActive && ad.imageUrl.isNotEmpty).toList();
+  }
+
+  Future<bool> saveAdvertisement(Advertisement ad) async {
+    bool remoteSuccess = false;
+    if (_isInitialized) {
+      try {
+        await client.from('advertisements').upsert(ad.toJson());
+        remoteSuccess = true;
+      } catch (e) {
+        debugPrint('[SupabaseService] saveAdvertisement remote error: $e');
+      }
+    }
+
+    final List<Advertisement> list = await _getLocalAds();
+    final int idx = list.indexWhere((Advertisement a) => a.id == ad.id);
+    if (idx >= 0) {
+      list[idx] = ad;
+    } else {
+      list.insert(0, ad);
+    }
+    await _saveLocalAds(list);
+    return remoteSuccess || true;
+  }
+
+  Future<bool> deleteAdvertisement(String id) async {
+    if (_isInitialized) {
+      try {
+        await client.from('advertisements').delete().eq('id', id);
+      } catch (e) {
+        debugPrint('[SupabaseService] deleteAdvertisement remote error: $e');
+      }
+    }
+    final List<Advertisement> list = await _getLocalAds();
+    list.removeWhere((Advertisement a) => a.id == id);
+    await _saveLocalAds(list);
+    return true;
+  }
+
+  Future<bool> toggleAdvertisementActive(String id, bool isActive) async {
+    final List<Advertisement> list = await _getLocalAds();
+    final int idx = list.indexWhere((Advertisement a) => a.id == id);
+    if (idx >= 0) {
+      final Advertisement updated = list[idx].copyWith(isActive: isActive);
+      return saveAdvertisement(updated);
+    }
+    return false;
+  }
+
+  Future<List<Advertisement>> _getLocalAds() async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String? jsonStr = prefs.getString(_adsPrefKey);
+      if (jsonStr != null && jsonStr.isNotEmpty) {
+        final List<dynamic> list = jsonDecode(jsonStr) as List<dynamic>;
+        return list.map((dynamic item) => Advertisement.fromJson(item as Map<String, dynamic>)).toList();
+      }
+    } catch (e) {
+      debugPrint('[SupabaseService] _getLocalAds error: $e');
+    }
+    return <Advertisement>[];
+  }
+
+  Future<void> _saveLocalAds(List<Advertisement> ads) async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String jsonStr = jsonEncode(ads.map((Advertisement a) => a.toJson()).toList());
+      await prefs.setString(_adsPrefKey, jsonStr);
+    } catch (e) {
+      debugPrint('[SupabaseService] _saveLocalAds error: $e');
     }
   }
 }
