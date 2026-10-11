@@ -20,6 +20,7 @@ import '../ui/screens/admin_screen.dart';
 import '../ui/screens/app_shell.dart';
 import '../ui/screens/delete_account_screen.dart';
 import '../ui/screens/onboarding_auth_screen.dart';
+import '../ui/screens/splash_screen.dart';
 import '../ui/theme/app_colors.dart';
 import '../ui/theme/app_theme.dart';
 import 'app_dependencies.dart';
@@ -70,7 +71,7 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
             theme: AppTheme.light(),
             darkTheme: AppTheme.dark(),
             themeMode: settings.themeMode,
-            home: const AuthGate(),
+            home: const SplashScreen(),
             onGenerateRoute: (RouteSettings routeSettings) {
               if (routeSettings.name == '/delete-account') {
                 return MaterialPageRoute<void>(
@@ -112,22 +113,22 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
                   },
                 );
               }
-              if (routeSettings.name == '/search') {
+              if (routeSettings.name == '/search' || routeSettings.name == '/library') {
                 return MaterialPageRoute<void>(
                   settings: routeSettings,
                   builder: (BuildContext context) => const AppShell(initialIndex: 1),
                 );
               }
-              if (routeSettings.name == '/library') {
+              if (routeSettings.name == '/radio') {
                 return MaterialPageRoute<void>(
                   settings: routeSettings,
-                  builder: (BuildContext context) => const AppShell(initialIndex: 3),
+                  builder: (BuildContext context) => const AppShell(initialIndex: 2),
                 );
               }
               if (routeSettings.name == '/profile') {
                 return MaterialPageRoute<void>(
                   settings: routeSettings,
-                  builder: (BuildContext context) => const AppShell(initialIndex: 4),
+                  builder: (BuildContext context) => const AppShell(initialIndex: 3),
                 );
               }
               return null;

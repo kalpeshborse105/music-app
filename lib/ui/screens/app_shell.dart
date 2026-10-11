@@ -10,10 +10,9 @@ import 'home_screen.dart';
 import 'library_screen.dart';
 import 'profile_screen.dart';
 import 'radio_screen.dart';
-import 'search_screen.dart';
 
-/// Root navigation shell with 5 destinations:
-/// Home | Search | Radio | Library | Profile
+/// Root navigation shell with 4 destinations:
+/// Home | Library | Radio | Profile
 /// Responsive: Bottom Bar (mobile), Navigation Rail (desktop/tablet).
 class AppShell extends StatefulWidget {
   const AppShell({super.key, this.initialIndex = 0});
@@ -42,9 +41,8 @@ class _AppShellState extends State<AppShell> {
 
   static const List<Widget> _pages = <Widget>[
     HomeScreen(),
-    SearchScreen(),
-    RadioScreen(),
     LibraryScreen(),
+    RadioScreen(),
     ProfileScreen(),
   ];
 
@@ -54,7 +52,7 @@ class _AppShellState extends State<AppShell> {
       if (i == 0) {
         HomeScreen.scrollToTopAndRefresh();
       } else if (i == 1) {
-        // Tapped Search again -> reset to fresh explore
+        // Tapped Library again -> reset search query
         context.read<SearchController>().clear();
       }
       return;
@@ -63,7 +61,7 @@ class _AppShellState extends State<AppShell> {
     final int prevIndex = _index;
     setState(() => _index = i);
 
-    // If leaving search tab, reset search so returning is clean
+    // If leaving library tab, reset search so returning is clean
     if (prevIndex == 1 && i != 1) {
       context.read<SearchController>().clear();
     }
@@ -107,19 +105,14 @@ class _AppShellState extends State<AppShell> {
                   label: const Text('Home'),
                 ),
                 NavigationRailDestination(
-                  icon: const Icon(Icons.search_rounded),
-                  selectedIcon: Icon(Icons.search_rounded, color: isDark ? AppColors.primaryLight : AppColors.lightSelectedNav),
-                  label: const Text('Search'),
+                  icon: const Icon(Icons.library_music_outlined),
+                  selectedIcon: Icon(Icons.library_music_rounded, color: isDark ? AppColors.primaryLight : AppColors.lightSelectedNav),
+                  label: const Text('Library'),
                 ),
                 NavigationRailDestination(
                   icon: const Icon(Icons.radio_outlined),
                   selectedIcon: Icon(Icons.radio_rounded, color: isDark ? AppColors.primaryLight : AppColors.lightSelectedNav),
                   label: const Text('Radio'),
-                ),
-                NavigationRailDestination(
-                  icon: const Icon(Icons.library_music_outlined),
-                  selectedIcon: Icon(Icons.library_music_rounded, color: isDark ? AppColors.primaryLight : AppColors.lightSelectedNav),
-                  label: const Text('Library'),
                 ),
                 NavigationRailDestination(
                   icon: const Icon(Icons.person_outline_rounded),
@@ -178,19 +171,14 @@ class _AppShellState extends State<AppShell> {
                     label: 'Home',
                   ),
                   NavigationDestination(
-                    icon: Icon(Icons.search_rounded),
-                    selectedIcon: Icon(Icons.search_rounded),
-                    label: 'Search',
+                    icon: Icon(Icons.library_music_outlined),
+                    selectedIcon: Icon(Icons.library_music_rounded),
+                    label: 'Library',
                   ),
                   NavigationDestination(
                     icon: Icon(Icons.radio_outlined),
                     selectedIcon: Icon(Icons.radio_rounded),
                     label: 'Radio',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.library_music_outlined),
-                    selectedIcon: Icon(Icons.library_music_rounded),
-                    label: 'Library',
                   ),
                   NavigationDestination(
                     icon: Icon(Icons.person_outline_rounded),

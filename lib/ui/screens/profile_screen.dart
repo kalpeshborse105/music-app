@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -567,6 +569,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildAvatarImage({
+    required String? url,
+    required double size,
+    required String fallbackLetter,
+    required bool isDark,
+  }) {
+    if (url == null || url.trim().isEmpty) {
+      return CircleAvatar(
+        radius: size / 2,
+        backgroundColor: isDark ? AppColors.darkBg : AppColors.lightElevatedSurface,
+        child: Text(
+          fallbackLetter.isNotEmpty ? fallbackLetter[0].toUpperCase() : 'E',
+          style: TextStyle(
+            fontFamily: 'Plus Jakarta Sans',
+            fontSize: size * 0.4,
+            fontWeight: FontWeight.w800,
+            color: isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent,
+          ),
+        ),
+      );
+    }
+
+    final String cleanUrl = url.trim();
+
+    // Base64 Data URI
+    if (cleanUrl.startsWith('data:image/')) {
+      try {
+        final int commaIdx = cleanUrl.indexOf(',');
+        if (commaIdx != -1) {
+          final Uint8List bytes = base64Decode(cleanUrl.substring(commaIdx + 1));
+          return ClipOval(
+            child: Image.memory(
+              bytes,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+            ),
+          );
+        }
+      } catch (_) {}
+    }
+
+    // Network Image
+    return ClipOval(
+      child: CachedNetworkImage(
+        key: ValueKey<String>(cleanUrl),
+        imageUrl: cleanUrl,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        placeholder: (_, __) => CircleAvatar(
+          radius: size / 2,
+          backgroundColor: isDark ? AppColors.darkBg : AppColors.lightElevatedSurface,
+          child: const CircularProgressIndicator(strokeWidth: 2, color: AppColors.secondary),
+        ),
+        errorWidget: (_, __, ___) => CircleAvatar(
+          radius: size / 2,
+          backgroundColor: isDark ? AppColors.darkBg : AppColors.lightElevatedSurface,
+          child: Text(
+            fallbackLetter.isNotEmpty ? fallbackLetter[0].toUpperCase() : 'E',
+            style: TextStyle(
+              fontFamily: 'Plus Jakarta Sans',
+              fontSize: size * 0.4,
+              fontWeight: FontWeight.w800,
+              color: isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildAuthenticatedHeaderCard(
     BuildContext context, {
     required bool isDark,
@@ -606,47 +680,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     gradient: AppColors.heroGradient,
                   ),
                   child: Center(
-                    child: avatarUrl != null && avatarUrl.isNotEmpty
-                        ? ClipOval(
-                            child: CachedNetworkImage(
-                              imageUrl: avatarUrl,
-                              width: 82,
-                              height: 82,
-                              fit: BoxFit.cover,
-                              placeholder: (_, __) => CircleAvatar(
-                                radius: 41,
-                                backgroundColor: isDark ? AppColors.darkBg : AppColors.lightElevatedSurface,
-                                child: const CircularProgressIndicator(strokeWidth: 2, color: AppColors.secondary),
-                              ),
-                              errorWidget: (_, __, ___) => CircleAvatar(
-                                radius: 41,
-                                backgroundColor: isDark ? AppColors.darkBg : AppColors.lightElevatedSurface,
-                                child: Text(
-                                  displayName.isNotEmpty ? displayName[0].toUpperCase() : 'E',
-                                  style: TextStyle(
-                                    fontFamily: 'Plus Jakarta Sans',
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.w800,
-                                    color: isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          )
-                        : CircleAvatar(
-                            radius: 41,
-                            backgroundColor:
-                                isDark ? AppColors.darkBg : AppColors.lightElevatedSurface,
-                            child: Text(
-                              displayName.isNotEmpty ? displayName[0].toUpperCase() : 'E',
-                              style: TextStyle(
-                                fontFamily: 'Plus Jakarta Sans',
-                                fontSize: 32,
-                                fontWeight: FontWeight.w800,
-                                color: isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent,
-                              ),
-                            ),
-                          ),
+                    child: _buildAvatarImage(
+                      url: avatarUrl,
+                      size: 82,
+                      fallbackLetter: displayName,
+                      isDark: isDark,
+                    ),
                   ),
                 ),
                 Positioned(
@@ -911,15 +950,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             gradient: AppColors.heroGradient,
                           ),
                           child: Center(
-                            child: ClipOval(
-                              child: CachedNetworkImage(
-                                imageUrl: selectedAvatar,
-                                width: 74,
-                                height: 74,
-                                fit: BoxFit.cover,
-                                placeholder: (_, __) => const CircularProgressIndicator(strokeWidth: 2),
-                                errorWidget: (_, __, ___) => const Icon(Icons.person, size: 40),
-                              ),
+                            child: _buildAvatarImage(
+                              url: selectedAvatar,
+                              size: 74,
+                              fallbackLetter: currentName,
+                              isDark: isDark,
                             ),
                           ),
                         ),
@@ -1038,8 +1073,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       file: file,
                                     );
                                     if (uploadedUrl != null) {
+                                      final String finalUrl = uploadedUrl.startsWith('data:')
+                                          ? uploadedUrl
+                                          : (uploadedUrl.contains('?')
+                                              ? '$uploadedUrl&t=${DateTime.now().millisecondsSinceEpoch}'
+                                              : '$uploadedUrl?t=${DateTime.now().millisecondsSinceEpoch}');
                                       setDialogState(() {
-                                        selectedAvatar = uploadedUrl;
+                                        selectedAvatar = finalUrl;
                                         isUploading = false;
                                       });
                                     } else {
@@ -1129,11 +1169,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         setDialogState(() => isSaving = true);
                         try {
                           final String newName = nameCtrl.text.trim();
+                          final String finalName = newName.isNotEmpty ? newName : currentName;
+                          final String? finalAvatar = selectedAvatar.isNotEmpty ? selectedAvatar : currentAvatar;
                           final LibraryController library = context.read<LibraryController>();
                           await library.updateProfile(
-                            displayName: newName.isNotEmpty ? newName : currentName,
-                            avatarUrl: selectedAvatar.isNotEmpty ? selectedAvatar : currentAvatar,
+                            displayName: finalName,
+                            avatarUrl: finalAvatar,
                           );
+                          if (mounted) {
+                            setState(() {
+                              _userProfile = <String, dynamic>{
+                                ...?_userProfile,
+                                'display_name': finalName,
+                                'avatar_url': finalAvatar,
+                              };
+                            });
+                          }
                           await _loadProfileData();
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(

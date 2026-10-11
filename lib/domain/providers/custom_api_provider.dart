@@ -107,9 +107,29 @@ class CustomApiProvider extends BaseMusicProvider {
         return _mapTrack(item as Map<String, dynamic>);
       }).toList();
 
+      final Map<String, Artist> artistMap = <String, Artist>{};
+      final Map<String, Album> albumMap = <String, Album>{};
+
+      for (final Track t in tracks) {
+        for (final Artist a in t.artists) {
+          final String key = a.name.trim().toLowerCase();
+          if (key.isNotEmpty && !artistMap.containsKey(key)) {
+            artistMap[key] = a;
+          }
+        }
+        if (t.album != null && t.album!.title.trim().isNotEmpty) {
+          final String key = t.album!.title.trim().toLowerCase();
+          if (!albumMap.containsKey(key)) {
+            albumMap[key] = t.album!;
+          }
+        }
+      }
+
       return SearchResult(
         query: query,
         tracks: tracks,
+        artists: artistMap.values.toList(),
+        albums: albumMap.values.toList(),
       );
     } catch (e) {
       debugPrint('[CustomApiProvider] Search error: $e');

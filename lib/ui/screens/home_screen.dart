@@ -79,6 +79,20 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _refreshData() async {
+    final MusicRepository repo = context.read<MusicRepository>();
+    final LibraryController library = context.read<LibraryController>();
+    setState(() {
+      final String? lang = _selectedMood == 'All' ? null : _selectedMood.toLowerCase();
+      _trendingFuture = repo.trending(limit: 20, language: lang);
+      _newReleasesFuture = repo.newReleases(limit: 10);
+    });
+    await Future.wait(<Future<dynamic>>[
+      _loadInitialTracks(),
+      library.syncWithSupabase(),
+    ]);
+  }
+
   void _onScrollToTop() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -87,13 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
         curve: Curves.easeOut,
       );
     }
-    final MusicRepository repo = context.read<MusicRepository>();
-    setState(() {
-      final String? lang = _selectedMood == 'All' ? null : _selectedMood.toLowerCase();
-      _trendingFuture = repo.trending(limit: 20, language: lang);
-      _newReleasesFuture = repo.newReleases(limit: 10);
-    });
-    _loadInitialTracks();
+    _refreshData();
   }
 
   Future<void> _loadInitialTracks() async {
@@ -230,10 +238,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
           SafeArea(
             bottom: false,
-            child: CustomScrollView(
-              controller: _scrollController,
-              physics: const BouncingScrollPhysics(),
-              slivers: <Widget>[
+            child: RefreshIndicator(
+              color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
+              backgroundColor: isDark ? AppColors.surfaceContainerHigh : Colors.white,
+              onRefresh: _refreshData,
+              child: CustomScrollView(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                slivers: <Widget>[
                 // 1. Header with Brand Mark and Actions
                 SliverToBoxAdapter(
                   child: _buildHeader(context),
@@ -307,10 +319,11 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildHeader(BuildContext context) {
     return Padding(
