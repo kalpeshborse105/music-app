@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/storage/settings_store.dart';
+import '../../core/utils/auth_utils.dart';
 import '../../data/services/supabase_service.dart';
 import '../../domain/models/audio_quality.dart';
 import '../../state/downloads_controller.dart';
@@ -242,10 +243,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: <Widget>[
                           ListTile(
                             leading: Icon(
+                              Icons.key_rounded,
+                              color: isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent,
+                            ),
+                            title: const Text('Change Password',
+                                style: TextStyle(fontWeight: FontWeight.w600)),
+                            subtitle: const Text('Update your account password directly in app'),
+                            trailing: const Icon(Icons.chevron_right_rounded),
+                            onTap: () => _showChangePasswordDialog(context),
+                          ),
+                          const Divider(height: 1),
+                          ListTile(
+                            leading: Icon(
                               Icons.lock_reset_rounded,
                               color: isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent,
                             ),
-                            title: const Text('Reset Password',
+                            title: const Text('Reset Password by Email',
                                 style: TextStyle(fontWeight: FontWeight.w600)),
                             subtitle: const Text('Send recovery instructions to your email'),
                             onTap: () => _confirmResetPassword(context, userEmail),
@@ -292,6 +305,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             current: settings.streamQuality,
                             onPick: (AudioQuality q) => settings.streamQuality = q,
                           ),
+                        ),
+                        const Divider(height: 1),
+                        ListTile(
+                          leading: Icon(
+                            Icons.language_rounded,
+                            color: isDark
+                                ? AppColors.primaryLight
+                                : AppColors.lightPrimaryAccent,
+                          ),
+                          title: const Text('Preferred Music Language',
+                              style: TextStyle(fontWeight: FontWeight.w600)),
+                          subtitle: Text(
+                            ((_userProfile?['preferred_language'] as String?)?.isNotEmpty == true)
+                                ? (_userProfile!['preferred_language'] as String).toUpperCase()
+                                : 'HINDI',
+                          ),
+                          trailing: const Icon(Icons.chevron_right_rounded),
+                          onTap: () => _pickPreferredLanguage(context),
                         ),
                         const Divider(height: 1),
                         SwitchListTile(
@@ -1280,6 +1311,190 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  void _showChangePasswordDialog(BuildContext context) {
+    final TextEditingController pwdController = TextEditingController();
+    final TextEditingController confirmController = TextEditingController();
+    bool isSubmitting = false;
+    bool obscure1 = true;
+    bool obscure2 = true;
+    String? localError;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            final bool isDark = Theme.of(context).brightness == Brightness.dark;
+            return AlertDialog(
+              backgroundColor: isDark ? AppColors.surfaceContainerHigh : AppColors.lightSurface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Row(
+                children: <Widget>[
+                  Icon(Icons.key_rounded, color: AppColors.electricViolet),
+                  SizedBox(width: 10),
+                  Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Enter a new secure password for your account.',
+                    style: TextStyle(fontSize: 13, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+                  ),
+                  const SizedBox(height: 16),
+                  if (localError != null) ...<Widget>[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                      ),
+                      child: Text(localError!, style: const TextStyle(color: AppColors.error, fontSize: 12)),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  TextField(
+                    controller: pwdController,
+                    obscureText: obscure1,
+                    decoration: InputDecoration(
+                      labelText: 'New Password',
+                      hintText: 'At least 6 characters',
+                      prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppColors.electricViolet, size: 20),
+                      suffixIcon: IconButton(
+                        icon: Icon(obscure1 ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 20),
+                        onPressed: () => setModalState(() => obscure1 = !obscure1),
+                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: confirmController,
+                    obscureText: obscure2,
+                    decoration: InputDecoration(
+                      labelText: 'Confirm New Password',
+                      hintText: 'Re-enter new password',
+                      prefixIcon: const Icon(Icons.check_circle_outline_rounded, color: AppColors.electricViolet, size: 20),
+                      suffixIcon: IconButton(
+                        icon: Icon(obscure2 ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 20),
+                        onPressed: () => setModalState(() => obscure2 = !obscure2),
+                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: AppColors.electricViolet),
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          final String p1 = pwdController.text.trim();
+                          final String p2 = confirmController.text.trim();
+                          if (p1.isEmpty || p1.length < 6) {
+                            setModalState(() => localError = 'Password must be at least 6 characters long.');
+                            return;
+                          }
+                          if (p1 != p2) {
+                            setModalState(() => localError = 'Passwords do not match.');
+                            return;
+                          }
+                          setModalState(() {
+                            isSubmitting = true;
+                            localError = null;
+                          });
+                          try {
+                            await SupabaseService().updateUserPassword(p1);
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Password updated successfully!'),
+                                  backgroundColor: AppColors.emerald,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            setModalState(() {
+                              isSubmitting = false;
+                              localError = AuthUtils.getFriendlyErrorMessage(e);
+                            });
+                          }
+                        },
+                  child: isSubmitting
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Save Password'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _pickPreferredLanguage(BuildContext context) {
+    const List<String> languages = <String>[
+      'Hindi', 'Marathi', 'Punjabi', 'Bhojpuri', 'Haryanvi', 'Gujarati', 'Tamil', 'Telugu', 'Bengali', 'English'
+    ];
+    final String current = (_userProfile?['preferred_language'] as String?)?.toUpperCase() ?? 'HINDI';
+
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (BuildContext ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text('Select Preferred Music Language', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: languages.length,
+                  itemBuilder: (BuildContext _, int idx) {
+                    final String lang = languages[idx];
+                    final bool isSelected = lang.toUpperCase() == current;
+                    return ListTile(
+                      title: Text(lang, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                      trailing: isSelected ? const Icon(Icons.check_rounded, color: AppColors.electricViolet) : null,
+                      onTap: () async {
+                        Navigator.pop(ctx);
+                        final String newLang = lang.toLowerCase();
+                        final SupabaseService supabase = SupabaseService();
+                        if (supabase.currentUser != null) {
+                          await supabase.updateProfile(userId: supabase.currentUser!.id, preferredLanguage: newLang);
+                          await _loadProfileData();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Music language updated to $lang'), backgroundColor: AppColors.electricViolet),
+                            );
+                          }
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _confirmResetPassword(BuildContext context, String email) {
     showDialog<void>(
       context: context,
@@ -1310,7 +1525,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
+                    SnackBar(
+                      content: Text(AuthUtils.getFriendlyErrorMessage(e)),
+                      backgroundColor: AppColors.error,
+                    ),
                   );
                 }
               }

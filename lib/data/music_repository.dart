@@ -157,13 +157,23 @@ class MusicRepository {
           return p.getTrending(limit: limit, offset: offset, language: language);
         }
         return p.getTrending(limit: limit, offset: offset);
-      }, limit: limit);
+      }, limit: limit, language: language);
 
-  Future<List<Track>> newReleases({int limit = 20, int offset = 0}) =>
-      _aggregateTracks((MusicProvider p) => p.getNewReleases(limit: limit, offset: offset), limit: limit);
+  Future<List<Track>> newReleases({int limit = 20, int offset = 0, String? language}) =>
+      _aggregateTracks((MusicProvider p) {
+        if (p is CustomApiProvider && language != null && language.isNotEmpty && language.toLowerCase() != 'all') {
+          return p.getNewReleases(limit: limit, offset: offset, language: language);
+        }
+        return p.getNewReleases(limit: limit, offset: offset);
+      }, limit: limit, language: language);
 
-  Future<List<Track>> recommendations({int limit = 20, int offset = 0}) =>
-      _aggregateTracks((MusicProvider p) => p.getRecommendations(limit: limit, offset: offset), limit: limit);
+  Future<List<Track>> recommendations({int limit = 20, int offset = 0, String? language}) =>
+      _aggregateTracks((MusicProvider p) {
+        if (p is CustomApiProvider && language != null && language.isNotEmpty && language.toLowerCase() != 'all') {
+          return p.getRecommendations(limit: limit, offset: offset, language: language);
+        }
+        return p.getRecommendations(limit: limit, offset: offset);
+      }, limit: limit, language: language);
 
   Future<List<GenreRef>> genres({int perProvider = 20}) async {
     final List<MusicProvider> providers = _discoveryProviders;
@@ -198,8 +208,18 @@ class MusicRepository {
   Future<List<Track>> _aggregateTracks(
     Future<dynamic> Function(MusicProvider) fetch, {
     required int limit,
+    String? language,
   }) async {
-    final List<MusicProvider> providers = _discoveryProviders;
+    final bool isRegionalFilter = language != null &&
+        language.isNotEmpty &&
+        language.toLowerCase() != 'all';
+
+    final List<MusicProvider> providers = isRegionalFilter
+        ? _discoveryProviders
+            .where((MusicProvider p) => p.id == 'custom_api' || p.id == 'regional')
+            .toList()
+        : _discoveryProviders;
+
     if (providers.isEmpty) return <Track>[];
     final List<Future<List<Track>>> futures = providers.map((MusicProvider p) async {
       try {

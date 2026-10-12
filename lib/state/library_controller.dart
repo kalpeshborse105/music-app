@@ -87,6 +87,15 @@ class LibraryController extends ChangeNotifier {
 
   String get userEmail => _supabase.currentUser?.email ?? '';
 
+  String? get preferredLanguage {
+    if (_userProfile != null &&
+        _userProfile!['preferred_language'] != null &&
+        (_userProfile!['preferred_language'] as String).trim().isNotEmpty) {
+      return _userProfile!['preferred_language'] as String;
+    }
+    return null;
+  }
+
   bool get isAdmin => _userProfile?['role'] == 'admin';
 
   Future<void> refreshProfile() async {
@@ -101,12 +110,19 @@ class LibraryController extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> updateProfile({required String displayName, String? avatarUrl}) async {
+  Future<void> updateProfile({
+    required String displayName,
+    String? avatarUrl,
+    String? bio,
+    String? preferredLanguage,
+  }) async {
     if (!_supabase.isAuthenticated || _supabase.currentUserId == null) return;
     await _supabase.updateProfile(
       userId: _supabase.currentUserId!,
       displayName: displayName,
       avatarUrl: avatarUrl,
+      bio: bio,
+      preferredLanguage: preferredLanguage,
     );
     await refreshProfile();
   }

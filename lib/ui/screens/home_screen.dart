@@ -85,7 +85,8 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       final String? lang = _selectedMood == 'All' ? null : _selectedMood.toLowerCase();
       _trendingFuture = repo.trending(limit: 20, language: lang);
-      _newReleasesFuture = repo.newReleases(limit: 10);
+      _newReleasesFuture = repo.newReleases(limit: 10, language: lang);
+      _spotlightFuture = repo.trending(limit: 1, language: lang);
     });
     await Future.wait(<Future<dynamic>>[
       _loadInitialTracks(),
@@ -185,9 +186,21 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_initialized) {
       _initialized = true;
       final MusicRepository repo = context.read<MusicRepository>();
-      _trendingFuture = repo.trending(limit: 20);
-      _newReleasesFuture = repo.newReleases(limit: 8);
-      _spotlightFuture = repo.trending(limit: 1);
+      final LibraryController library = context.read<LibraryController>();
+      final String? userLang = library.preferredLanguage;
+      if (userLang != null && userLang.isNotEmpty && userLang.toLowerCase() != 'all') {
+        final String match = _moods.firstWhere(
+          (String m) => m.toLowerCase() == userLang.toLowerCase(),
+          orElse: () => '',
+        );
+        if (match.isNotEmpty) {
+          _selectedMood = match;
+        }
+      }
+      final String? lang = _selectedMood == 'All' ? null : _selectedMood.toLowerCase();
+      _trendingFuture = repo.trending(limit: 20, language: lang);
+      _newReleasesFuture = repo.newReleases(limit: 8, language: lang);
+      _spotlightFuture = repo.trending(limit: 1, language: lang);
       _loadInitialTracks();
     }
   }
@@ -198,6 +211,8 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedMood = mood;
       final String? lang = mood == 'All' ? null : mood.toLowerCase();
       _trendingFuture = repo.trending(limit: 20, language: lang);
+      _newReleasesFuture = repo.newReleases(limit: 8, language: lang);
+      _spotlightFuture = repo.trending(limit: 1, language: lang);
     });
     _loadInitialTracks();
   }

@@ -197,7 +197,8 @@ class CustomApiProvider extends BaseMusicProvider {
         final List<Track> tracks = rawTracks.map((dynamic item) {
           return _mapTrack(item as Map<String, dynamic>);
         }).toList();
-        return PagedResult<Track>(items: tracks, total: tracks.length);
+        final int total = (body['total'] as num?)?.toInt() ?? (body['pool_size'] as num?)?.toInt() ?? 1000;
+        return PagedResult<Track>(items: tracks, total: total);
       }
     } catch (_) {}
 
@@ -205,12 +206,45 @@ class CustomApiProvider extends BaseMusicProvider {
   }
 
   @override
-  Future<PagedResult<Track>> getNewReleases({int offset = 0, int limit = 20}) =>
-      getTrending(offset: offset, limit: limit);
+  Future<PagedResult<Track>> getNewReleases({int offset = 0, int limit = 20, String? language}) async {
+    if (_baseUrl.isEmpty) {
+      return const PagedResult<Track>(items: <Track>[], total: 0);
+    }
+
+    final int page = (offset ~/ limit) + 1;
+    final Map<String, String> queryParams = <String, String>{
+      'limit': limit.toString(),
+      'p': page.toString(),
+    };
+    if (language != null && language.isNotEmpty && language.toLowerCase() != 'all') {
+      queryParams['lang'] = language.toLowerCase();
+    }
+
+    final Uri uri = Uri.parse('$_baseUrl/api/new-releases').replace(
+      queryParameters: queryParams,
+    );
+
+    try {
+      final http.Response res = await http.get(uri).timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        final Map<String, dynamic> body = jsonDecode(res.body) as Map<String, dynamic>;
+        final List<dynamic> rawTracks = (body['tracks'] as List<dynamic>?) ?? <dynamic>[];
+        if (rawTracks.isNotEmpty) {
+          final List<Track> tracks = rawTracks.map((dynamic item) {
+            return _mapTrack(item as Map<String, dynamic>);
+          }).toList();
+          final int total = (body['total'] as num?)?.toInt() ?? 1000;
+          return PagedResult<Track>(items: tracks, total: total);
+        }
+      }
+    } catch (_) {}
+
+    return getTrending(offset: offset, limit: limit, language: language);
+  }
 
   @override
-  Future<PagedResult<Track>> getRecommendations({int offset = 0, int limit = 20}) =>
-      getTrending(offset: offset, limit: limit);
+  Future<PagedResult<Track>> getRecommendations({int offset = 0, int limit = 20, String? language}) =>
+      getTrending(offset: offset, limit: limit, language: language);
 
   Track _mapTrack(Map<String, dynamic> item) {
     final String trackId = item['id'] as String? ?? '';
@@ -251,6 +285,12 @@ class CustomApiProvider extends BaseMusicProvider {
       backgroundPlaybackAllowed: true,
       license: 'Cloud Gateway Stream',
       attributionRequired: false,
+      extra: <String, dynamic>{
+        'language': item['language'] ?? '',
+        'year': item['year'] ?? '',
+        'album': item['album'] ?? '',
+        'play_count': item['play_count'] ?? 0,
+      },
     );
   }
 
@@ -307,11 +347,13 @@ class CustomApiProvider extends BaseMusicProvider {
 
     if (_baseUrl.isNotEmpty) {
       try {
+        final String trackLang = (track.extra['language'] as String?) ?? '';
         final Uri uri = Uri.parse('$_baseUrl/api/related').replace(
           queryParameters: <String, String>{
             if (cleanId.isNotEmpty) 'id': cleanId,
             if (track.title.isNotEmpty) 'title': track.title,
             if (artistName.isNotEmpty) 'artist': artistName,
+            if (trackLang.isNotEmpty) 'lang': trackLang,
             'limit': limit.toString(),
           },
         );

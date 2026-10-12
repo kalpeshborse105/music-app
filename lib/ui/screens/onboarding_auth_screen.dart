@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/auth_utils.dart';
 import '../../data/services/supabase_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/glass_card.dart';
@@ -85,7 +86,7 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = e.message;
+          _errorMessage = AuthUtils.getFriendlyErrorMessage(e);
         });
       }
     } catch (_) {
@@ -166,26 +167,14 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          final String msg = e.message.toLowerCase();
-          if (msg.contains('invalid login credentials')) {
-            _errorMessage = 'Email or password is incorrect.';
-          } else if (msg.contains('email not confirmed')) {
-            _errorMessage =
-                'Please verify your email address before signing in.';
-          } else if (msg.contains('user already registered')) {
-            _errorMessage =
-                'This email is already registered. Please sign in instead.';
-          } else {
-            _errorMessage = e.message;
-          }
+          _errorMessage = AuthUtils.getFriendlyErrorMessage(e);
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage =
-              'Connection unavailable. Check your internet connection.';
+          _errorMessage = AuthUtils.getFriendlyErrorMessage(e);
         });
       }
     }
@@ -329,7 +318,8 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('Could not send reset link: $e'),
+                              content: Text(AuthUtils.getFriendlyErrorMessage(e)),
+                              backgroundColor: AppColors.error,
                             ),
                           );
                         }

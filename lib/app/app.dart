@@ -20,6 +20,7 @@ import '../ui/screens/admin_screen.dart';
 import '../ui/screens/app_shell.dart';
 import '../ui/screens/delete_account_screen.dart';
 import '../ui/screens/onboarding_auth_screen.dart';
+import '../ui/screens/reset_password_screen.dart';
 import '../ui/screens/splash_screen.dart';
 import '../ui/theme/app_colors.dart';
 import '../ui/theme/app_theme.dart';
@@ -73,6 +74,12 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
             themeMode: settings.themeMode,
             home: const SplashScreen(),
             onGenerateRoute: (RouteSettings routeSettings) {
+              if (routeSettings.name == '/reset-password') {
+                return MaterialPageRoute<void>(
+                  settings: routeSettings,
+                  builder: (BuildContext context) => const ResetPasswordScreen(),
+                );
+              }
               if (routeSettings.name == '/delete-account') {
                 return MaterialPageRoute<void>(
                   settings: routeSettings,
@@ -188,110 +195,17 @@ class _AuthGateState extends State<AuthGate> {
       }
       if (mounted && data.event == AuthChangeEvent.passwordRecovery) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _showNewPasswordModal(context);
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              settings: const RouteSettings(name: '/reset-password'),
+              builder: (BuildContext context) => const ResetPasswordScreen(),
+            ),
+          );
         });
       }
     });
   }
 
-  void _showNewPasswordModal(BuildContext context) {
-    final TextEditingController pwdController = TextEditingController();
-    final TextEditingController confirmController = TextEditingController();
-    bool isSubmitting = false;
-
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext ctx) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModalState) {
-            return AlertDialog(
-              backgroundColor: AppColors.surfaceContainerHigh,
-              title: const Row(
-                children: <Widget>[
-                  Icon(Icons.lock_reset_rounded, color: AppColors.electricViolet),
-                  SizedBox(width: 8),
-                  Text('Set New Password', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  const Text(
-                    'You opened a password reset link. Enter your new account password below.',
-                    style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 13),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: pwdController,
-                    obscureText: true,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: 'New Password',
-                      labelStyle: const TextStyle(color: AppColors.textMutedDark),
-                      prefixIcon: const Icon(Icons.key_rounded, color: AppColors.electricViolet),
-                      filled: true,
-                      fillColor: AppColors.darkBg,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: confirmController,
-                    obscureText: true,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: 'Confirm New Password',
-                      labelStyle: const TextStyle(color: AppColors.textMutedDark),
-                      prefixIcon: const Icon(Icons.check_circle_outline, color: AppColors.electricViolet),
-                      filled: true,
-                      fillColor: AppColors.darkBg,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
-                ],
-              ),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: isSubmitting ? null : () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancel', style: TextStyle(color: AppColors.textMutedDark)),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.electricViolet),
-                  onPressed: isSubmitting
-                      ? null
-                      : () async {
-                          final String p1 = pwdController.text.trim();
-                          final String p2 = confirmController.text.trim();
-                          if (p1.isEmpty || p1.length < 6) {
-                            AppMessenger.show('Password must be at least 6 characters long.');
-                            return;
-                          }
-                          if (p1 != p2) {
-                            AppMessenger.show('Passwords do not match.');
-                            return;
-                          }
-                          setModalState(() => isSubmitting = true);
-                          try {
-                            await SupabaseService().updateUserPassword(p1);
-                            if (ctx.mounted) Navigator.of(ctx).pop();
-                            AppMessenger.show('New password saved successfully!');
-                          } catch (e) {
-                            setModalState(() => isSubmitting = false);
-                            AppMessenger.showError('Failed to update password: $e');
-                          }
-                        },
-                  child: isSubmitting
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Save Password', style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
 
   @override
   void dispose() {

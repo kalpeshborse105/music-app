@@ -128,8 +128,8 @@ class SupabaseService {
     if (!_isInitialized) return;
     final String redirect = redirectTo ??
         (kIsWeb
-            ? (kReleaseMode ? 'https://beats.kalpkrutinfotech.com/' : Uri.base.origin)
-            : 'com.kalpkrut.beats://login-callback');
+            ? (kReleaseMode ? 'https://beats.kalpkrutinfotech.com/reset-password' : '${Uri.base.origin}/reset-password')
+            : 'com.kalpkrut.beats://login-callback?type=recovery');
     await client.auth.resetPasswordForEmail(
       email,
       redirectTo: redirect,
@@ -278,6 +278,7 @@ class SupabaseService {
     String? displayName,
     String? avatarUrl,
     String? bio,
+    String? preferredLanguage,
   }) async {
     final Map<String, dynamic> updates = <String, dynamic>{
       'id': userId,
@@ -286,6 +287,7 @@ class SupabaseService {
     if (displayName != null) updates['display_name'] = displayName;
     if (avatarUrl != null) updates['avatar_url'] = avatarUrl;
     if (bio != null) updates['bio'] = bio;
+    if (preferredLanguage != null) updates['preferred_language'] = preferredLanguage;
 
     // Immediately cache in local SharedPreferences for persistent offline & immediate reload
     try {
@@ -642,6 +644,15 @@ class SupabaseService {
     if (!_isInitialized || currentUser == null) return false;
     final String userId = currentUser!.id;
     try {
+      // 0. Attempt atomic server-side deletion via Postgres RPC function
+      try {
+        await client.rpc('delete_user_account');
+        await client.auth.signOut();
+        return true;
+      } catch (rpcErr) {
+        debugPrint('[SupabaseService] delete_user_account RPC fallback: $rpcErr');
+      }
+
       // 1. Delete user favorites
       try {
         await client.from('favorites').delete().eq('user_id', userId);

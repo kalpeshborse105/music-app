@@ -81,6 +81,7 @@ class AppColors {
 
   // Status & Feedback
   static const Color success = Color(0xFF10B981);
+  static const Color emerald = success;
   static const Color warning = Color(0xFFF59E0B);
   static const Color error = Color(0xFFFFB4AB);
   static const Color lightError = Color(0xFFDC2626);
