@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/config/app_config.dart';
 import '../../core/storage/settings_store.dart';
@@ -691,17 +693,11 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               if (ad.imageUrl.isNotEmpty)
                 ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: Image.network(
+                  child: _buildAdImageWidget(
                     ad.imageUrl,
                     width: 90,
                     height: 60,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 90,
-                      height: 60,
-                      color: Colors.grey.withValues(alpha: 0.2),
-                      child: const Icon(Icons.image_not_supported_rounded, size: 24),
-                    ),
                   ),
                 ),
               if (ad.imageUrl.isNotEmpty) const SizedBox(width: 14),
@@ -795,6 +791,41 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     );
   }
 
+  Widget _buildAdImageWidget(
+    String url, {
+    double? width,
+    double? height,
+    BoxFit fit = BoxFit.cover,
+  }) {
+    if (url.startsWith('data:image')) {
+      try {
+        final int commaIdx = url.indexOf(',');
+        if (commaIdx != -1) {
+          final Uint8List bytes = base64Decode(url.substring(commaIdx + 1));
+          return Image.memory(
+            bytes,
+            width: width,
+            height: height,
+            fit: fit,
+          );
+        }
+      } catch (_) {}
+    }
+    return Image.network(
+      url,
+      width: width,
+      height: height,
+      fit: fit,
+      errorBuilder: (_, __, ___) => Container(
+        width: width,
+        height: height,
+        color: Colors.grey.withValues(alpha: 0.2),
+        alignment: Alignment.center,
+        child: const Icon(Icons.image_not_supported_rounded, size: 24),
+      ),
+    );
+  }
+
   Future<void> _showAdEditorDialog(BuildContext context, {Advertisement? ad}) async {
     final bool isEditing = ad != null;
     final TextEditingController titleCtrl =
@@ -808,6 +839,8 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
     String closeButtonType = ad?.closeButtonType ?? 'icon';
     bool isActive = ad?.isActive ?? true;
+    bool isUploadingPoster = false;
+    bool showManualUrlInput = false;
 
     await showDialog<void>(
       context: context,
@@ -815,6 +848,38 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         return StatefulBuilder(
           builder: (BuildContext dialogContext, StateSetter setDialogState) {
             final bool isDark = Theme.of(dialogContext).brightness == Brightness.dark;
+
+            Future<void> pickAndUploadPoster() async {
+              try {
+                final ImagePicker picker = ImagePicker();
+                final XFile? file = await picker.pickImage(
+                  source: ImageSource.gallery,
+                  maxWidth: 1920,
+                  imageQuality: 92,
+                );
+                if (file != null) {
+                  setDialogState(() => isUploadingPoster = true);
+                  final Uint8List bytes = await file.readAsBytes();
+                  final String? uploadedUrl = await SupabaseService().uploadAdBanner(
+                    bytes: bytes,
+                    fileName: file.name,
+                  );
+                  if (uploadedUrl != null && uploadedUrl.isNotEmpty) {
+                    imageCtrl.text = uploadedUrl;
+                  }
+                }
+              } catch (e) {
+                if (dialogContext.mounted) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    SnackBar(content: Text('Failed to upload image: $e')),
+                  );
+                }
+              } finally {
+                setDialogState(() => isUploadingPoster = false);
+              }
+            }
+
+            final bool hasPoster = imageCtrl.text.trim().isNotEmpty;
 
             return AlertDialog(
               backgroundColor: isDark ? const Color(0xFF1E1E2C) : Colors.white,
@@ -839,59 +904,174 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
+                      // DIRECT POSTER UPLOAD SECTION (Primary)
+                      const Text(
+                        'Ad Poster Image *',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      if (hasPoster)
+                        Stack(
+                          children: <Widget>[
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: Container(
+                                constraints: const BoxConstraints(maxHeight: 240),
+                                width: double.infinity,
+                                color: Colors.black26,
+                                alignment: Alignment.center,
+                                child: _buildAdImageWidget(
+                                  imageCtrl.text.trim(),
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  FilledButton.tonalIcon(
+                                    onPressed: isUploadingPoster ? null : pickAndUploadPoster,
+                                    icon: const Icon(Icons.photo_library_rounded, size: 16),
+                                    label: const Text('Change', style: TextStyle(fontSize: 12)),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: Colors.black.withValues(alpha: 0.75),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  IconButton.filled(
+                                    onPressed: () => setDialogState(() => imageCtrl.clear()),
+                                    icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                                    tooltip: 'Remove Poster',
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: Colors.redAccent.withValues(alpha: 0.85),
+                                      foregroundColor: Colors.white,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        InkWell(
+                          onTap: isUploadingPoster ? null : pickAndUploadPoster,
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF262638) : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Colors.amber.withValues(alpha: 0.6),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                if (isUploadingPoster) ...<Widget>[
+                                  const SizedBox(
+                                    width: 32,
+                                    height: 32,
+                                    child: CircularProgressIndicator(strokeWidth: 3, color: Colors.amber),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'Uploading poster...',
+                                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                                  ),
+                                ] else ...<Widget>[
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber.withValues(alpha: 0.15),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.cloud_upload_rounded,
+                                      color: Colors.amber,
+                                      size: 36,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  const Text(
+                                    'Upload Poster Image',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Tap to select poster from gallery or device files',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: isDark ? Colors.white70 : Colors.black54,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+
+                      const SizedBox(height: 6),
+                      // URL option fallback toggle
+                      InkWell(
+                        onTap: () => setDialogState(() => showManualUrlInput = !showManualUrlInput),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Icon(
+                                showManualUrlInput ? Icons.arrow_drop_up_rounded : Icons.arrow_drop_down_rounded,
+                                size: 18,
+                                color: Colors.amber,
+                              ),
+                              Text(
+                                showManualUrlInput ? 'Hide Image URL input' : 'Or enter Image URL manually',
+                                style: const TextStyle(fontSize: 12, color: Colors.amber, fontWeight: FontWeight.w500),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (showManualUrlInput) ...<Widget>[
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: imageCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Direct Image URL',
+                            hintText: 'https://... or data:image/...',
+                            prefixIcon: Icon(Icons.link_rounded),
+                          ),
+                          onChanged: (_) => setDialogState(() {}),
+                        ),
+                      ],
+
+                      const SizedBox(height: 14),
                       TextField(
                         controller: titleCtrl,
                         decoration: const InputDecoration(
-                          labelText: 'Title / Heading *',
-                          hintText: 'e.g. Diwali Mega Music Pass',
+                          labelText: 'Title / Reference (Optional)',
+                          hintText: 'e.g. Festival Special / New Track Promo',
                           prefixIcon: Icon(Icons.title_rounded),
                         ),
                       ),
                       const SizedBox(height: 12),
                       TextField(
-                        controller: subtitleCtrl,
-                        maxLines: 2,
-                        decoration: const InputDecoration(
-                          labelText: 'Description / Subtitle',
-                          hintText: 'e.g. Stream uninterrupted lossless music with 24/7 radio',
-                          prefixIcon: Icon(Icons.notes_rounded),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: imageCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Banner Image URL *',
-                          hintText: 'https://images.unsplash.com/... or hosted image',
-                          prefixIcon: Icon(Icons.image_rounded),
-                        ),
-                        onChanged: (_) => setDialogState(() {}),
-                      ),
-                      if (imageCtrl.text.trim().isNotEmpty) ...<Widget>[
-                        const SizedBox(height: 8),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: AspectRatio(
-                            aspectRatio: 16 / 9,
-                            child: Image.network(
-                              imageCtrl.text.trim(),
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                color: Colors.grey.withValues(alpha: 0.2),
-                                alignment: Alignment.center,
-                                child: const Text('Preview failed to load image', style: TextStyle(fontSize: 12)),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      TextField(
                         controller: targetCtrl,
                         decoration: const InputDecoration(
-                          labelText: 'Redirect URL (on click)',
+                          labelText: 'Redirect URL on Tap (Optional)',
                           hintText: 'https://kalpkrut.com or promotional link',
-                          prefixIcon: Icon(Icons.link_rounded),
+                          prefixIcon: Icon(Icons.open_in_new_rounded),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -945,14 +1125,16 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 ),
                 FilledButton(
                   onPressed: () async {
-                    final String title = titleCtrl.text.trim();
                     final String image = imageCtrl.text.trim();
-                    if (title.isEmpty || image.isEmpty) {
+                    if (image.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please enter Title and Image URL')),
+                        const SnackBar(content: Text('Please upload a poster image')),
                       );
                       return;
                     }
+
+                    final String enteredTitle = titleCtrl.text.trim();
+                    final String title = enteredTitle.isNotEmpty ? enteredTitle : 'Advertisement';
 
                     final Advertisement toSave = Advertisement(
                       id: ad?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),

@@ -808,6 +808,43 @@ class SupabaseService {
     }
   }
 
+  Future<String?> uploadAdBanner({
+    dynamic file,
+    Uint8List? bytes,
+    String? fileName,
+  }) async {
+    try {
+      final Uint8List imageBytes = bytes ?? (await file.readAsBytes() as Uint8List);
+      final String rawName = fileName ?? ((file?.name as String?) ?? 'poster.png');
+      final String ext = rawName.contains('.') ? rawName.split('.').last.toLowerCase() : 'png';
+      final String cleanExt = (ext == 'jpg' || ext == 'jpeg' || ext == 'png' || ext == 'webp') ? ext : 'png';
+      final String targetName = 'ad-${DateTime.now().millisecondsSinceEpoch}.$cleanExt';
+
+      if (_isInitialized) {
+        for (final String bucket in <String>['ads', 'banners', 'public', 'avatars']) {
+          try {
+            await client.storage.from(bucket).uploadBinary(
+              targetName,
+              imageBytes,
+              fileOptions: FileOptions(contentType: 'image/$cleanExt', upsert: true),
+            );
+            final String publicUrl = client.storage.from(bucket).getPublicUrl(targetName);
+            if (publicUrl.isNotEmpty) return publicUrl;
+          } catch (e) {
+            debugPrint('[SupabaseService] upload to $bucket bucket failed: $e');
+          }
+        }
+      }
+
+      // Guaranteed Fallback: Base64 data URI
+      final String base64Str = base64Encode(imageBytes);
+      return 'data:image/$cleanExt;base64,$base64Str';
+    } catch (e) {
+      debugPrint('[SupabaseService] uploadAdBanner error: $e');
+      return null;
+    }
+  }
+
   // ==========================================
   // ADMIN PLATFORM METRICS & USER MANAGEMENT
   // ==========================================
