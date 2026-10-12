@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../app/app.dart';
+import '../../data/services/supabase_service.dart';
+import 'reset_password_screen.dart';
 
 /// Premium Animated Splash Screen
 /// Features a 2.5s glowing logo bling, breathing pulse animation,
@@ -23,6 +25,25 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
+
+    final bool isRecovery = SupabaseService().isPasswordRecovery ||
+        Uri.base.path.contains('reset-password') ||
+        Uri.base.fragment.contains('type=recovery') ||
+        Uri.base.queryParameters['type'] == 'recovery';
+
+    if (isRecovery) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              settings: const RouteSettings(name: '/reset-password'),
+              builder: (_) => const ResetPasswordScreen(),
+            ),
+          );
+        }
+      });
+      return;
+    }
 
     _controller = AnimationController(
       vsync: this,
@@ -58,6 +79,15 @@ class _SplashScreenState extends State<SplashScreen>
 
   void _navigateToHome() {
     if (!mounted) return;
+    if (SupabaseService().isPasswordRecovery) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          settings: const RouteSettings(name: '/reset-password'),
+          builder: (_) => const ResetPasswordScreen(),
+        ),
+      );
+      return;
+    }
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
         pageBuilder: (BuildContext context, Animation<double> animation,

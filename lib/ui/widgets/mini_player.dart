@@ -195,14 +195,14 @@ class MiniPlayer extends StatelessWidget {
                     onPressed: pc.next,
                     tooltip: 'Next track',
                   ),
-                  // Close X Button (hides mini-player UI without stopping audio)
+                  // Close X Button (stops audio playback, dismisses mobile notification, and hides player)
                   IconButton(
                     iconSize: 18,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(minWidth: 28, minHeight: 36),
                     icon: Icon(Icons.close_rounded, color: context.textMuted),
-                    onPressed: pc.dismissMiniPlayer,
-                    tooltip: 'Hide mini player',
+                    onPressed: () => pc.dismissMiniPlayer(),
+                    tooltip: 'Stop & close player',
                   ),
                 ],
               ),

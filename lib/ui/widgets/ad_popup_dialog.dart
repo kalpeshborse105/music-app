@@ -167,7 +167,51 @@ class AdPopupDialog extends StatelessWidget {
     }
   }
 
+  Widget _buildFallbackPoster() {
+    return Container(
+      width: double.infinity,
+      height: 320,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          colors: <Color>[Color(0xFF0F172A), Color(0xFF1E1B4B), Color(0xFF0284C7)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      padding: const EdgeInsets.all(24),
+      child: const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Icon(Icons.graphic_eq_rounded, size: 54, color: Colors.cyanAccent),
+          SizedBox(height: 12),
+          Text(
+            'Kalpkrut Beats',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              letterSpacing: 0.5,
+            ),
+          ),
+          SizedBox(height: 6),
+          Text(
+            'Your Music, Your Moment',
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.white70,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPosterImage(String url) {
+    if (url.isEmpty) {
+      return _buildFallbackPoster();
+    }
+
     if (url.startsWith('data:image')) {
       try {
         final int commaIdx = url.indexOf(',');
@@ -200,13 +244,7 @@ class AdPopupDialog extends StatelessWidget {
       errorWidget: (BuildContext ctx, String u, Object err) => Image.network(
         url,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => Container(
-          height: 240,
-          color: const Color(0xFF181824),
-          child: const Center(
-            child: Icon(Icons.broken_image_rounded, color: Colors.white54, size: 48),
-          ),
-        ),
+        errorBuilder: (_, __, ___) => _buildFallbackPoster(),
       ),
     );
   }
@@ -216,6 +254,11 @@ class AdPopupDialog extends StatelessWidget {
     final Size size = MediaQuery.of(context).size;
     final double maxDialogWidth = size.width > 520 ? 440 : size.width * 0.90;
     final double maxDialogHeight = size.height * 0.82;
+
+    final bool hasTitle = ad.title.isNotEmpty &&
+        ad.title.toLowerCase() != 'advertisement' &&
+        ad.title.toLowerCase() != 'special announcement';
+    final bool hasSubtitle = ad.subtitle != null && ad.subtitle!.trim().isNotEmpty;
 
     return Center(
       child: Dialog(
@@ -230,7 +273,7 @@ class AdPopupDialog extends StatelessWidget {
           child: Stack(
             alignment: Alignment.topRight,
             children: <Widget>[
-              // Proper Clean Poster (Edge-to-Edge, no extra space or borders)
+              // Proper Clean Poster (Edge-to-Edge, no extra borders or badges)
               GestureDetector(
                 onTap: () => _handleAdClick(context),
                 child: ClipRRect(
@@ -247,7 +290,60 @@ class AdPopupDialog extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: _buildPosterImage(ad.imageUrl),
+                    child: Stack(
+                      alignment: Alignment.bottomCenter,
+                      children: <Widget>[
+                        _buildPosterImage(ad.imageUrl),
+
+                        // If any text exists, show subtle small banner at the bottom of the poster
+                        if (hasTitle || hasSubtitle)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: <Color>[
+                                  Colors.black.withValues(alpha: 0.88),
+                                  Colors.black.withValues(alpha: 0.4),
+                                  Colors.transparent,
+                                ],
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                if (hasTitle)
+                                  Text(
+                                    ad.title,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13.5,
+                                      letterSpacing: 0.2,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                if (hasSubtitle) ...<Widget>[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    ad.subtitle!,
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.85),
+                                      fontSize: 11,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),

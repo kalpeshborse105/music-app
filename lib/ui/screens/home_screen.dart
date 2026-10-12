@@ -15,7 +15,9 @@ import '../widgets/cards.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/state_views.dart';
 import '../widgets/track_tile.dart';
+import '../../domain/models/artist.dart';
 import 'app_shell.dart';
+import 'artist_screen.dart';
 import 'list_screen.dart';
 
 /// Stitch Nocturnal Home Screen combining ambient glowing background, mood filters,
@@ -302,9 +304,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _buildFeaturedSpotlight(context),
                   ),
 
+                  // Followed Artists Quick Shelf (auto-suggestions from followed artists)
+                  if (library.followedArtists.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: _buildFollowedArtistsBar(context, library, repo),
+                    ),
+
                   // 6. Made For You Curated Algorithmic Mixes
                   SliverToBoxAdapter(
-                    child: _buildMadeForYouSection(context, repo),
+                    child: _buildMadeForYouSection(context, repo, library),
                   ),
 
                   // 7. Trending Now & Fresh Picks (Infinite scroll)
@@ -1329,7 +1337,119 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildMadeForYouSection(BuildContext context, MusicRepository repo) {
+  Widget _buildFollowedArtistsBar(
+    BuildContext context,
+    LibraryController library,
+    MusicRepository repo,
+  ) {
+    final List<Artist> artists = library.followedArtists;
+    if (artists.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        SectionHeader(
+          title: 'Artists You Follow',
+          subtitle: 'Auto-suggestions and top picks from your favorites',
+          trailing: TextButton(
+            onPressed: () => AppShell.selectTab(context, 2),
+            child: const Text('View All', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          ),
+        ),
+        SizedBox(
+          height: 110,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            itemCount: artists.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 14),
+            itemBuilder: (BuildContext context, int index) {
+              final Artist artist = artists[index];
+              return InkWell(
+                borderRadius: BorderRadius.circular(40),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ArtistScreen(artist: artist),
+                    ),
+                  );
+                },
+                child: SizedBox(
+                  width: 76,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: AppColors.heroGradient,
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: artist.imageUrl != null && artist.imageUrl!.isNotEmpty
+                            ? ClipOval(
+                                child: Image.network(
+                                  artist.imageUrl!,
+                                  width: 64,
+                                  height: 64,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Center(
+                                    child: Text(
+                                      artist.name.isNotEmpty ? artist.name[0].toUpperCase() : 'A',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 22,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : Center(
+                                child: Text(
+                                  artist.name.isNotEmpty ? artist.name[0].toUpperCase() : 'A',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 22,
+                                  ),
+                                ),
+                              ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        artist.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMadeForYouSection(
+    BuildContext context,
+    MusicRepository repo,
+    LibraryController library,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -1343,6 +1463,41 @@ class _HomeScreenState extends State<HomeScreen> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             children: <Widget>[
+              if (library.followedArtists.isNotEmpty) ...<Widget>[
+                EchoMixCard(
+                  title: '${library.followedArtists.first.name} & Mix',
+                  subtitle: 'Auto-suggestion mix tailored to your artists.',
+                  stats: '${library.followedArtists.length} followed',
+                  icon: Icons.person_search_rounded,
+                  gradient: const LinearGradient(
+                    colors: <Color>[Color(0xFF6366F1), Color(0xFF1E1B4B)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  onTap: () async {
+                    final List<Track> tracks = <Track>[];
+                    for (final Artist a in library.followedArtists.take(3)) {
+                      try {
+                        final List<Track> artistTracks = await repo.artistTopTracks(a);
+                        tracks.addAll(artistTracks.take(8));
+                      } catch (_) {}
+                    }
+                    if (tracks.isEmpty) {
+                      final List<Track> fallback = await repo.recommendations(limit: 25);
+                      tracks.addAll(fallback);
+                    }
+                    if (context.mounted) {
+                      Navigator.of(context).push(MaterialPageRoute<void>(
+                        builder: (_) => TrackListScreen(
+                          title: '${library.followedArtists.first.name} & Mix',
+                          tracks: tracks,
+                        ),
+                      ));
+                    }
+                  },
+                ),
+                const SizedBox(width: AppSpacing.md),
+              ],
               EchoMixCard(
                 title: 'Discover Weekly',
                 subtitle: 'Every Monday refreshed deep cuts and debuts.',

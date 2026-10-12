@@ -327,12 +327,72 @@ class CustomApiProvider extends BaseMusicProvider {
       );
 
   @override
-  Future<List<Album>> getArtistAlbums(String artistId) async => <Album>[];
+  Future<List<Album>> getArtistAlbums(String artistId) async {
+    final String cleanName = (artistId.contains(':') ? artistId.split(':').last : artistId).trim();
+    if (_baseUrl.isNotEmpty) {
+      try {
+        final Uri uri = Uri.parse('$_baseUrl/api/artist/${Uri.encodeComponent(cleanName)}').replace(
+          queryParameters: <String, String>{'albums': '20'},
+        );
+        final http.Response res = await http.get(uri).timeout(const Duration(seconds: 12));
+        if (res.statusCode == 200) {
+          final Map<String, dynamic> body = jsonDecode(res.body) as Map<String, dynamic>;
+          final List<dynamic> raw = (body['top_albums'] as List<dynamic>?) ?? <dynamic>[];
+          if (raw.isNotEmpty) {
+            return raw.map((dynamic item) {
+              final Map<String, dynamic> m = item as Map<String, dynamic>;
+              return Album(
+                id: 'custom_api:album:${m['id'] ?? ''}',
+                providerId: id,
+                providerAlbumId: m['id']?.toString() ?? '',
+                title: m['title']?.toString() ?? m['name']?.toString() ?? 'Album',
+                artworkUrl: m['image']?.toString() ?? m['artwork_url']?.toString(),
+              );
+            }).toList();
+          }
+        }
+      } catch (_) {}
+    }
+    return <Album>[];
+  }
 
   @override
   Future<List<Track>> getArtistTopTracks(String artistId) async {
-    final SearchResult s = await search(artistId, limit: 10);
-    return s.tracks;
+    final String cleanName = (artistId.contains(':') ? artistId.split(':').last : artistId).trim();
+    if (_baseUrl.isNotEmpty) {
+      try {
+        final Uri uri = Uri.parse('$_baseUrl/api/artist/${Uri.encodeComponent(cleanName)}').replace(
+          queryParameters: <String, String>{'songs': '30'},
+        );
+        final http.Response res = await http.get(uri).timeout(const Duration(seconds: 12));
+        if (res.statusCode == 200) {
+          final Map<String, dynamic> body = jsonDecode(res.body) as Map<String, dynamic>;
+          final List<dynamic> raw = (body['top_songs'] as List<dynamic>?) ??
+              (body['tracks'] as List<dynamic>?) ??
+              <dynamic>[];
+          if (raw.isNotEmpty) {
+            final List<Track> tracks = raw.map((dynamic item) => _mapTrack(item as Map<String, dynamic>)).toList();
+            if (tracks.isNotEmpty) return tracks;
+          }
+        }
+      } catch (e) {
+        debugPrint('[CustomApiProvider] getArtistTopTracks api error: $e');
+      }
+    }
+
+    // High accuracy fallback: search and strictly filter to tracks by this artist
+    final SearchResult s = await search(cleanName, limit: 40);
+    final String lowerName = cleanName.toLowerCase();
+    final List<Track> strict = s.tracks.where((Track t) {
+      final String tArtists = t.artistNames.toLowerCase();
+      if (tArtists.contains(lowerName)) return true;
+      for (final Artist a in t.artists) {
+        if (a.name.toLowerCase().contains(lowerName)) return true;
+      }
+      return false;
+    }).toList();
+
+    return strict.isNotEmpty ? strict : s.tracks;
   }
 
   @override

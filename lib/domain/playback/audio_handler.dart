@@ -406,8 +406,24 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> stop() async {
     await _player.stop();
+    queueModel.clear();
+    mediaItem.add(null);
+    queue.add(const <MediaItem>[]);
+    playbackState.add(
+      PlaybackState(
+        controls: const <MediaControl>[],
+        systemActions: const <MediaAction>{},
+        androidCompactActionIndices: const <int>[],
+        processingState: AudioProcessingState.idle,
+        playing: false,
+        updatePosition: Duration.zero,
+        bufferedPosition: Duration.zero,
+        speed: 1.0,
+      ),
+    );
     await super.stop();
-    _broadcastState(processingState: AudioProcessingState.idle);
+    _notifyQueueChanged();
+    _emitSnapshot();
   }
 
   @override

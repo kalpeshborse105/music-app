@@ -33,18 +33,39 @@ class KalpkrutBeatsApp extends StatefulWidget {
   const KalpkrutBeatsApp({super.key, required this.dependencies});
 
   final AppDependencies dependencies;
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   State<KalpkrutBeatsApp> createState() => _KalpkrutBeatsAppState();
 }
 
 class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
+  StreamSubscription<AuthState>? _globalAuthSub;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.dependencies.warmUp();
     });
+
+    _globalAuthSub = SupabaseService().authStateChanges.listen((AuthState data) {
+      if (data.event == AuthChangeEvent.passwordRecovery) {
+        SupabaseService().isPasswordRecovery = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          KalpkrutBeatsApp.navigatorKey.currentState?.pushNamedAndRemoveUntil(
+            '/reset-password',
+            (Route<dynamic> route) => false,
+          );
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _globalAuthSub?.cancel();
+    super.dispose();
   }
 
   @override
@@ -67,6 +88,7 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
         builder: (BuildContext context, SettingsStore settings, Widget? _) {
           return MaterialApp(
             title: 'Kalpkrut Beats',
+            navigatorKey: KalpkrutBeatsApp.navigatorKey,
             debugShowCheckedModeBanner: false,
             scaffoldMessengerKey: AppMessenger.key,
             theme: AppTheme.light(),
@@ -74,7 +96,11 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
             themeMode: settings.themeMode,
             home: const SplashScreen(),
             onGenerateRoute: (RouteSettings routeSettings) {
-              if (routeSettings.name == '/reset-password') {
+              final String name = routeSettings.name ?? '';
+              final Uri? parsedUri = Uri.tryParse(name);
+              final String path = parsedUri?.path ?? name;
+
+              if (path == '/reset-password' || path.startsWith('/reset-password') || name.contains('reset-password')) {
                 return MaterialPageRoute<void>(
                   settings: routeSettings,
                   builder: (BuildContext context) => const ResetPasswordScreen(),
@@ -215,6 +241,17 @@ class _AuthGateState extends State<AuthGate> {
 
   @override
   Widget build(BuildContext context) {
+    final Uri uri = Uri.base;
+    final bool isRecoveryUrl = uri.path.contains('reset-password') ||
+        uri.fragment.contains('type=recovery') ||
+        uri.fragment.contains('access_token') ||
+        uri.queryParameters.containsKey('code') ||
+        uri.queryParameters['type'] == 'recovery';
+
+    if (SupabaseService().isPasswordRecovery || isRecoveryUrl) {
+      return const ResetPasswordScreen();
+    }
+
     if (_isLoading) {
       return const Scaffold(
         backgroundColor: AppColors.darkBg,

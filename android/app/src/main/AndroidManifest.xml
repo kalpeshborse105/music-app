@@ -55,6 +55,31 @@
                     android:scheme="com.kalpkrut.beats"
                     android:host="login-callback" />
             </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.kalpkrut.beats" />
+            </intent-filter>
+
+            <!-- App Links for beats.kalpkrutinfotech.com (password reset & web links) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="beats.kalpkrutinfotech.com" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="http"
+                    android:host="beats.kalpkrutinfotech.com" />
+            </intent-filter>
         </activity>
 
         <!-- Background audio service (audio_service). Keeps playback alive,

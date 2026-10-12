@@ -67,8 +67,9 @@ class PlaybackController extends ChangeNotifier {
   bool _isMiniPlayerDismissed = false;
   bool get isMiniPlayerDismissed => _isMiniPlayerDismissed;
 
-  void dismissMiniPlayer() {
+  Future<void> dismissMiniPlayer() async {
     _isMiniPlayerDismissed = true;
+    await stop();
     notifyListeners();
   }
 

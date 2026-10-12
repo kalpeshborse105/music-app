@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/utils/app_messenger.dart';
 import '../../core/utils/auth_utils.dart';
@@ -28,31 +30,90 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   bool _isSuccess = false;
   bool _showResendForm = false;
   bool _isResending = false;
+  bool _isCheckingSession = true;
   String? _errorMessage;
+  StreamSubscription<AuthState>? _authSub;
 
   @override
   void initState() {
     super.initState();
-    _checkRecoverySession();
+    _initSessionCheck();
   }
 
   @override
   void dispose() {
+    _authSub?.cancel();
     _passwordController.dispose();
     _confirmController.dispose();
     _emailController.dispose();
     super.dispose();
   }
 
-  void _checkRecoverySession() {
+  void _initSessionCheck() {
     final SupabaseService supabase = SupabaseService();
-    // In Supabase, if recovery link was valid, client.auth.currentSession or currentUser is set.
-    // If not authenticated, we prompt the user with a friendly resend form.
-    if (!supabase.isAuthenticated && supabase.currentUser == null) {
+
+    // Listen for incoming password recovery or signedIn event
+    _authSub = supabase.authStateChanges.listen((AuthState data) {
+      if (data.session != null ||
+          data.event == AuthChangeEvent.passwordRecovery ||
+          data.event == AuthChangeEvent.signedIn) {
+        if (mounted) {
+          setState(() {
+            _isCheckingSession = false;
+            _showResendForm = false;
+            _errorMessage = null;
+          });
+        }
+      }
+    });
+
+    final Uri uri = Uri.base;
+    final String? authCode = uri.queryParameters['code'];
+    if (authCode != null && authCode.isNotEmpty) {
+      supabase.client.auth.exchangeCodeForSession(authCode).then((dynamic res) {
+        if (mounted && res.session != null) {
+          setState(() {
+            _isCheckingSession = false;
+            _showResendForm = false;
+            _errorMessage = null;
+          });
+        }
+      }).catchError((dynamic err) {
+        debugPrint('[ResetPasswordScreen] exchangeCodeForSession notice: $err');
+      });
+    }
+
+    final bool urlHasRecovery = uri.path.contains('reset-password') ||
+        uri.fragment.contains('type=recovery') ||
+        uri.fragment.contains('access_token') ||
+        uri.queryParameters.containsKey('code') ||
+        uri.queryParameters['type'] == 'recovery';
+
+    if (supabase.isAuthenticated ||
+        supabase.currentUser != null ||
+        supabase.isPasswordRecovery ||
+        urlHasRecovery) {
       setState(() {
-        _errorMessage =
-            'Your recovery session is expired, invalid, or has already been used. Please request a new link below.';
-        _showResendForm = true;
+        _isCheckingSession = false;
+        _showResendForm = false;
+      });
+    } else {
+      Future<void>.delayed(const Duration(milliseconds: 2200), () {
+        if (!mounted) return;
+        final SupabaseService sb = SupabaseService();
+        if (!sb.isAuthenticated && sb.currentUser == null && !sb.isPasswordRecovery) {
+          setState(() {
+            _isCheckingSession = false;
+            _errorMessage =
+                'No active recovery session detected. Please enter your email below to receive a fresh password reset link.';
+            _showResendForm = true;
+          });
+        } else {
+          setState(() {
+            _isCheckingSession = false;
+            _showResendForm = false;
+          });
+        }
       });
     }
   }
@@ -75,7 +136,19 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
     try {
       final SupabaseService supabase = SupabaseService();
+      if (supabase.currentUser == null) {
+        final Uri uri = Uri.base;
+        final String? authCode = uri.queryParameters['code'];
+        if (authCode != null && authCode.isNotEmpty) {
+          try {
+            await supabase.client.auth.exchangeCodeForSession(authCode);
+          } catch (e) {
+            debugPrint('[ResetPasswordScreen] code exchange during submit: $e');
+          }
+        }
+      }
       await supabase.updateUserPassword(newPassword);
+      supabase.isPasswordRecovery = false;
 
       if (mounted) {
         setState(() {
@@ -132,11 +205,49 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             child: EchoGlassCard(
               padding: const EdgeInsets.all(28),
               borderRadius: 24,
-              child: _isSuccess ? _buildSuccessView() : _buildFormView(),
+              child: _isCheckingSession
+                  ? _buildCheckingView()
+                  : (_isSuccess ? _buildSuccessView() : _buildFormView()),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCheckingView() {
+    return const Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
+        SizedBox(height: 24),
+        SizedBox(
+          width: 38,
+          height: 38,
+          child: CircularProgressIndicator(
+            color: AppColors.electricViolet,
+            strokeWidth: 3,
+          ),
+        ),
+        SizedBox(height: 20),
+        Text(
+          'Verifying Recovery Session...',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        SizedBox(height: 8),
+        Text(
+          'Securing your account for password reset.',
+          style: TextStyle(
+            color: AppColors.textSecondaryDark,
+            fontSize: 13,
+          ),
+        ),
+        SizedBox(height: 24),
+      ],
     );
   }
 

@@ -254,17 +254,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const Divider(height: 1),
                           ListTile(
-                            leading: Icon(
-                              Icons.lock_reset_rounded,
-                              color: isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent,
-                            ),
-                            title: const Text('Reset Password by Email',
-                                style: TextStyle(fontWeight: FontWeight.w600)),
-                            subtitle: const Text('Send recovery instructions to your email'),
-                            onTap: () => _confirmResetPassword(context, userEmail),
-                          ),
-                          const Divider(height: 1),
-                          ListTile(
                             leading: const Icon(
                               Icons.delete_forever_rounded,
                               color: AppColors.error,
@@ -1492,51 +1481,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         );
       },
-    );
-  }
-
-  void _confirmResetPassword(BuildContext context, String email) {
-    showDialog<void>(
-      context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('Send Password Reset Link?'),
-        content: Text(
-          'A password reset link will be sent to $email. You will be able to set a new password securely.',
-          style: const TextStyle(fontSize: 13, height: 1.4),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              try {
-                await SupabaseService().resetPasswordForEmail(email);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Reset link sent to $email'),
-                      backgroundColor: AppColors.electricViolet,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(AuthUtils.getFriendlyErrorMessage(e)),
-                      backgroundColor: AppColors.error,
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Text('Send Link'),
-          ),
-        ],
-      ),
     );
   }
 

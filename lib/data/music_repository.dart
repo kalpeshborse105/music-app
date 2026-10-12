@@ -255,7 +255,10 @@ class MusicRepository {
 
   Future<List<Track>> artistTopTracks(Artist artist) async {
     try {
-      return await _providerFor(artist.providerId).getArtistTopTracks(artist.id);
+      final String target = artist.name.isNotEmpty
+          ? artist.name
+          : (artist.id.contains(':') ? artist.id.split(':').last : artist.id);
+      return await _providerFor(artist.providerId).getArtistTopTracks(target);
     } catch (_) {
       return <Track>[];
     }
@@ -263,7 +266,10 @@ class MusicRepository {
 
   Future<List<Album>> artistAlbums(Artist artist) async {
     try {
-      return await _providerFor(artist.providerId).getArtistAlbums(artist.id);
+      final String target = artist.name.isNotEmpty
+          ? artist.name
+          : (artist.id.contains(':') ? artist.id.split(':').last : artist.id);
+      return await _providerFor(artist.providerId).getArtistAlbums(target);
     } catch (_) {
       return <Album>[];
     }

@@ -27,6 +27,8 @@ class SupabaseService {
   /// Stream of Supabase auth state changes for dynamic UI reactions
   Stream<AuthState> get authStateChanges => client.auth.onAuthStateChange;
 
+  bool isPasswordRecovery = false;
+
   /// Initialize Supabase with runtime credentials
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -45,6 +47,26 @@ class SupabaseService {
         ),
       );
       _isInitialized = true;
+
+      try {
+        final Uri baseUri = Uri.base;
+        if (baseUri.path.contains('reset-password') ||
+            baseUri.fragment.contains('type=recovery') ||
+            baseUri.fragment.contains('access_token') ||
+            baseUri.queryParameters['type'] == 'recovery' ||
+            baseUri.queryParameters.containsKey('code')) {
+          isPasswordRecovery = true;
+        }
+      } catch (_) {}
+
+      client.auth.onAuthStateChange.listen((AuthState data) {
+        if (data.event == AuthChangeEvent.passwordRecovery) {
+          isPasswordRecovery = true;
+        } else if (data.event == AuthChangeEvent.signedOut) {
+          isPasswordRecovery = false;
+        }
+      });
+
       debugPrint('[SupabaseService] Initialized successfully. User: ${client.auth.currentUser?.email ?? "Guest"}');
     } catch (e) {
       debugPrint('[SupabaseService] Initialization failed/skipped: $e');
@@ -127,9 +149,9 @@ class SupabaseService {
   Future<void> resetPasswordForEmail(String email, {String? redirectTo}) async {
     if (!_isInitialized) return;
     final String redirect = redirectTo ??
-        (kIsWeb
-            ? (kReleaseMode ? 'https://beats.kalpkrutinfotech.com/reset-password' : '${Uri.base.origin}/reset-password')
-            : 'com.kalpkrut.beats://login-callback?type=recovery');
+        (kIsWeb && !kReleaseMode
+            ? '${Uri.base.origin}/reset-password'
+            : 'https://beats.kalpkrutinfotech.com/reset-password');
     await client.auth.resetPasswordForEmail(
       email,
       redirectTo: redirect,

@@ -1436,6 +1436,20 @@ def api_artist(artist_id):
         return jsonify({"error": "Provide an artist id or ?token="}), 400
     n_song = arg_int("songs", 30, 1, 50)
     n_album = arg_int("albums", 20, 0, 50)
+
+    # If artist_id is passed as a name (e.g. 'Anuv Jain') rather than numeric ID, resolve it via search
+    if artist_id and not str(artist_id).isdigit() and not token:
+        try:
+            search_data = search_entities("artists", artist_id, limit=5, languages=req_languages())
+            results = search_data.get("results") or []
+            for r in results:
+                if r.get("id"):
+                    artist_id = r.get("id")
+                    token = r.get("token")
+                    break
+        except Exception:
+            pass
+
     data = cached(f"artist:{artist_id or token}:{n_song}:{n_album}", HOURLY,
                   lambda: artist_details(artist_id, token, n_song, n_album, req_languages()))
     return ok(data, 3600) if data else not_found("Artist not found")

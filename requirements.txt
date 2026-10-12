@@ -1,1 +1,8 @@
+flask
+yt-dlp
+flask_cors
+gunicorn
+pycryptodome
+setuptools
+uvicorn
 a2wsgi

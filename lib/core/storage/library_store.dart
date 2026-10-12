@@ -83,12 +83,30 @@ class LibraryStore {
       .map((dynamic e) => Artist.fromJson((e as Map).cast<String, dynamic>()))
       .toList();
 
-  bool isFollowingArtist(String id) =>
-      getFollowedArtists().any((Artist a) => a.id == id);
+  bool isFollowingArtist(String id) {
+    final String cleanId = id.trim().toLowerCase();
+    final String tailId = cleanId.contains(':') ? cleanId.split(':').last : cleanId;
+    return getFollowedArtists().any((Artist a) {
+      final String aId = a.id.trim().toLowerCase();
+      final String aTail = aId.contains(':') ? aId.split(':').last : aId;
+      final String aName = a.name.trim().toLowerCase();
+      return aId == cleanId || aTail == tailId || aName == cleanId || aName == tailId;
+    });
+  }
 
   Future<void> toggleFollowArtist(Artist artist) async {
     final List<Artist> list = getFollowedArtists();
-    final int idx = list.indexWhere((Artist a) => a.id == artist.id);
+    final String cleanId = artist.id.trim().toLowerCase();
+    final String cleanName = artist.name.trim().toLowerCase();
+    final String tailId = cleanId.contains(':') ? cleanId.split(':').last : cleanId;
+
+    final int idx = list.indexWhere((Artist a) {
+      final String aId = a.id.trim().toLowerCase();
+      final String aTail = aId.contains(':') ? aId.split(':').last : aId;
+      final String aName = a.name.trim().toLowerCase();
+      return aId == cleanId || aTail == tailId || aName == cleanName || aName == tailId;
+    });
+
     if (idx >= 0) {
       list.removeAt(idx);
     } else {

@@ -36,6 +36,24 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body style="margin: 0; background-color: #0D0B14; overflow: hidden;">
+  <script>
+    (function() {
+      try {
+        var href = window.location.href;
+        var search = window.location.search;
+        var hash = window.location.hash;
+        var isRecovery = href.indexOf('reset-password') !== -1 ||
+                         search.indexOf('code=') !== -1 ||
+                         hash.indexOf('type=recovery') !== -1 ||
+                         search.indexOf('type=recovery') !== -1;
+
+        if (isRecovery && /android/i.test(navigator.userAgent)) {
+          var appUrl = "com.kalpkrut.beats://login-callback" + search + (hash ? hash : "");
+          window.location.href = appUrl;
+        }
+      } catch (e) {}
+    })();
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

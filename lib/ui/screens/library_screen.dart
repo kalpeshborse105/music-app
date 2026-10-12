@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart' hide SearchController;
 import 'package:provider/provider.dart';
 
+import '../../domain/models/album.dart';
+import '../../domain/models/artist.dart';
 import '../../domain/models/history_entry.dart';
 import '../../domain/models/playlist.dart';
 import '../../domain/models/search_result.dart';
+import '../../domain/models/track.dart';
 import '../../domain/providers/local_provider.dart';
 import '../../state/downloads_controller.dart';
 import '../../state/library_controller.dart';
@@ -12,6 +15,7 @@ import '../services/track_actions.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/app_sheets.dart';
+import '../widgets/artwork.dart';
 import '../widgets/cards.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/state_views.dart';
@@ -34,8 +38,9 @@ class _GenreCardData {
   final Color color1;
   final Color color2;
   final IconData icon;
+  final String emoji;
 
-  const _GenreCardData(this.title, this.color1, this.color2, this.icon);
+  const _GenreCardData(this.title, this.color1, this.color2, this.icon, {this.emoji = ''});
 }
 
 class _LibraryScreenState extends State<LibraryScreen> {
@@ -57,18 +62,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
   ];
 
   static const List<_GenreCardData> _genres = <_GenreCardData>[
-    _GenreCardData('Bollywood Hits', Color(0xFFE11D48), Color(0xFFF97316), Icons.movie_filter_rounded),
-    _GenreCardData('Punjabi Hits', Color(0xFFF59E0B), Color(0xFFD97706), Icons.speaker_group_rounded),
-    _GenreCardData('Bhojpuri Top', Color(0xFF8B5CF6), Color(0xFFEC4899), Icons.star_rounded),
-    _GenreCardData('Haryanvi Hits', Color(0xFF10B981), Color(0xFF059669), Icons.graphic_eq_rounded),
-    _GenreCardData('Marathi Hits', Color(0xFF3B82F6), Color(0xFF06B6D4), Icons.audiotrack_rounded),
-    _GenreCardData('Gujarati Garba', Color(0xFFEF4444), Color(0xFFF97316), Icons.celebration_rounded),
-    _GenreCardData('Tamil Hits', Color(0xFFA855F7), Color(0xFF6366F1), Icons.queue_music_rounded),
-    _GenreCardData('Telugu Hits', Color(0xFF06B6D4), Color(0xFF3B82F6), Icons.library_music_rounded),
-    _GenreCardData('Bengali Melodies', Color(0xFFEC4899), Color(0xFFF43F5E), Icons.music_note_rounded),
-    _GenreCardData('Bhakti & Aarti', Color(0xFFF97316), Color(0xFFEAB308), Icons.self_improvement_rounded),
-    _GenreCardData('Romantic & Love', Color(0xFFEC4899), Color(0xFFF43F5E), Icons.favorite_rounded),
-    _GenreCardData('Lo-Fi & Chill', Color(0xFF06B6D4), Color(0xFF0D9488), Icons.coffee_rounded),
+    _GenreCardData('Ambient', Color(0xFF1E3A8A), Color(0xFF2563EB), Icons.nightlight_round, emoji: '🌌'),
+    _GenreCardData('Synthwave', Color(0xFF701A75), Color(0xFFA21CAF), Icons.location_city_rounded, emoji: '🌆'),
+    _GenreCardData('Chill', Color(0xFF065F46), Color(0xFF059669), Icons.eco_rounded, emoji: '🍃'),
+    _GenreCardData('Electronic', Color(0xFF0284C7), Color(0xFF0EA5E9), Icons.bolt_rounded, emoji: '⚡'),
+    _GenreCardData('Focus', Color(0xFF4338CA), Color(0xFF6366F1), Icons.psychology_rounded, emoji: '🧠'),
+    _GenreCardData('Workout', Color(0xFF991B1B), Color(0xFFDC2626), Icons.local_fire_department_rounded, emoji: '🔥'),
+    _GenreCardData('Acoustic', Color(0xFFC2410C), Color(0xFFEA580C), Icons.music_note_rounded, emoji: '🎸'),
+    _GenreCardData('Bollywood & Regional', Color(0xFFB45309), Color(0xFFE11D48), Icons.library_music_rounded, emoji: '🎶'),
+    _GenreCardData('Punjabi Hits', Color(0xFFD97706), Color(0xFFF59E0B), Icons.speaker_group_rounded, emoji: '🥁'),
+    _GenreCardData('Bhakti & Aarti', Color(0xFFEA580C), Color(0xFFEAB308), Icons.self_improvement_rounded, emoji: '🕉️'),
+    _GenreCardData('Romantic & Love', Color(0xFFBE185D), Color(0xFFF43F5E), Icons.favorite_rounded, emoji: '💖'),
+    _GenreCardData('Lo-Fi & Beats', Color(0xFF0369A1), Color(0xFF0D9488), Icons.coffee_rounded, emoji: '☕'),
   ];
 
   @override
@@ -553,7 +558,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       );
     }
 
-    // Top Discovery & Genres Bento Cards (JioSaavn clone style)
+    // Top Discovery & Genres Bento Cards (Explore Genres & Moods)
     if (_selectedFilter == 'All') {
       slivers.add(
         const SliverToBoxAdapter(
@@ -561,18 +566,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
             padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xs),
             child: Row(
               children: <Widget>[
+                Icon(Icons.auto_awesome_rounded, size: 16, color: AppColors.secondary),
+                SizedBox(width: 6),
                 Text(
-                  'BROWSE GENRES & DISCOVERY',
+                  'Explore Genres & Moods',
                   style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 11,
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: 1.1,
-                    color: AppColors.secondary,
+                    letterSpacing: -0.2,
                   ),
                 ),
-                SizedBox(width: 4),
-                Icon(Icons.explore_rounded, size: 14, color: AppColors.secondary),
               ],
             ),
           ),
@@ -587,9 +591,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                childAspectRatio: 2.3,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 1.62,
               ),
               itemCount: _genres.length,
               itemBuilder: (BuildContext ctx, int i) {
@@ -599,39 +603,73 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     _searchController.text = g.title;
                     search.submit(g.title);
                   },
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                  borderRadius: BorderRadius.circular(16),
                   child: Container(
-                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: <Color>[g.color1, g.color2],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                      borderRadius: BorderRadius.circular(16),
                       boxShadow: <BoxShadow>[
                         BoxShadow(
-                          color: g.color1.withValues(alpha: 0.25),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
+                          color: g.color1.withValues(alpha: 0.28),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
                         ),
                       ],
                     ),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            g.title,
-                            style: const TextStyle(
-                              fontFamily: 'Plus Jakarta Sans',
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                              color: Colors.white,
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.24),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.25),
+                              width: 1,
                             ),
                           ),
+                          alignment: Alignment.center,
+                          child: g.emoji.isNotEmpty
+                              ? Text(g.emoji, style: const TextStyle(fontSize: 19))
+                              : Icon(g.icon, color: Colors.white, size: 20),
                         ),
-                        Icon(g.icon, color: Colors.white.withValues(alpha: 0.85), size: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: <Widget>[
+                            Expanded(
+                              child: Text(
+                                g.title,
+                                style: const TextStyle(
+                                  fontFamily: 'Plus Jakarta Sans',
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                  color: Colors.white,
+                                  letterSpacing: -0.2,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Browse →',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -903,6 +941,166 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 );
               },
               childCount: library.localTracks.length,
+            ),
+          ),
+        ),
+      );
+      return slivers;
+    }
+
+    // Specific filter handling: Artists (Followed Artists)
+    if (_selectedFilter == 'Artists') {
+      final List<Artist> artists = library.followedArtists;
+      if (artists.isEmpty) {
+        slivers.add(
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 48),
+              child: Center(
+                child: Column(
+                  children: <Widget>[
+                    Icon(Icons.person_add_alt_1_rounded, size: 48, color: AppColors.outline),
+                    SizedBox(height: 12),
+                    Text(
+                      'No followed artists yet',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Tap "+ Follow" on any artist page to see them here.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      } else {
+        slivers.add(
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (BuildContext c, int i) {
+                  final Artist a = artists[i];
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                    leading: CircleAvatar(
+                      radius: 26,
+                      backgroundColor: AppColors.primaryContainer,
+                      child: ClipOval(
+                        child: Artwork(
+                          url: a.imageUrl,
+                          size: 52,
+                          radius: 26,
+                          fallbackIcon: Icons.person_rounded,
+                        ),
+                      ),
+                    ),
+                    title: Row(
+                      children: <Widget>[
+                        Flexible(
+                          child: Text(
+                            a.name,
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.verified_rounded, size: 14, color: AppColors.secondary),
+                      ],
+                    ),
+                    subtitle: const Text(
+                      'Verified Artist • Following',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondaryDark),
+                    ),
+                    trailing: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                      onPressed: () => TrackActions.openArtist(context, a),
+                      child: const Text('View Profile'),
+                    ),
+                    onTap: () => TrackActions.openArtist(context, a),
+                  );
+                },
+                childCount: artists.length,
+              ),
+            ),
+          ),
+        );
+      }
+      return slivers;
+    }
+
+    // Specific filter handling: Albums
+    if (_selectedFilter == 'Albums') {
+      final List<Album> albums = library.savedAlbums;
+      if (albums.isEmpty) {
+        slivers.add(
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 48),
+              child: Center(
+                child: Column(
+                  children: <Widget>[
+                    Icon(Icons.album_rounded, size: 48, color: AppColors.outline),
+                    SizedBox(height: 12),
+                    Text(
+                      'No saved albums yet',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      } else {
+        slivers.add(
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 0.78,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (BuildContext c, int i) => MediaCard.forAlbum(
+                  album: albums[i],
+                  onTap: () => TrackActions.openAlbum(context, albums[i]),
+                ),
+                childCount: albums.length,
+              ),
+            ),
+          ),
+        );
+      }
+      return slivers;
+    }
+
+    // Specific filter handling: Songs
+    if (_selectedFilter == 'Songs') {
+      final List<Track> songs = <Track>[...library.likedTracks, ...library.localTracks];
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (BuildContext c, int i) {
+                final Track t = songs[i];
+                return TrackTile(
+                  track: t,
+                  onTap: () => TrackActions.play(context, t, queue: songs),
+                  onMenu: () => showTrackActionsSheet(context, t),
+                );
+              },
+              childCount: songs.length,
             ),
           ),
         ),
