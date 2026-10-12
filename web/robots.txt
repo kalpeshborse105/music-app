@@ -1,0 +1,17 @@
+# robots.txt for Kalpkrut Beats
+# https://beats.kalpkrutinfotech.com/
+
+User-agent: *
+Allow: /
+Allow: /search
+Allow: /radio
+Allow: /library
+Allow: /reset-password
+Allow: /delete-account
+
+# Disallow sensitive admin/ops
+Disallow: /admin
+Disallow: /operations
+
+# XML Sitemap
+Sitemap: https://beats.kalpkrutinfotech.com/sitemap.xml

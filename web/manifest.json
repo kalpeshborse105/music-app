@@ -1,13 +1,25 @@
 {
-    "name": "Kalpkrut Beats",
+    "name": "Kalpkrut Beats - Stream Free Music, Radios & Playlists",
     "short_name": "Kalpkrut Beats",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0D0B14",
-    "theme_color": "#0D0B14",
-    "description": "Discover music, playlists and radio with Kalpkrut Beats.",
+    "theme_color": "#6366F1",
+    "description": "Stream unlimited Hindi, Punjabi, Bollywood, regional Indian songs and Akashvani live radio in high-fidelity 320kbps audio. Free online music player by Kalpkrut Infotech.",
     "orientation": "portrait-primary",
-    "prefer_related_applications": false,
+    "prefer_related_applications": true,
+    "related_applications": [
+        {
+            "platform": "play",
+            "id": "com.kalpkrut.beats",
+            "url": "https://play.google.com/store/apps/details?id=com.kalpkrut.beats"
+        }
+    ],
+    "categories": [
+        "music",
+        "entertainment",
+        "audio"
+    ],
     "icons": [
         {
             "src": "icons/Icon-192.png",
@@ -30,6 +42,22 @@
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Search Music",
+            "short_name": "Search",
+            "description": "Search songs, artists, and albums",
+            "url": "/search",
+            "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
+        },
+        {
+            "name": "Akashvani Live Radio",
+            "short_name": "Radio",
+            "description": "Listen to AIR Vividh Bharati and FM stations",
+            "url": "/radio",
+            "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
         }
     ]
 }
