@@ -31,7 +31,9 @@ local.properties
 Thumbs.db
 
 # Server & Web
+cookies.txt
 server/cookies.txt
+*cookies*
 node_modules/
 dist/
 android_flutter_backup/

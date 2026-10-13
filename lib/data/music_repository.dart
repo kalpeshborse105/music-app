@@ -14,6 +14,7 @@ import '../domain/models/artist.dart';
 import '../domain/models/audio_quality.dart';
 import '../domain/models/genre.dart';
 import '../domain/models/lyrics.dart';
+import '../domain/models/paged_result.dart';
 import '../domain/models/playlist.dart';
 import '../domain/models/search_result.dart';
 import '../domain/models/stream_source.dart';
@@ -158,6 +159,50 @@ class MusicRepository {
         }
         return p.getTrending(limit: limit, offset: offset);
       }, limit: limit, language: language);
+
+  /// Paged trending feed preserving truthful has_more and total from backend
+  Future<PagedResult<Track>> trendingPaged({int limit = 20, int offset = 0, String? language}) async {
+    final bool isRegionalFilter = language != null &&
+        language.isNotEmpty &&
+        language.toLowerCase() != 'all';
+
+    final List<MusicProvider> providers = isRegionalFilter
+        ? _discoveryProviders
+            .where((MusicProvider p) => p.id == 'custom_api' || p.id == 'regional')
+            .toList()
+        : _discoveryProviders;
+
+    if (providers.isEmpty) {
+      return const PagedResult<Track>(items: <Track>[], total: 0, hasMore: false);
+    }
+
+    for (final MusicProvider p in providers) {
+      if (p is CustomApiProvider) {
+        try {
+          final PagedResult<Track> res = await (isRegionalFilter
+              ? p.getTrending(limit: limit, offset: offset, language: language)
+              : p.getTrending(limit: limit, offset: offset));
+          final List<Track> deduped = _dedupeTracks(res.items);
+          return PagedResult<Track>(
+            items: deduped,
+            total: res.total,
+            nextOffset: offset + deduped.length,
+            hasMore: res.hasMore,
+          );
+        } catch (e) {
+          Logger.warn('CustomApiProvider trendingPaged error: $e');
+        }
+      }
+    }
+
+    final List<Track> tracks = await trending(limit: limit, offset: offset, language: language);
+    return PagedResult<Track>(
+      items: tracks,
+      total: tracks.length,
+      nextOffset: offset + tracks.length,
+      hasMore: tracks.length >= limit,
+    );
+  }
 
   Future<List<Track>> newReleases({int limit = 20, int offset = 0, String? language}) =>
       _aggregateTracks((MusicProvider p) {

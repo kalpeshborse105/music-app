@@ -56,12 +56,22 @@ class PlaybackQueue {
     return repeat == RepeatMode.all ? _tracks.first : null;
   }
 
+  static final RegExp _variantRegex = RegExp(
+    r'\b(remix|acoustic|live|lofi|lo-fi|version|unplugged|reprise|instrumental|cover|mix|edit|extended|deluxe|slowed|reverb|mashup)\b',
+    caseSensitive: false,
+  );
+
   static String _normalizeTitle(String s) {
     if (s.isEmpty) return '';
     String t = s.toLowerCase();
-    t = t.replaceAll(RegExp(r'\(.*?\)'), '');
-    t = t.replaceAll(RegExp(r'\[.*?\]'), '');
-    t = t.replaceAll(RegExp(r'\b(remix|lofi|lo-fi|acoustic|version|feat|ft|official|audio|video|soundtrack|from\b.*)\b'), '');
+    t = t.replaceAllMapped(RegExp(r'[\(\[][^\)\]]*[\)\]]'), (Match m) {
+      final String match = m.group(0) ?? '';
+      return _variantRegex.hasMatch(match) ? match : '';
+    });
+    t = t.replaceAll(
+      RegExp(r'\b(feat|ft|official|audio|video|soundtrack|hd|4k|lyrics|from the movie)\b', caseSensitive: false),
+      '',
+    );
     t = t.replaceAll(RegExp(r'[^\w\s]'), '');
     t = t.replaceAll(RegExp(r'\s+'), ' ').trim();
     return t.isNotEmpty ? t : s.toLowerCase().trim();
@@ -69,13 +79,23 @@ class PlaybackQueue {
 
   static List<Track> _dedupe(List<Track> tracks) {
     final Set<String> seenIds = <String>{};
-    final Set<String> seenTitles = <String>{};
+    final Map<String, (String, String)> seenTitleScope = <String, (String, String)>{};
     final List<Track> out = <Track>[];
     for (final Track t in tracks) {
-      final String norm = _normalizeTitle(t.title);
       final String cleanId = t.id.toLowerCase().trim();
       if (!seenIds.add(cleanId)) continue;
-      if (norm.isNotEmpty && !seenTitles.add(norm)) continue;
+
+      final String norm = _normalizeTitle(t.title);
+      if (norm.isNotEmpty) {
+        final String lang = (t.extra['language'] as String? ?? '').toLowerCase();
+        final String prov = t.providerId;
+        final (String, String) scope = (prov, lang);
+        final (String, String)? existing = seenTitleScope[norm];
+        if (existing != null && existing == scope) {
+          continue;
+        }
+        seenTitleScope[norm] = scope;
+      }
       out.add(t);
     }
     return out;

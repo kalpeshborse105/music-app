@@ -105,8 +105,10 @@ class PlaybackController extends ChangeNotifier {
     }
   }
 
+  bool _isExtendingRadio = false;
+
   Future<void> _handleEnded(Track track, bool completed) async {
-    if (track.id == 'empty') return;
+    if (track.id == 'empty' || track.providerId == 'radio') return;
     if (_stopAtTrackEnd && completed) {
       await pause();
       cancelSleepTimer();
@@ -122,7 +124,8 @@ class PlaybackController extends ChangeNotifier {
       // Autoplay radio when the queue is exhausted.
       if (_settings.autoplayRadio &&
           !_handler.queueModel.hasNext &&
-          !_handler.queueModel.isEmpty) {
+          !_handler.queueModel.isEmpty &&
+          !_isExtendingRadio) {
         await _maybeExtendWithRadio(track);
       }
     }
@@ -135,12 +138,21 @@ class PlaybackController extends ChangeNotifier {
   }
 
   Future<void> _maybeExtendWithRadio(Track seed) async {
+    if (_isExtendingRadio) return;
+    _isExtendingRadio = true;
     try {
       final List<Track> related = await _repository.radio(seed, limit: 15);
       if (related.isEmpty) return;
-      await _handler.appendToQueue(related);
+      final Set<String> existingIds = _handler.queueModel.tracks.map((Track t) => t.id).toSet();
+      existingIds.add(seed.id);
+      final List<Track> fresh = related.where((Track t) => !existingIds.contains(t.id)).toList();
+      if (fresh.isNotEmpty) {
+        await _handler.appendToQueue(fresh);
+      }
     } catch (e) {
       Logger.warn('autoplay radio failed', error: e);
+    } finally {
+      _isExtendingRadio = false;
     }
   }
 

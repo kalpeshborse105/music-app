@@ -185,11 +185,11 @@ _CACHE_LOCK = threading.Lock()
 _CACHE_MAX = 800
 _STREAM_CACHE = {}
 _TRACK_CACHE = {}
-_LAST_REFRESH = {"at": 0}
+_LAST_REFRESH = {"at": int(time.time())}
 
 
 def cached(key, ttl, producer):
-    """TTL cache with stale-fallback. Returns (value, is_stale, cached_at)."""
+    """TTL cache with stale-fallback. Returns cached/fresh value or stale fallback dict."""
     now = time.time()
     hit = _CACHE.get(key)
     if hit and now - hit[0] < ttl:
@@ -244,7 +244,7 @@ LANGUAGE_GROUPS = {
 }
 
 MOOD_QUERIES = {
-    "devotional": ["Bhakti Songs", "Hanuman Chalisa", "Shiv Bhajan", "Krishna Bhajan", "Aarti Sangrah"],
+    "devotional": ["Bhakti Songs", "Hanuman Chalisa", "Shiv Bhajan", "Krishna Bhajan", "Aarti Sangrah", "Ganpati Aarti", "Mata Bhajan"],
     "romantic": ["Romantic Hindi Hits", "Love Songs Bollywood", "Arijit Singh Romantic", "Soulful Hindi Melodies"],
     "chill": ["Hindi Acoustic", "Lofi Hindi", "Bollywood Unplugged", "Late Night Hindi"],
     "lofi": ["Lofi Hindi", "Bollywood Lofi Flip", "Slowed Reverb Hindi"],
@@ -254,7 +254,8 @@ MOOD_QUERIES = {
     "classics": ["Lata Mangeshkar Hits", "Kishore Kumar Classics", "Mohammad Rafi Hits", "RD Burman Hits"],
     "retro": ["90s Hindi Hits", "80s Bollywood Hits", "Old Hindi Songs"],
     "indie": ["Hindi Indie Hits", "Indian Indie Pop", "Hindi Rap Hits"],
-    "garba": ["Garba Songs", "Navratri Dandiya Hits", "Gujarati Garba"],
+    "garba": ["Garba Songs", "Navratri Dandiya Hits", "Gujarati Garba", "Falguni Pathak Garba", "Khelaiya Dandiya"],
+    "festive": ["Navratri Garba Hits", "Ganpati Bappa Morya", "Diwali Special", "Dandiya Raas", "Festive Celebrations"],
     "ghazal": ["Ghazal Hits", "Jagjit Singh Ghazals", "Sufi Songs"],
 }
 
@@ -284,11 +285,27 @@ RADIO_STATIONS = [
      "stream_url": "https://air.pc.cdn.bitgravity.com/air/live/pbaudio001/playlist.m3u8",
      "description": "Immortal Bollywood classics & golden era memories from Akashvani Mumbai.",
      "bitrate": "192 kbps HD", "is_live": True},
+    {"id": "air_marathi_asmita", "name": "Akashvani Marathi Samvad", "category": "Akashvani Maharashtra / News & Culture",
+     "stream_url": "https://air.pc.cdn.bitgravity.com/air/live/pbaudio024/playlist.m3u8",
+     "description": "Prasar Bharati Marathi broadcasts, Natyasangeet, Bhavgeete & state news.",
+     "bitrate": "128 kbps", "is_live": True},
+    {"id": "air_pune", "name": "Akashvani Pune", "category": "Akashvani Maharashtra / Western Region",
+     "stream_url": "https://air.pc.cdn.bitgravity.com/air/live/pbaudio025/playlist.m3u8",
+     "description": "Akashvani Pune live Marathi programming, classical recitals & cultural talks.",
+     "bitrate": "128 kbps", "is_live": True},
+    {"id": "air_nagpur", "name": "Akashvani Nagpur", "category": "Akashvani Maharashtra / Vidarbha",
+     "stream_url": "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio026/hlspbaudio02664kbps.m3u8",
+     "description": "Akashvani Nagpur Marathi and regional folk, news & devotional programming.",
+     "bitrate": "64 kbps", "is_live": True},
+    {"id": "air_fm_rainbow_mumbai", "name": "AIR FM Rainbow Mumbai", "category": "Mumbai Retro & Contemporary",
+     "stream_url": "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio002/hlspbaudio00264kbps.m3u8",
+     "description": "AIR FM Rainbow Mumbai 107.1 FM live melodies and city youth programming.",
+     "bitrate": "64 kbps", "is_live": True},
     {"id": "air_fm_gold", "name": "AIR FM Gold Delhi", "category": "Retro Melodies & News",
      "stream_url": "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio005/hlspbaudio00564kbps.m3u8",
      "description": "National broadcast of timeless retro songs and midday melodies.",
      "bitrate": "192 kbps HD", "is_live": True},
-    {"id": "hindi_gold_retro", "name": "Hindi Gold Classics 24/7", "category": "Evergreen Retro MP3",
+    {"id": "hindi_gold_retro", "name": "Hindi Gold Classics", "category": "Evergreen Retro MP3",
      "stream_url": "https://azuracast.vibesounds.in:8010/radio.mp3",
      "description": "Non-stop Kishore Kumar, Lata Mangeshkar, and R.D. Burman gems.",
      "bitrate": "128 kbps", "is_live": True},
@@ -298,14 +315,14 @@ RADIO_STATIONS = [
     {"id": "top_charts_live", "name": "Today Top Chartbusters", "category": "Trending Chart Hits",
      "stream_url": "https://streams.ilovemusic.de/iloveradio1.mp3",
      "description": "Non-stop trending chart hits and party beats.", "bitrate": "192 kbps HD", "is_live": True},
-    {"id": "bhakti_sagar_live", "name": "Bhakti Sagar Divine Live", "category": "Devotional / Mantras",
+    {"id": "bhakti_sagar_live", "name": "Bhakti Sagar Divine", "category": "Devotional / Mantras",
      "stream_url": "http://millenniumhits.out.airtime.pro:8000/millenniumhits_a",
      "description": "Divine morning Bhajans, sacred mantras, and Aarti.", "bitrate": "128 kbps", "is_live": True},
-    {"id": "classical_symphonies", "name": "Classical Symphonies Live", "category": "Classical & Instrumental",
+    {"id": "classical_symphonies", "name": "Classical Symphonies", "category": "Classical & Instrumental",
      "stream_url": "https://stream.srg-ssr.ch/m/rsc_de/mp3_128",
      "description": "Timeless symphonies from Mozart, Beethoven, Chopin and Bach.", "bitrate": "128 kbps", "is_live": True},
-    {"id": "indie_groove_live", "name": "SomaFM Indie Pop & Groove", "category": "Indie / Acoustic Groove",
-     "stream_url": "https://ice1.somafm.com/groovesalad-128-mp3",
+    {"id": "indie_groove_live", "name": "SomaFM Groove Salad", "category": "Indie / Acoustic Groove",
+     "stream_url": "https://ice2.somafm.com/groovesalad-128-mp3",
      "description": "Chilled ambient beats, grooves and indie pop.", "bitrate": "128 kbps", "is_live": True},
 ]
 
@@ -789,10 +806,11 @@ def _expand_album_to_tracks(album_entity, languages, limit=5):
     album_id = album_entity.get("id") or ""
     token = album_entity.get("token") or ""
     try:
-        if token:
-            data = jio_call("webapi.get", {"token": token, "type": "album", "n": limit, "p": 1}, languages)
-        elif album_id:
+        # Prioritize album_id — content.getAlbumDetails works reliably for catalogue albums
+        if album_id:
             data = jio_call("content.getAlbumDetails", {"albumid": album_id}, languages)
+        elif token:
+            data = jio_call("webapi.get", {"token": token, "type": "album", "n": limit, "p": 1}, languages)
         else:
             return []
         if not isinstance(data, dict):
@@ -844,6 +862,18 @@ def live_new_releases(languages, page=1, limit=30):
                     songs.extend(tracks)
                 except Exception as exc:
                     print(f"[live_new_releases] expand error: {exc}")
+
+        # On page 1, also ingest verified fresh song tracks from webapi.getLaunchData
+        if page == 1:
+            try:
+                launch = jio_call("webapi.getLaunchData", {}, languages)
+                if isinstance(launch, dict):
+                    launch_songs = _tracks(launch.get("new_albums", []))
+                    if is_single_region:
+                        launch_songs = [t for t in launch_songs if (t.get("language") or "").lower() == primary]
+                    songs.extend(launch_songs)
+            except Exception as exc:
+                print(f"[live_new_releases] launchData error: {exc}")
 
         songs = _sort_by_release_date(dedupe(songs))
         elapsed = round(time.time() - t_start, 2)
@@ -970,7 +1000,28 @@ def mood_tracks(mood, languages, page=1, limit=20):
 
     if primary not in ("hindi", "all", "india"):
         p_title = primary.capitalize()
-        queries = [q.replace("Hindi", p_title).replace("Bollywood", p_title) for q in queries]
+        if mood == "devotional":
+            queries = [
+                f"{p_title} Bhakti Songs",
+                f"{p_title} Devotional Hits",
+                f"{p_title} Aarti Sangrah",
+                f"{p_title} Bhajan",
+                f"{p_title} Stotram",
+            ]
+        elif mood == "garba" and primary == "gujarati":
+            queries = ["Gujarati Garba Songs", "Navratri Dandiya Gujarati", "Falguni Pathak Garba", "Khelaiya Dandiya"]
+        elif mood == "festive":
+            queries = [
+                f"{p_title} Festive Hits",
+                f"{p_title} Festival Songs",
+                f"{p_title} Celebration Songs",
+            ]
+        else:
+            queries = [
+                q.replace("Hindi", p_title).replace("Bollywood", p_title).replace("Punjabi", p_title)
+                for q in queries
+            ]
+            queries = [q if p_title.lower() in q.lower() else f"{p_title} {q}" for q in queries]
 
     query = queries[(page - 1) % len(queries)]
     inner_page = (page - 1) // len(queries) + 1
@@ -979,9 +1030,8 @@ def mood_tracks(mood, languages, page=1, limit=20):
     def produce():
         tracks = search_songs(query, limit, inner_page, languages)
         if primary not in ("all", "india"):
-            matching = [t for t in tracks if (t.get("language") or "").lower() == primary]
-            rest = [t for t in tracks if (t.get("language") or "").lower() != primary]
-            return matching + rest
+            # Strictly filter to the requested region — never leak other languages into single-region feeds
+            return [t for t in tracks if (t.get("language") or "").lower() == primary]
         return tracks
 
     return cached(key, HOURLY, produce) or [], query
@@ -1375,7 +1425,7 @@ def api_trending():
     page = arg_int("page", 1, 1, 500, "p")
     lang_raw = (request.args.get("lang") or request.args.get("language") or "all").lower().strip()
 
-    # Mood branch: use the already-parsed languages (respects ?lang=telugu&mood=romantic)
+    # Mood branch: use the already-parsed languages (respects ?lang=marathi&mood=romantic)
     if lang_raw in MOOD_QUERIES:
         tracks, query = mood_tracks(lang_raw, languages, page, limit)
         return ok({
@@ -1520,9 +1570,12 @@ def api_spotify_new():
 
 @app.route("/api/refresh", methods=["GET", "POST"])
 def api_refresh():
-    secret = os.environ.get("CRON_SECRET")
-    if secret and request.headers.get("Authorization") != f"Bearer {secret}":
-        return jsonify({"error": "Unauthorized"}), 401
+    secret = os.environ.get("CRON_SECRET") or os.environ.get("REFRESH_SECRET")
+    if secret:
+        auth = request.headers.get("Authorization", "")
+        token = auth.replace("Bearer ", "").strip() if auth.startswith("Bearer ") else (request.args.get("secret") or "")
+        if token != secret:
+            return jsonify({"error": "Unauthorized"}), 401
     return ok({"refreshed": True, "seconds": refresh_catalog(), "at": _LAST_REFRESH["at"]}, 0)
 
 

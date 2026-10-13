@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/utils/formatters.dart';
 import '../../data/music_repository.dart';
+import '../../domain/models/paged_result.dart';
 import '../../domain/models/track.dart';
 import '../../domain/playback/playback_controller.dart';
 import '../../state/library_controller.dart';
@@ -142,18 +143,16 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final MusicRepository repo = context.read<MusicRepository>();
       final String? lang = _activeLang;
-      final List<Track> initial = await repo.trending(
+      final PagedResult<Track> paged = await repo.trendingPaged(
         limit: 20,
         offset: _currentOffset,
         language: lang,
       );
       if (mounted) {
-        // Use the real has_more from the backend PagedResult
-        final bool backendHasMore = initial.isNotEmpty;
         setState(() {
-          _currentOffset += 20;
-          _infiniteTracks.addAll(initial);
-          _hasMore = backendHasMore;
+          _currentOffset += paged.items.length;
+          _infiniteTracks.addAll(paged.items);
+          _hasMore = paged.hasMore;
         });
       }
     } catch (e) {
@@ -169,30 +168,24 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final MusicRepository repo = context.read<MusicRepository>();
       final String? lang = _activeLang;
-      final List<Track> more = await repo.trending(
+      final PagedResult<Track> paged = await repo.trendingPaged(
         limit: 20,
         offset: _currentOffset,
         language: lang,
       );
       if (mounted) {
         setState(() {
-          if (more.isEmpty) {
-            // No more results from backend — stop polling
+          if (paged.items.isEmpty) {
             _hasMore = false;
           } else {
-            _currentOffset += 20;
+            _currentOffset += paged.items.length;
             final Set<String> existingIds = _infiniteTracks.map((Track t) => t.id).toSet();
-            int added = 0;
-            for (final Track t in more) {
+            for (final Track t in paged.items) {
               if (existingIds.add(t.id)) {
                 _infiniteTracks.add(t);
-                added++;
               }
             }
-            // If every result was a duplicate, the pool is exhausted
-            if (added == 0) {
-              _hasMore = false;
-            }
+            _hasMore = paged.hasMore;
           }
         });
       }
