@@ -440,12 +440,22 @@ class MusicRepository {
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
+  static final RegExp _variantRegex = RegExp(
+    r'\b(remix|acoustic|live|lofi|lo-fi|version|unplugged|reprise|instrumental|cover|mix|edit|extended|deluxe|slowed|reverb|mashup)\b',
+    caseSensitive: false,
+  );
+
   static String _normalize(String s) {
     if (s.isEmpty) return '';
     String t = s.toLowerCase();
-    t = t.replaceAll(RegExp(r'\(.*?\)'), '');
-    t = t.replaceAll(RegExp(r'\[.*?\]'), '');
-    t = t.replaceAll(RegExp(r'\b(remix|lofi|lo-fi|acoustic|version|feat|ft|official|audio|video|soundtrack|from\b.*)\b'), '');
+    t = t.replaceAllMapped(RegExp(r'[\(\[][^\)\]]*[\)\]]'), (Match m) {
+      final String match = m.group(0) ?? '';
+      return _variantRegex.hasMatch(match) ? match : '';
+    });
+    t = t.replaceAll(
+      RegExp(r'\b(feat|ft|official|audio|video|soundtrack|hd|4k|lyrics|from the movie)\b', caseSensitive: false),
+      '',
+    );
     t = t.replaceAll(RegExp(r'[^\w\s]'), '');
     t = t.replaceAll(RegExp(r'\s+'), ' ').trim();
     return t.isNotEmpty ? t : s.toLowerCase().trim();
@@ -453,13 +463,30 @@ class MusicRepository {
 
   List<Track> _dedupeTracks(List<Track> tracks) {
     final Set<String> seenIds = <String>{};
-    final Set<String> seenTitles = <String>{};
+    // Map from normalized-title to (providerId, language) for scoped dedup.
+    // Tracks with the same normalized title are only merged if they share
+    // the same provider AND language — never across languages or providers.
+    final Map<String, (String, String)> seenTitleScope = <String, (String, String)>{};
     final List<Track> out = <Track>[];
     for (final Track t in tracks) {
-      final String normTitle = _normalize(t.title);
       final String cleanId = t.id.toLowerCase().trim();
       if (!seenIds.add(cleanId)) continue;
-      if (normTitle.isNotEmpty && !seenTitles.add(normTitle)) continue;
+
+      final String normTitle = _normalize(t.title);
+      if (normTitle.isNotEmpty) {
+        final String langKey = (t.extra['language'] as String? ?? '').toLowerCase();
+        final String provKey = t.providerId;
+        final (String, String) scope = (provKey, langKey);
+        final (String, String)? existing = seenTitleScope[normTitle];
+        if (existing != null && existing == scope) {
+          // Same provider + same language: suppress duplicate
+          continue;
+        }
+        if (existing == null) {
+          seenTitleScope[normTitle] = scope;
+        }
+        // Different provider OR different language: allow (remixes, covers, language versions)
+      }
       out.add(t);
     }
     return out;

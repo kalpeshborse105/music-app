@@ -39,7 +39,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String _selectedMood = 'All';
 
-  static const List<String> _moods = <String>[
+  /// Language preference chips — these map to the `lang=` backend parameter.
+  /// A `null` language means 'all'.
+  static const List<String> _languages = <String>[
     'All',
     'Hindi',
     'Punjabi',
@@ -50,10 +52,20 @@ class _HomeScreenState extends State<HomeScreen> {
     'Tamil',
     'Telugu',
     'Bengali',
+  ];
+
+  /// Mood / genre chips — these map to the `lang=` backend parameter which
+  /// the backend routes through MOOD_QUERIES (not a language filter).
+  /// They are kept separate from _languages so a language like 'Telugu'
+  /// is never confused with a mood like 'Romantic'.
+  static const List<String> _moodFilters = <String>[
     'Devotional',
     'Romantic',
     'Chill',
   ];
+
+  /// Combined display list: languages first, then moods.
+  static List<String> get _moods => <String>[..._languages, ..._moodFilters];
 
   late Future<List<Track>> _trendingFuture;
   late Future<List<Track>> _newReleasesFuture;
@@ -66,6 +78,17 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoadingMore = false;
   bool _hasMore = true;
   int _currentOffset = 0;
+
+  /// Returns the lang= parameter value for the currently selected chip.
+  /// Language chips (Hindi, Telugu, etc.) map to their lowercase name.
+  /// Mood chips (Devotional, Romantic, Chill) also send their lowercase name;
+  /// the backend routes them through MOOD_QUERIES when the value matches a
+  /// known mood key, so language filtering and mood filtering never conflict.
+
+  String? get _activeLang {
+    if (_selectedMood == 'All') return null;
+    return _selectedMood.toLowerCase();
+  }
 
   @override
   void initState() {
@@ -84,9 +107,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _refreshData() async {
     final MusicRepository repo = context.read<MusicRepository>();
     final LibraryController library = context.read<LibraryController>();
+    final String? lang = _activeLang;
     setState(() {
-      final String? lang = _selectedMood == 'All' ? null : _selectedMood.toLowerCase();
       _trendingFuture = repo.trending(limit: 20, language: lang);
+      // newReleases is refreshed independently — does NOT fall back to trending
       _newReleasesFuture = repo.newReleases(limit: 10, language: lang);
       _spotlightFuture = repo.trending(limit: 1, language: lang);
     });
@@ -117,22 +141,24 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     try {
       final MusicRepository repo = context.read<MusicRepository>();
-      final String? lang = _selectedMood == 'All' ? null : _selectedMood.toLowerCase();
+      final String? lang = _activeLang;
       final List<Track> initial = await repo.trending(
         limit: 20,
         offset: _currentOffset,
         language: lang,
       );
       if (mounted) {
+        // Use the real has_more from the backend PagedResult
+        final bool backendHasMore = initial.isNotEmpty;
         setState(() {
           _currentOffset += 20;
           _infiniteTracks.addAll(initial);
-          if (initial.isEmpty) {
-            _hasMore = false;
-          }
+          _hasMore = backendHasMore;
         });
       }
-    } catch (_) {} finally {
+    } catch (e) {
+      debugPrint('[HomeScreen] _loadInitialTracks error: $e');
+    } finally {
       if (mounted) setState(() => _isLoadingInitial = false);
     }
   }
@@ -142,7 +168,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isLoadingMore = true);
     try {
       final MusicRepository repo = context.read<MusicRepository>();
-      final String? lang = _selectedMood == 'All' ? null : _selectedMood.toLowerCase();
+      final String? lang = _activeLang;
       final List<Track> more = await repo.trending(
         limit: 20,
         offset: _currentOffset,
@@ -151,23 +177,28 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           if (more.isEmpty) {
+            // No more results from backend — stop polling
             _hasMore = false;
           } else {
             _currentOffset += 20;
             final Set<String> existingIds = _infiniteTracks.map((Track t) => t.id).toSet();
+            int added = 0;
             for (final Track t in more) {
-              final String normKey = '${t.title.toLowerCase().trim()}|${t.artistNames.toLowerCase().trim()}';
-              final bool duplicate = _infiniteTracks.any((Track existing) =>
-                  existing.id == t.id ||
-                  '${existing.title.toLowerCase().trim()}|${existing.artistNames.toLowerCase().trim()}' == normKey);
-              if (!duplicate && existingIds.add(t.id)) {
+              if (existingIds.add(t.id)) {
                 _infiniteTracks.add(t);
+                added++;
               }
+            }
+            // If every result was a duplicate, the pool is exhausted
+            if (added == 0) {
+              _hasMore = false;
             }
           }
         });
       }
-    } catch (_) {} finally {
+    } catch (e) {
+      debugPrint('[HomeScreen] _loadMore error: $e');
+    } finally {
       if (mounted) setState(() => _isLoadingMore = false);
     }
   }
@@ -191,7 +222,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final LibraryController library = context.read<LibraryController>();
       final String? userLang = library.preferredLanguage;
       if (userLang != null && userLang.isNotEmpty && userLang.toLowerCase() != 'all') {
-        final String match = _moods.firstWhere(
+        final String match = _languages.firstWhere(
           (String m) => m.toLowerCase() == userLang.toLowerCase(),
           orElse: () => '',
         );
@@ -199,7 +230,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _selectedMood = match;
         }
       }
-      final String? lang = _selectedMood == 'All' ? null : _selectedMood.toLowerCase();
+      final String? lang = _activeLang;
       _trendingFuture = repo.trending(limit: 20, language: lang);
       _newReleasesFuture = repo.newReleases(limit: 8, language: lang);
       _spotlightFuture = repo.trending(limit: 1, language: lang);
@@ -211,7 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_selectedMood == mood) return;
     setState(() {
       _selectedMood = mood;
-      final String? lang = mood == 'All' ? null : mood.toLowerCase();
+      final String? lang = _activeLang;
       _trendingFuture = repo.trending(limit: 20, language: lang);
       _newReleasesFuture = repo.newReleases(limit: 8, language: lang);
       _spotlightFuture = repo.trending(limit: 1, language: lang);

@@ -197,10 +197,18 @@ class CustomApiProvider extends BaseMusicProvider {
         final List<Track> tracks = rawTracks.map((dynamic item) {
           return _mapTrack(item as Map<String, dynamic>);
         }).toList();
-        final int total = (body['total'] as num?)?.toInt() ?? (body['pool_size'] as num?)?.toInt() ?? 1000;
-        return PagedResult<Track>(items: tracks, total: total);
+        // Respect the backend's has_more and real pool_size; never default to 1000
+        final bool hasMore = (body['has_more'] as bool?) ?? rawTracks.isNotEmpty;
+        final int total = (body['total'] as num?)?.toInt() ??
+            (body['pool_size'] as num?)?.toInt() ??
+            (hasMore ? (offset + tracks.length + 1) : (offset + tracks.length));
+        return PagedResult<Track>(items: tracks, total: total, hasMore: hasMore);
+      } else {
+        debugPrint('[CustomApiProvider] getTrending HTTP ${res.statusCode} for $uri');
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[CustomApiProvider] getTrending error: $e');
+    }
 
     return const PagedResult<Track>(items: <Track>[], total: 0);
   }
@@ -225,26 +233,50 @@ class CustomApiProvider extends BaseMusicProvider {
     );
 
     try {
-      final http.Response res = await http.get(uri).timeout(const Duration(seconds: 15));
+      final http.Response res = await http.get(uri).timeout(const Duration(seconds: 20));
       if (res.statusCode == 200) {
         final Map<String, dynamic> body = jsonDecode(res.body) as Map<String, dynamic>;
         final List<dynamic> rawTracks = (body['tracks'] as List<dynamic>?) ?? <dynamic>[];
-        if (rawTracks.isNotEmpty) {
-          final List<Track> tracks = rawTracks.map((dynamic item) {
-            return _mapTrack(item as Map<String, dynamic>);
-          }).toList();
-          final int total = (body['total'] as num?)?.toInt() ?? 1000;
-          return PagedResult<Track>(items: tracks, total: total);
+        // DO NOT fall back to getTrending. If tracks are empty, return an honest empty result.
+        // The backend may return empty 'tracks' but populated 'albums' — that is truthful.
+        final List<Track> tracks = rawTracks.map((dynamic item) {
+          return _mapTrack(item as Map<String, dynamic>);
+        }).toList();
+        // Respect backend has_more; total is the real count of song tracks on this page
+        final bool hasMore = (body['has_more'] as bool?) ?? false;
+        final int total = (body['total'] as num?)?.toInt() ??
+            (hasMore ? (offset + tracks.length + 1) : (offset + tracks.length));
+        final bool isStale = (body['stale'] as bool?) ?? false;
+        if (isStale) {
+          debugPrint('[CustomApiProvider] getNewReleases: backend returned stale data '
+              '(updated_at=${body["updated_at"]})');
         }
+        return PagedResult<Track>(items: tracks, total: total, hasMore: hasMore);
+      } else {
+        debugPrint('[CustomApiProvider] getNewReleases HTTP ${res.statusCode} for $uri');
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[CustomApiProvider] getNewReleases error: $e');
+    }
 
-    return getTrending(offset: offset, limit: limit, language: language);
+    // Return honest empty — never alias to getTrending.
+    return const PagedResult<Track>(items: <Track>[], total: 0);
   }
 
+  /// Returns JioSaavn recommendations for a seed track.
+  /// Uses the backend's /api/related endpoint which calls reco.getreco.
+  /// Requires a seed track ID; without one, returns an honest empty list.
+  /// This is NOT a trending alias — it is a real per-song recommendation call.
   @override
-  Future<PagedResult<Track>> getRecommendations({int offset = 0, int limit = 20, String? language}) =>
-      getTrending(offset: offset, limit: limit, language: language);
+  Future<PagedResult<Track>> getRecommendations({int offset = 0, int limit = 20, String? language}) async {
+    // getRecommendations without a seed track ID cannot produce meaningful results.
+    // Return empty — do not silently alias to generic trending.
+    // Callers with a specific seed track should use getRadio(track) instead,
+    // which calls /api/related with the track id, title and artist.
+    debugPrint('[CustomApiProvider] getRecommendations called without seed — returning empty. '
+        'Use getRadio(track) for per-song JioSaavn recommendations.');
+    return const PagedResult<Track>(items: <Track>[], total: 0, hasMore: false);
+  }
 
   Track _mapTrack(Map<String, dynamic> item) {
     final String trackId = item['id'] as String? ?? '';

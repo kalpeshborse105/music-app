@@ -189,23 +189,36 @@ _LAST_REFRESH = {"at": 0}
 
 
 def cached(key, ttl, producer):
+    """TTL cache with stale-fallback. Returns (value, is_stale, cached_at)."""
     now = time.time()
     hit = _CACHE.get(key)
     if hit and now - hit[0] < ttl:
-        return hit[1]
+        return hit[1]  # fresh
+    t_start = time.time()
     try:
         value = producer()
     except Exception as exc:
-        print(f"[cache:{key}] {exc}")
+        print(f"[cache:{key}] producer error: {exc}")
         value = None
-    if value:
+    elapsed = round(time.time() - t_start, 3)
+    if value is not None and value != [] and value != {}:
         with _CACHE_LOCK:
             if len(_CACHE) >= _CACHE_MAX:
                 for old_key, _ in sorted(_CACHE.items(), key=lambda kv: kv[1][0])[: _CACHE_MAX // 4]:
                     _CACHE.pop(old_key, None)
             _CACHE[key] = (now, value)
         return value
-    return hit[1] if hit else value
+    # Producer failed — return stale data if available, marked as stale
+    if hit:
+        stale_val = hit[1]
+        # Attach stale marker to dict payloads; leave lists/primitives as-is
+        if isinstance(stale_val, dict) and not stale_val.get("_stale"):
+            stale_val = dict(stale_val)
+            stale_val["_stale"] = True
+            stale_val["_updated_at"] = int(hit[0])
+        print(f"[cache:{key}] returning stale data (age={round(now - hit[0])}s, producer_ms={round(elapsed*1000)}ms)")
+        return stale_val
+    return value
 
 
 def _remember(store, key, value, limit=5000):
@@ -526,28 +539,63 @@ def format_entity(item):
 
 
 def dedupe(items, exclude_ids=None, exclude_titles=None):
+    """
+    Deduplicates by provider song ID (primary key).
+    Normalized-title dedup is only used as a secondary guard within the same
+    (language, source) pair to avoid repeated records from the same feed —
+    it never merges songs across different languages or provider sources.
+    Remixes, acoustic, live and version variants (different IDs) are preserved.
+    """
     seen_ids = set(exclude_ids or [])
-    seen_titles = set(exclude_titles or [])
+    # title_key -> (language, source) for scoped title dedup
+    seen_title_lang: dict = {}
+    # Pre-seed with caller-provided exclude titles (treat as generic cross-lang exclusion)
+    for t in (exclude_titles or []):
+        seen_title_lang[t] = ("*", "*")
     out = []
     for it in items:
         if not it or not it.get("id") or it["id"] in seen_ids:
             continue
-        norm = normalize_title(it.get("title", "")) if it.get("type") == "song" else ""
-        if norm and norm in seen_titles:
-            continue
+        # Normalized title scoped to same language+source — won't merge cross-language tracks
+        if it.get("type") == "song":
+            norm = normalize_title(it.get("title", ""))
+            lang = (it.get("language") or "").lower()
+            src = (it.get("source") or "jiosaavn")
+            if norm:
+                key_scope = seen_title_lang.get(norm)
+                if key_scope is not None:
+                    existing_lang, existing_src = key_scope
+                    # Only suppress if same language+source (exact duplicate record from same feed)
+                    if existing_lang == "*" or (existing_lang == lang and existing_src == src):
+                        continue
+                seen_title_lang[norm] = (lang, src)
         seen_ids.add(it["id"])
-        if norm:
-            seen_titles.add(norm)
         out.append(it)
     return out
 
 
 def normalize_title(title):
+    """Strips noise words and movie tags for duplicate detection while preserving
+    legitimate variant distinctions (remix, acoustic, live, lofi, etc.).
+    NOTE: Only used for same-language same-source dedup — never across languages.
+    """
     t = (title or "").lower()
-    t = re.sub(r"\(.*?\)|\[.*?\]", "", t)
-    t = t.split(" - ")[0]
-    t = re.sub(r"\b(remix|lofi|lo-fi|slowed|reverb|acoustic|version|unplugged|reprise|female|male|duet|sad|"
-               r"feat|ft|official|audio|video|from|eclipsa)\b", "", t)
+    variant_pat = r"\b(remix|acoustic|live|lofi|lo-fi|version|unplugged|reprise|instrumental|cover|mix|edit|extended|deluxe|slowed|reverb|mashup)\b"
+
+    def _clean_bracket(m):
+        content = m.group(0)
+        if re.search(variant_pat, content):
+            return content
+        return ""
+
+    t = re.sub(r"\(.*?\)|\[.*?\]", _clean_bracket, t)
+
+    if " - " in t:
+        parts = t.split(" - ", 1)
+        if not re.search(variant_pat, parts[1]):
+            t = parts[0]
+
+    t = re.sub(r"\b(official|audio|video|full song|hd|4k|lyrics|from the movie|from)\b", "", t)
     t = re.sub(r"[^\w\s]", "", t)
     return " ".join(t.split())
 
@@ -718,12 +766,101 @@ def live_trending(languages):
     return cached(f"trending:{_lang_key(languages)}", HOURLY, produce) or []
 
 
+def _sort_by_release_date(items):
+    """Sort newest-first using trustworthy ISO dates. Items with no date go last."""
+    def date_key(item):
+        rd = item.get("release_date") or item.get("year") or ""
+        # Only trust full ISO dates (YYYY-MM-DD). Year-only strings are unreliable.
+        if rd and re.match(r"\d{4}-\d{2}-\d{2}", rd):
+            return rd
+        return ""  # no trustworthy date — sort to end
+    known = [i for i in items if date_key(i)]
+    unknown = [i for i in items if not date_key(i)]
+    known.sort(key=date_key, reverse=True)
+    return known + unknown
+
+
+def _expand_album_to_tracks(album_entity, languages, limit=5):
+    """
+    Given an album entity (from content.getAlbums), fetch its track list via
+    content.getAlbumDetails and return formatted track records.
+    Returns empty list if expansion fails or returns no songs.
+    """
+    album_id = album_entity.get("id") or ""
+    token = album_entity.get("token") or ""
+    try:
+        if token:
+            data = jio_call("webapi.get", {"token": token, "type": "album", "n": limit, "p": 1}, languages)
+        elif album_id:
+            data = jio_call("content.getAlbumDetails", {"albumid": album_id}, languages)
+        else:
+            return []
+        if not isinstance(data, dict):
+            return []
+        raw_songs = data.get("list") or []
+        tracks = _tracks(raw_songs)
+        # Enrich each track with album-level release date if the track lacks one
+        album_rd = (data.get("more_info") or {}).get("release_date") or album_entity.get("release_date") or ""
+        album_year = str(data.get("year") or album_entity.get("year") or "")
+        for t in tracks:
+            if not t.get("release_date") and album_rd:
+                t["release_date"] = album_rd
+            if not t.get("year") and album_year:
+                t["year"] = album_year
+        return tracks[:limit]
+    except Exception as exc:
+        print(f"[expand_album:{album_id}] {exc}")
+        return []
+
+
 def live_new_releases(languages, page=1, limit=30):
+    """
+    Fetches new-release albums from JioSaavn and expands each into its song tracks.
+    Returns separate 'songs' and 'albums' collections — never casts albums to songs.
+    Cache key includes feed type, language, page and limit to prevent cross-feed contamination.
+    """
     def produce():
-        data = jio_call("content.getAlbums", {"n": limit, "p": page}, languages)
-        items = data.get("data") if isinstance(data, dict) else []
-        return prioritize_indian(_entities(items), languages)
-    return cached(f"new:{_lang_key(languages)}:{page}:{limit}", HOURLY, produce) or []
+        t_start = time.time()
+        data = jio_call("content.getAlbums", {"n": min(limit, 20), "p": page}, languages)
+        album_items = data.get("data") if isinstance(data, dict) else []
+        albums = prioritize_indian(_entities(album_items), languages)
+
+        # Expand albums -> songs in parallel (up to 4 albums at a time, 3 tracks each)
+        songs = []
+        primary = (languages[0] if languages else "hindi").lower()
+        is_single_region = len(languages) == 1 and primary not in ("all", "india")
+        expand_limit = min(len(albums), 8)  # expand at most 8 albums per page
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures = [
+                pool.submit(_expand_album_to_tracks, alb, languages, 4)
+                for alb in albums[:expand_limit]
+            ]
+            for f in futures:
+                try:
+                    tracks = f.result(timeout=8)
+                    if is_single_region:
+                        tracks = [t for t in tracks if (t.get("language") or "").lower() == primary]
+                    songs.extend(tracks)
+                except Exception as exc:
+                    print(f"[live_new_releases] expand error: {exc}")
+
+        songs = _sort_by_release_date(dedupe(songs))
+        elapsed = round(time.time() - t_start, 2)
+        return {
+            "songs": songs,
+            "albums": albums,
+            "_diag": {
+                "albums_fetched": len(album_items),
+                "albums_expanded": expand_limit,
+                "songs_expanded": len(songs),
+                "languages": languages,
+                "page": page,
+                "elapsed_s": elapsed,
+            },
+        }
+    cache_key = f"newrel:v2:{_lang_key(languages)}:{page}:{limit}"
+    return cached(cache_key, HOURLY, produce) or {"songs": [], "albums": [], "_diag": {}}
 
 
 def live_charts(languages):
@@ -809,7 +946,9 @@ def trending_pool(languages):
                     chart_tracks = [t for t in chart_tracks if (t.get("language") or "").lower() == primary]
                 pool.extend(chart_tracks)
 
-        new_songs = [e for e in live_new_releases(languages) if e.get("type") == "song"]
+        # Pull expanded song tracks from new releases (not raw album entities)
+        new_rel = live_new_releases(languages)
+        new_songs = new_rel.get("songs", []) if isinstance(new_rel, dict) else []
         pool.extend(new_songs)
 
         if is_single_region:
@@ -822,7 +961,7 @@ def trending_pool(languages):
             return dedupe(pool)
 
         return interleave_languages(dedupe(pool), languages)
-    return cached(f"pool:{_lang_key(languages)}", HOURLY, produce) or []
+    return cached(f"pool:v2:{_lang_key(languages)}", HOURLY, produce) or []
 
 
 def mood_tracks(mood, languages, page=1, limit=20):
@@ -1018,29 +1157,68 @@ def spotify_new_releases_india(limit=20):
 # ═══════════════════════════════════════════════════════════════════════════════
 # Background hourly refresh (long-running hosts only; Vercel uses lazy TTL cache)
 # ═══════════════════════════════════════════════════════════════════════════════
+_REFRESH_LOCK = threading.Lock()
+_MIN_REFRESH_INTERVAL = 1800  # don't refresh more than once per 30 min from background worker
+
+
 def refresh_catalog():
-    started = time.time()
-    for key in [k for k in _CACHE if k.split(":")[0] in ("trending", "new", "charts", "featured", "home", "pool", "session", "spotify")]:
-        _CACHE.pop(key, None)
-    groups = [DEFAULT_LANGUAGES, ["hindi"], ["punjabi"], LANGUAGE_GROUPS["south"]]
-    for langs in groups:
-        live_home(langs)
-        trending_pool(langs)
-        live_featured_playlists(langs)
-        session_playlists(langs)
-    spotify_new_releases_india()
-    _LAST_REFRESH["at"] = int(time.time())
-    return round(time.time() - started, 2)
+    """Clears and rebuilds the hot-path caches. Thread-safe via _REFRESH_LOCK."""
+    if not _REFRESH_LOCK.acquire(blocking=False):
+        print("[refresh] another refresh is already running — skipping")
+        return 0.0
+    try:
+        started = time.time()
+        # Invalidate all discovery caches (v2 keys included)
+        prefixes = ("trending", "new", "newrel", "charts", "featured", "home", "pool", "session", "spotify")
+        with _CACHE_LOCK:
+            for key in [k for k in list(_CACHE.keys()) if k.split(":")[0] in prefixes]:
+                _CACHE.pop(key, None)
+        groups = [DEFAULT_LANGUAGES, ["hindi"], ["punjabi"], LANGUAGE_GROUPS["south"]]
+        for langs in groups:
+            try:
+                live_home(langs)
+            except Exception as exc:
+                print(f"[refresh:home:{langs}] {exc}")
+            try:
+                trending_pool(langs)
+            except Exception as exc:
+                print(f"[refresh:pool:{langs}] {exc}")
+            try:
+                live_featured_playlists(langs)
+            except Exception as exc:
+                print(f"[refresh:featured:{langs}] {exc}")
+            try:
+                session_playlists(langs)
+            except Exception as exc:
+                print(f"[refresh:session:{langs}] {exc}")
+        try:
+            spotify_new_releases_india()
+        except Exception as exc:
+            print(f"[refresh:spotify] {exc}")
+        _LAST_REFRESH["at"] = int(time.time())
+        return round(time.time() - started, 2)
+    finally:
+        _REFRESH_LOCK.release()
 
 
 def _hourly_refresher():
+    """Background worker: refreshes caches every HOURLY seconds.
+    Guarded by _REFRESH_LOCK so concurrent gunicorn workers don't double-refresh.
+    Also skips refresh if one ran recently (within _MIN_REFRESH_INTERVAL seconds).
+    """
     time.sleep(5)
     while True:
         try:
+            since_last = time.time() - _LAST_REFRESH["at"]
+            if since_last < _MIN_REFRESH_INTERVAL:
+                sleep_for = max(60, _MIN_REFRESH_INTERVAL - since_last)
+                print(f"[refresh] skipping — last refresh was {round(since_last)}s ago, sleeping {round(sleep_for)}s")
+                time.sleep(sleep_for)
+                continue
             took = refresh_catalog()
             print(f"[refresh] catalog refreshed in {took}s")
         except Exception as exc:
-            print(f"[refresh] {exc}")
+            print(f"[refresh] unexpected error: {exc}")
         time.sleep(HOURLY)
 
 
@@ -1197,41 +1375,80 @@ def api_trending():
     page = arg_int("page", 1, 1, 500, "p")
     lang_raw = (request.args.get("lang") or request.args.get("language") or "all").lower().strip()
 
+    # Mood branch: use the already-parsed languages (respects ?lang=telugu&mood=romantic)
     if lang_raw in MOOD_QUERIES:
-        tracks, query = mood_tracks(lang_raw, DEFAULT_LANGUAGES, page, limit)
-        return ok({"tracks": tracks, "total": len(tracks), "page": page, "language": lang_raw,
-                   "query": query, "source": "jiosaavn"})
+        tracks, query = mood_tracks(lang_raw, languages, page, limit)
+        return ok({
+            "tracks": tracks,
+            "total": len(tracks),
+            "has_more": False,  # mood pages are single-query fetches
+            "page": page,
+            "language": lang_raw,
+            "languages": languages,
+            "query": query,
+            "source": "jiosaavn",
+        })
 
     pool = trending_pool(languages)
+    pool_size = len(pool)
     start = (page - 1) * limit
     tracks = pool[start:start + limit]
     query = "live_trending"
-    if len(tracks) < limit:
-        extra_page = max(1, page - len(pool) // max(limit, 1))
-        session = current_session()
-        moods = session["moods"] + ["romantic", "party", "chill"]
-        mood = moods[extra_page % len(moods)]
-        extra, query = mood_tracks(mood, languages, extra_page, limit)
-        tracks = dedupe(tracks + extra, exclude_ids={t["id"] for t in pool[:start]})[:limit]
-    return ok({"tracks": tracks, "total": max(len(pool), 100), "pool_size": len(pool), "page": page,
-               "language": lang_raw, "languages": languages, "query": query, "source": "jiosaavn"})
+
+    # Truthful exhaustion: do NOT infill with unrelated mood tracks
+    has_more = (start + limit) < pool_size
+
+    return ok({
+        "tracks": tracks,
+        "total": pool_size,         # actual pool size, no fabrication
+        "pool_size": pool_size,
+        "has_more": has_more,
+        "page": page,
+        "language": lang_raw,
+        "languages": languages,
+        "query": query,
+        "source": "jiosaavn",
+        "last_refresh": _LAST_REFRESH["at"],
+    })
 
 
 @app.route("/api/new-releases")
 @app.route("/api/new")
 def api_new_releases():
+    """
+    Returns new-release song tracks expanded from JioSaavn album listings.
+    Albums are returned in a separate 'albums' key — never cast to songs.
+    Does NOT fall back to generic search when song expansion yields zero results.
+    Stale data is flagged in _stale / _updated_at metadata fields.
+    """
     languages = req_languages()
     page = arg_int("page", 1, 1, 50, "p")
     limit = arg_int("limit", 30, 1, 50)
-    primary = (languages[0] if languages else "hindi").lower()
-    items = live_new_releases(languages, page, limit)
-    tracks = [i for i in items if i.get("type") == "song"]
-    if not tracks:
-        query = f"Latest {primary.capitalize()} Songs" if primary not in ("all", "india") else "Latest Hindi Songs"
-        tracks = search_songs(query, limit, page, languages)
-    return ok({"items": items, "tracks": tracks,
-               "albums": [i for i in items if i.get("type") == "album"],
-               "page": page, "total": max(len(tracks), 100), "languages": languages, "source": "jiosaavn"})
+
+    result = live_new_releases(languages, page, limit)
+    songs = result.get("songs", []) if isinstance(result, dict) else []
+    albums = result.get("albums", []) if isinstance(result, dict) else []
+    diag = result.get("_diag", {}) if isinstance(result, dict) else {}
+
+    # Truthful: no search fallback, no fabricated totals
+    total_songs = len(songs)
+    # has_more: JioSaavn doesn't expose total album count, so we use a simple heuristic —
+    # if a full page of albums was returned, more pages may exist.
+    has_more = len(albums) >= limit
+    stale = result.get("_stale", False) if isinstance(result, dict) else False
+
+    return ok({
+        "tracks": songs,           # expanded song records (may be empty if expansion failed)
+        "albums": albums,          # raw album entities for UI to display separately
+        "total": total_songs,      # actual song count from this page — no fabrication
+        "has_more": has_more,
+        "page": page,
+        "languages": languages,
+        "source": "jiosaavn",
+        "stale": stale,
+        "updated_at": result.get("_updated_at") if stale else int(time.time()),
+        "_diag": diag,
+    })
 
 
 @app.route("/api/charts")
