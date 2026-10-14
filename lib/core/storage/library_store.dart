@@ -133,6 +133,14 @@ class LibraryStore {
     await _writeList(_kSavedAlbums, list.map((Album a) => a.toJson()).toList());
   }
 
+  Future<void> setFollowedArtists(List<Artist> list) async {
+    await _writeList(_kFollowedArtists, list.map((Artist a) => a.toJson()).toList());
+  }
+
+  Future<void> setSavedAlbums(List<Album> list) async {
+    await _writeList(_kSavedAlbums, list.map((Album a) => a.toJson()).toList());
+  }
+
   // ---------------------------------------------------------------------------
   // Playlists (user-owned only; provider playlists stay provider-owned)
   // ---------------------------------------------------------------------------

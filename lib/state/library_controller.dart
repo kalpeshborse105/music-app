@@ -140,6 +140,14 @@ class LibraryController extends ChangeNotifier {
       if (remotePlaylists.isNotEmpty) {
         await _store.setPlaylists(remotePlaylists);
       }
+      final List<Artist> remoteArtists = await _supabase.fetchFollowedArtists();
+      if (remoteArtists.isNotEmpty) {
+        await _store.setFollowedArtists(remoteArtists);
+      }
+      final List<Album> remoteAlbums = await _supabase.fetchSavedAlbums();
+      if (remoteAlbums.isNotEmpty) {
+        await _store.setSavedAlbums(remoteAlbums);
+      }
       final List<HistoryEntry> remoteHistory = await _supabase.fetchRecentlyPlayed();
       await _store.setHistory(remoteHistory);
       notifyListeners();
@@ -189,7 +197,15 @@ class LibraryController extends ChangeNotifier {
   bool isFollowingArtist(String id) => _store.isFollowingArtist(id);
 
   Future<void> toggleFollowArtist(Artist artist) async {
+    final bool willBeFollowing = !_store.isFollowingArtist(artist.id);
     await _store.toggleFollowArtist(artist);
+    if (_supabase.isAuthenticated) {
+      if (willBeFollowing) {
+        await _supabase.addFollowedArtist(artist);
+      } else {
+        await _supabase.removeFollowedArtist(artist.id);
+      }
+    }
     notifyListeners();
   }
 
@@ -197,7 +213,15 @@ class LibraryController extends ChangeNotifier {
   bool isAlbumSaved(String id) => _store.isAlbumSaved(id);
 
   Future<void> toggleSaveAlbum(Album album) async {
+    final bool willBeSaved = !_store.isAlbumSaved(album.id);
     await _store.toggleSaveAlbum(album);
+    if (_supabase.isAuthenticated) {
+      if (willBeSaved) {
+        await _supabase.addSavedAlbum(album);
+      } else {
+        await _supabase.removeSavedAlbum(album.id);
+      }
+    }
     notifyListeners();
   }
 

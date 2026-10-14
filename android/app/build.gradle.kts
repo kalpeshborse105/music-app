@@ -36,10 +36,6 @@ android {
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        // Media libraries are large; keep only common ABIs to reduce AAB/APK size.
-        ndk {
-            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86_64"))
-        }
     }
 
     signingConfigs {

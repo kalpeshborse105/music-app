@@ -1810,7 +1810,10 @@ CATALOG_LOCK = threading.Lock()
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://rotvxnnblkxbqhfcbynt.supabase.co")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvdHZ4bm5ibGt4YnFoZmNieW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEwNDQ4MDEsImV4cCI6MjEwNjYyMDgwMX0.F7oTJbsxXifFHU0GKlGvJSA65RSSqB0o0RuwLq26r4Y")
-SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get(
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvdHZ4bm5ibGt4YnFoZmNieW50Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTA0NDgwMSwiZXhwIjoyMTA2NjIwODAxfQ.8jO-42nSry7u0WSBW0sa4tuFJtENKS6o6MarM77EUWo"
+)
 
 
 def is_admin_request(req):
@@ -2181,9 +2184,9 @@ def _generate_default_catalog_sections():
             "title": "Hindi India Superhits Top 50"
         },
         {
-            "url": "https://www.jiosaavn.com/artist/salman-khan-songs/uuAKJcbNOKg_",
+            "url": "https://www.jiosaavn.com/artist/kishore-kumar-songs/yMoPyl3ZzyY_",
             "group": "Featured Artists",
-            "title": "Salman Khan"
+            "title": "Kishore Kumar"
         },
         {
             "url": "https://www.jiosaavn.com/new-releases",
@@ -2209,9 +2212,11 @@ def _generate_default_catalog_sections():
             items, is_mock, provider_status, detected_title, detected_art = resolve_catalog_items(
                 parsed["source_type"], parsed["source_id"], parsed["slug"], lang
             )
+            key_name = parsed["slug"].replace("-", "_")
+            sec_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, key_name))
             sections.append({
-                "id": f"sec_{parsed['slug'].replace('-', '_')}",
-                "key": parsed["slug"].replace("-", "_"),
+                "id": sec_uuid,
+                "key": key_name,
                 "source_url": s["url"],
                 "source_type": parsed["source_type"],
                 "source_id": parsed["source_id"],
@@ -2253,20 +2258,52 @@ def matches_section_key(section, target_key):
     return norm_target in (norm_key, norm_id, norm_slug)
 
 
+def _parse_iso_to_unix(val):
+    if val is None or val == "":
+        return None
+    if isinstance(val, (int, float)):
+        return int(val)
+    if isinstance(val, str):
+        try:
+            clean = val.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(clean)
+            return int(dt.timestamp())
+        except Exception:
+            if val.isdigit():
+                return int(val)
+    return None
+
+
 def sync_catalog_from_supabase():
     try:
         url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections?select=*&order=position.asc"
+        auth_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
         headers = {
             "apikey": SUPABASE_ANON_KEY,
-            "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+            "Authorization": f"Bearer {auth_key}",
             "User-Agent": "MusicApp/1.0"
         }
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=4) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:
             if resp.status == 200:
                 body = resp.read().decode("utf-8")
                 rows = json.loads(body)
                 if isinstance(rows, list) and len(rows) > 0:
+                    for r in rows:
+                        # Convert ISO timestamps back to integer unix epoch
+                        for ts_col in ("campaign_start", "campaign_end", "last_refresh"):
+                            r[ts_col] = _parse_iso_to_unix(r.get(ts_col))
+
+                        # Unpack encoded metadata from last_error if present
+                        err = r.get("last_error")
+                        if err and err.startswith("{") and ("excluded_track_ids" in err or "custom_tracks" in err):
+                            try:
+                                extra = json.loads(err)
+                                r["excluded_track_ids"] = extra.get("excluded_track_ids", [])
+                                r["custom_tracks"] = extra.get("custom_tracks", [])
+                                r["last_error"] = None
+                            except Exception:
+                                pass
                     return rows
     except Exception as e:
         print(f"[Catalog Supabase Sync] error: {e}")
@@ -2284,66 +2321,121 @@ def sync_catalog_to_supabase(sections):
             "User-Agent": "MusicApp/1.0"
         }
         url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections"
-        allowed_cols = {
-            "id", "key", "source_url", "source_type", "source_id", "slug",
+        cols = [
+            "id", "key", "source_url", "source_type", "provider", "source_id", "slug",
             "display_title", "display_group", "subtitle", "language", "position",
-            "is_enabled", "custom_artwork_url", "is_banner", "campaign_start", "campaign_end"
-        }
+            "is_enabled", "custom_artwork_url", "is_banner", "campaign_start", "campaign_end",
+            "provider_status", "last_refresh", "last_error"
+        ]
         payload = []
         for s in sections:
-            row = {k: v for k, v in s.items() if k in allowed_cols}
+            # 1. Enforce deterministic UUID
+            sec_id = s.get("id")
+            try:
+                uuid.UUID(str(sec_id))
+            except Exception:
+                sec_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, str(s.get("key", uuid.uuid4()))))
+
+            # 2. Pack extra metadata if present
+            extra = {}
+            if s.get("excluded_track_ids"):
+                extra["excluded_track_ids"] = s.get("excluded_track_ids")
+            if s.get("custom_tracks"):
+                extra["custom_tracks"] = s.get("custom_tracks")
+            encoded_extra = json.dumps(extra) if extra else None
+
+            row = {k: s.get(k) for k in cols}
+            row["id"] = sec_id
+            row["key"] = str(s.get("key") or sec_id)
+            row["source_url"] = str(s.get("source_url") or "")
+            row["source_type"] = str(s.get("source_type") or "playlist")
+            row["provider"] = "custom_api"
+            row["source_id"] = str(s.get("source_id") or s.get("slug") or s.get("key") or sec_id)
+            row["display_title"] = str(s.get("display_title") or s.get("key") or "Section")
+            row["display_group"] = str(s.get("display_group") or "Curated")
+            row["language"] = str(s.get("language") or "all")
+            row["position"] = int(s.get("position") or 1)
+            row["is_enabled"] = bool(s.get("is_enabled", True))
+            row["is_banner"] = bool(s.get("is_banner", False))
+            if encoded_extra:
+                row["last_error"] = encoded_extra
+
+            for ts_col in ("campaign_start", "campaign_end", "last_refresh"):
+                val = row.get(ts_col)
+                if isinstance(val, (int, float)):
+                    row[ts_col] = datetime.fromtimestamp(val, tz=timezone.utc).isoformat()
+                elif val == "" or val is False:
+                    row[ts_col] = None
+
             payload.append(row)
+
         if payload:
             data = json.dumps(payload).encode("utf-8")
             req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-            with urllib.request.urlopen(req, timeout=4) as resp:
-                pass
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                print(f"[Catalog Supabase Upsert] Synced {len(payload)} sections, HTTP {resp.status}")
     except Exception as e:
         print(f"[Catalog Supabase Upsert] error: {e}")
 
 
+def delete_catalog_section_from_supabase(section_key, section_id=None):
+    try:
+        auth_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
+        headers = {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": f"Bearer {auth_key}",
+            "User-Agent": "MusicApp/1.0"
+        }
+        url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections?key=eq.{urllib.parse.quote(str(section_key))}"
+        req = urllib.request.Request(url, headers=headers, method="DELETE")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            print(f"[Catalog Supabase Delete] Deleted {section_key}, HTTP {resp.status}")
+
+        if section_id:
+            try:
+                uuid.UUID(str(section_id))
+                url_id = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections?id=eq.{urllib.parse.quote(str(section_id))}"
+                req_id = urllib.request.Request(url_id, headers=headers, method="DELETE")
+                with urllib.request.urlopen(req_id, timeout=5):
+                    pass
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"[Catalog Supabase Delete] error: {e}")
+
+
 def load_catalog_sections():
     with CATALOG_LOCK:
-        # 1. Attempt to load from local storage
-        local_sections = None
+        # 1. Attempt to load from Supabase cloud database first (Single Source of Truth)
+        remote_rows = sync_catalog_from_supabase()
+        if remote_rows and len(remote_rows) > 0:
+            remote_rows.sort(key=lambda x: x.get("position", 999))
+            try:
+                with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
+                    json.dump(remote_rows, f, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+            return remote_rows
+
+        # 2. Fallback to local storage if cloud is unreachable
         if os.path.exists(CATALOG_STORAGE_FILE):
             try:
                 with open(CATALOG_STORAGE_FILE, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     if isinstance(data, list) and len(data) > 0:
-                        local_sections = sorted(data, key=lambda x: x.get("position", 999))
+                        return sorted(data, key=lambda x: x.get("position", 999))
             except Exception as e:
                 print(f"[Catalog] Failed to load {CATALOG_STORAGE_FILE}: {e}")
 
-        # 2. Check Supabase cloud database
-        remote_rows = sync_catalog_from_supabase()
-        if remote_rows:
-            # Merge remote rows with local (local preserves excluded_track_ids / custom_tracks)
-            local_map = {s.get("key"): s for s in (local_sections or [])}
-            merged = []
-            for r in remote_rows:
-                k = r.get("key")
-                loc = local_map.get(k, {})
-                loc.update(r)
-                merged.append(loc)
-            merged.sort(key=lambda x: x.get("position", 999))
-            try:
-                with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
-                    json.dump(merged, f, indent=2)
-            except Exception:
-                pass
-            return merged
-
-        if local_sections is not None:
-            return local_sections
-
-        # 3. Fallback to default sections
+        # 3. Fallback to default sections (with Kishore Kumar) and save to Supabase
         default_sections = _generate_default_catalog_sections()
         try:
             with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
-                json.dump(default_sections, f, indent=2)
+                json.dump(default_sections, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"[Catalog] Failed to write default {CATALOG_STORAGE_FILE}: {e}")
+
+        sync_catalog_to_supabase(default_sections)
         return default_sections
 
 
@@ -2430,8 +2522,8 @@ def api_catalog_sections():
         for s in sections:
             if not s.get("is_enabled", True):
                 continue
-            c_start = s.get("campaign_start")
-            c_end = s.get("campaign_end")
+            c_start = _parse_iso_to_unix(s.get("campaign_start"))
+            c_end = _parse_iso_to_unix(s.get("campaign_end"))
             if c_start and now < c_start:
                 continue
             if c_end and now > c_end:
@@ -2702,9 +2794,13 @@ def api_catalog_delete_section(section_key):
 
     sections = load_catalog_sections()
     initial_len = len(sections)
+    to_delete = [s for s in sections if matches_section_key(s, section_key)]
     sections = [s for s in sections if not matches_section_key(s, section_key)]
     if len(sections) == initial_len:
         return not_found(f"Catalog section '{section_key}' not found")
+
+    for s in to_delete:
+        delete_catalog_section_from_supabase(s.get("key", section_key), s.get("id"))
 
     _CATALOG_ITEMS_CACHE.pop(section_key, None)
     save_catalog_sections(sections)

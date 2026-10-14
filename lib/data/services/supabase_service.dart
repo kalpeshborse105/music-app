@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/config/app_config.dart';
 import '../../domain/models/advertisement.dart';
+import '../../domain/models/album.dart';
+import '../../domain/models/artist.dart';
 import '../../domain/models/history_entry.dart';
 import '../../domain/models/playlist.dart';
 import '../../domain/models/track.dart';
@@ -360,6 +362,8 @@ class SupabaseService {
           .from('favorites')
           .select()
           .eq('user_id', currentUser!.id)
+          .not('local_track_id', 'like', 'artist:%')
+          .not('local_track_id', 'like', 'album:%')
           .order('created_at', ascending: false);
 
       final List<Track> tracks = <Track>[];
@@ -448,6 +452,142 @@ class SupabaseService {
       }
     } catch (e) {
       debugPrint('[SupabaseService] toggleFavorite error: $e');
+    }
+  }
+
+  // ==========================================
+  // FOLLOWED ARTISTS & SAVED ALBUMS (CLOUD PERSISTENCE)
+  // ==========================================
+
+  Future<List<Artist>> fetchFollowedArtists() async {
+    if (!_isInitialized || currentUser == null) return <Artist>[];
+    try {
+      final List<dynamic> response = await client
+          .from('favorites')
+          .select()
+          .eq('user_id', currentUser!.id)
+          .like('local_track_id', 'artist:%')
+          .order('created_at', ascending: false);
+
+      final List<Artist> artists = <Artist>[];
+      for (final dynamic item in response) {
+        if (item is Map) {
+          final dynamic meta = item['custom_metadata'];
+          if (meta != null && meta is Map) {
+            try {
+              artists.add(Artist.fromJson(meta.cast<String, dynamic>()));
+            } catch (_) {}
+          }
+        }
+      }
+      return artists;
+    } catch (e) {
+      debugPrint('[SupabaseService] fetchFollowedArtists error: $e');
+      return <Artist>[];
+    }
+  }
+
+  Future<void> addFollowedArtist(Artist artist) async {
+    if (!_isInitialized || currentUser == null) return;
+    try {
+      final String idKey = 'artist:${artist.id}';
+      final List<dynamic> existing = await client
+          .from('favorites')
+          .select('id')
+          .eq('user_id', currentUser!.id)
+          .eq('local_track_id', idKey)
+          .limit(1);
+
+      if (existing.isEmpty) {
+        await client.from('favorites').insert(<String, dynamic>{
+          'user_id': currentUser!.id,
+          'local_track_id': idKey,
+          'custom_metadata': artist.toJson(),
+          'created_at': DateTime.now().toIso8601String(),
+        });
+      }
+    } catch (e) {
+      debugPrint('[SupabaseService] addFollowedArtist error: $e');
+    }
+  }
+
+  Future<void> removeFollowedArtist(String artistId) async {
+    if (!_isInitialized || currentUser == null) return;
+    try {
+      final String idKey = 'artist:$artistId';
+      await client
+          .from('favorites')
+          .delete()
+          .eq('user_id', currentUser!.id)
+          .eq('local_track_id', idKey);
+    } catch (e) {
+      debugPrint('[SupabaseService] removeFollowedArtist error: $e');
+    }
+  }
+
+  Future<List<Album>> fetchSavedAlbums() async {
+    if (!_isInitialized || currentUser == null) return <Album>[];
+    try {
+      final List<dynamic> response = await client
+          .from('favorites')
+          .select()
+          .eq('user_id', currentUser!.id)
+          .like('local_track_id', 'album:%')
+          .order('created_at', ascending: false);
+
+      final List<Album> albums = <Album>[];
+      for (final dynamic item in response) {
+        if (item is Map) {
+          final dynamic meta = item['custom_metadata'];
+          if (meta != null && meta is Map) {
+            try {
+              albums.add(Album.fromJson(meta.cast<String, dynamic>()));
+            } catch (_) {}
+          }
+        }
+      }
+      return albums;
+    } catch (e) {
+      debugPrint('[SupabaseService] fetchSavedAlbums error: $e');
+      return <Album>[];
+    }
+  }
+
+  Future<void> addSavedAlbum(Album album) async {
+    if (!_isInitialized || currentUser == null) return;
+    try {
+      final String idKey = 'album:${album.id}';
+      final List<dynamic> existing = await client
+          .from('favorites')
+          .select('id')
+          .eq('user_id', currentUser!.id)
+          .eq('local_track_id', idKey)
+          .limit(1);
+
+      if (existing.isEmpty) {
+        await client.from('favorites').insert(<String, dynamic>{
+          'user_id': currentUser!.id,
+          'local_track_id': idKey,
+          'custom_metadata': album.toJson(),
+          'created_at': DateTime.now().toIso8601String(),
+        });
+      }
+    } catch (e) {
+      debugPrint('[SupabaseService] addSavedAlbum error: $e');
+    }
+  }
+
+  Future<void> removeSavedAlbum(String albumId) async {
+    if (!_isInitialized || currentUser == null) return;
+    try {
+      final String idKey = 'album:$albumId';
+      await client
+          .from('favorites')
+          .delete()
+          .eq('user_id', currentUser!.id)
+          .eq('local_track_id', idKey);
+    } catch (e) {
+      debugPrint('[SupabaseService] removeSavedAlbum error: $e');
     }
   }
 
