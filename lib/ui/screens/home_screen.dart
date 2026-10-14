@@ -406,7 +406,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          // Mood filter carousel pills
+          // Language filter pills
           SizedBox(
             height: 36,
             child: ListView.separated(
@@ -507,9 +507,42 @@ class _HomeScreenState extends State<HomeScreen> {
     return FutureBuilder<List<CatalogSection>>(
       future: _catalogSectionsFuture,
       builder: (BuildContext context, AsyncSnapshot<List<CatalogSection>> snapshot) {
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.xl),
+            child: Column(
+              children: <Widget>[
+                const Icon(Icons.cloud_off_rounded, size: 30, color: AppColors.outline),
+                const SizedBox(height: 8),
+                Text('Catalogue could not be loaded', style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text('Check your connection and try again. Demo music is not shown.', textAlign: TextAlign.center, style: TextStyle(color: context.textSecondary, fontSize: 12)),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(onPressed: _refreshData, icon: const Icon(Icons.refresh_rounded), label: const Text('Retry')),
+              ],
+            ),
+          );
+        }
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.all(AppSpacing.xl),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
         final List<CatalogSection> sections = snapshot.data ?? <CatalogSection>[];
         if (sections.isEmpty) {
-          return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.xl),
+            child: Column(
+              children: <Widget>[
+                const Icon(Icons.library_music_outlined, size: 32, color: AppColors.outline),
+                const SizedBox(height: 8),
+                Text('No catalogue sections published', style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text('Published music sections will appear here when configured by the administrator.', textAlign: TextAlign.center, style: TextStyle(color: context.textSecondary, fontSize: 12)),
+              ],
+            ),
+          );
         }
 
         // Honour publication status, campaign windows and admin-saved order.
@@ -521,8 +554,11 @@ class _HomeScreenState extends State<HomeScreen> {
         // Group only adjacent rows with the same group; never reorder editorial items.
         final List<List<CatalogSection>> grouped = <List<CatalogSection>>[];
         for (final CatalogSection section in regularSections) {
-          if (section.isBanner || grouped.isEmpty ||
-              grouped.last.first.isBanner ||
+          final bool isTrackFeed = section.sourceType == 'new_releases' || section.sourceType == 'tracks';
+          final bool previousIsTrackFeed = grouped.isNotEmpty &&
+              (grouped.last.first.sourceType == 'new_releases' || grouped.last.first.sourceType == 'tracks');
+          if (section.isBanner || isTrackFeed || grouped.isEmpty ||
+              grouped.last.first.isBanner || previousIsTrackFeed ||
               grouped.last.first.displayGroup != section.displayGroup) {
             grouped.add(<CatalogSection>[section]);
           } else {
