@@ -1380,7 +1380,7 @@ def api_home():
             })
     except Exception as exc:
         print(f"[Catalog] Error loading published homepage sections: {exc}")
-        sections = []
+        return jsonify({"error": "Catalogue data is temporarily unavailable. No static fallback was served."}), 503
     return ok({
         "languages": languages,
         "session": {"id": "admin_catalog", "label": "Admin curated"},
@@ -2150,10 +2150,10 @@ def delete_catalog_section_from_supabase(section_key, section_id=None):
 
 
 def load_catalog_sections():
-    """Read catalogue sections from Supabase only; empty/error never seeds fake content."""
+    """Read sections from Supabase; distinguish an actual empty table from DB failure."""
     remote_rows = sync_catalog_from_supabase()
     if remote_rows is None:
-        return []
+        raise RuntimeError("Supabase catalogue read failed; refusing to treat the catalogue as empty.")
     return sorted(remote_rows, key=lambda x: x.get("position", 999))
 
 
@@ -2608,7 +2608,7 @@ LIBRARY_LOCK = threading.Lock()
 
 def _supabase_read_rows(table, order_by=None):
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
-        return []
+        raise RuntimeError(f"Supabase is not configured; cannot read {table}.")
     query = "select=*"
     if order_by:
         query += "&order=" + urllib.parse.quote(order_by, safe=".,")
@@ -2622,10 +2622,12 @@ def _supabase_read_rows(table, order_by=None):
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
             rows = json.loads(resp.read().decode("utf-8"))
-            return rows if isinstance(rows, list) else []
+            if not isinstance(rows, list):
+                raise RuntimeError(f"Supabase returned an invalid {table} payload.")
+            return rows
     except Exception as e:
         print(f"[Supabase {table} Read] error: {e}")
-        return []
+        raise RuntimeError(f"Supabase read failed for {table}.") from e
 
 
 def _supabase_upsert_rows(table, rows):
