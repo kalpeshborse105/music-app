@@ -19,6 +19,7 @@ import '../domain/models/playlist.dart';
 import '../domain/models/search_result.dart';
 import '../domain/models/stream_source.dart';
 import '../domain/models/track.dart';
+import '../domain/models/media_type.dart';
 import '../domain/models/catalog_section.dart';
 import '../domain/providers/custom_api_provider.dart';
 import '../domain/providers/music_provider.dart';
@@ -645,6 +646,8 @@ class MusicRepository {
     bool isBanner = false,
     int? campaignStart,
     int? campaignEnd,
+    List<String>? excludedTrackIds,
+    List<Map<String, dynamic>>? customTracks,
   }) async {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) {
@@ -662,6 +665,8 @@ class MusicRepository {
       'is_banner': isBanner,
       if (campaignStart != null) 'campaign_start': campaignStart,
       if (campaignEnd != null) 'campaign_end': campaignEnd,
+      if (excludedTrackIds != null) 'excluded_track_ids': excludedTrackIds,
+      if (customTracks != null) 'custom_tracks': customTracks,
     });
     final CatalogSection section = CatalogSection.fromJson(res);
 
@@ -687,6 +692,8 @@ class MusicRepository {
     bool? isBanner,
     int? campaignStart,
     int? campaignEnd,
+    List<String>? excludedTrackIds,
+    List<Map<String, dynamic>>? customTracks,
   }) async {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) {
@@ -704,17 +711,76 @@ class MusicRepository {
       if (isBanner != null) 'is_banner': isBanner,
       if (campaignStart != null) 'campaign_start': campaignStart,
       if (campaignEnd != null) 'campaign_end': campaignEnd,
+      if (excludedTrackIds != null) 'excluded_track_ids': excludedTrackIds,
+      if (customTracks != null) 'custom_tracks': customTracks,
     };
     final Map<String, dynamic> res = await provider.updateCatalogSection(key, data);
     final CatalogSection section = CatalogSection.fromJson(res);
 
     // Verify persistence with read-back from source of truth (Phase 2 & 6)
     final List<CatalogSection> readBack = await getCatalogSections(includeDisabled: true);
-    final bool exists = readBack.any((CatalogSection s) => s.key == key || s.id == section.id);
+    final bool exists = readBack.any((CatalogSection s) =>
+        s.key.toLowerCase().replaceAll('-', '_') == key.toLowerCase().replaceAll('-', '_') ||
+        s.id == section.id ||
+        s.key == key);
     if (!exists) {
       throw ProviderException('custom_api', message: 'Persistence verification failed: updated section "$key" could not be verified.');
     }
     return section;
+  }
+
+  Future<Track?> resolveTrack(String urlOrId) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return null;
+    final Map<String, dynamic> res = await provider.resolveTrack(urlOrId);
+    if (res['valid'] == true && res['track'] != null) {
+      final Map<String, dynamic> item = res['track'] as Map<String, dynamic>;
+      final String trackId = item['id'] as String? ?? '';
+      final String title = item['title'] as String? ?? 'Untitled';
+      final String artist = item['artist'] as String? ?? 'Unknown Artist';
+      final String? artworkUrl = item['artwork_url'] as String?;
+      final int durationMs = (item['duration_ms'] as num?)?.toInt() ?? 210000;
+      final bool isMock = item['is_mock'] == true;
+      return Track(
+        id: 'custom_api:track:$trackId',
+        providerId: 'custom_api',
+        providerTrackId: trackId,
+        title: title,
+        artists: <Artist>[
+          Artist(
+            id: 'custom_api:artist:$artist',
+            providerId: 'custom_api',
+            providerArtistId: artist,
+            name: artist,
+          ),
+        ],
+        album: Album(
+          id: 'custom_api:album:$trackId',
+          providerId: 'custom_api',
+          providerAlbumId: trackId,
+          title: item['album'] as String? ?? 'Single',
+          artworkUrl: artworkUrl,
+        ),
+        duration: Duration(milliseconds: durationMs),
+        artworkUrl: artworkUrl,
+        explicit: false,
+        mediaType: MediaType.audio,
+        isStreamable: true,
+        isDownloadable: false,
+        hasLyrics: false,
+        qualityOptions: const <AudioQuality>[AudioQuality.high],
+        commercialUseAllowed: false,
+        backgroundPlaybackAllowed: true,
+        license: isMock ? 'Mock Development License' : 'Cloud Gateway Stream',
+        attributionRequired: false,
+        extra: <String, dynamic>{
+          'is_mock': isMock,
+          'language': item['language'] ?? '',
+          'year': item['year'] ?? '',
+        },
+      );
+    }
+    return null;
   }
 
   Future<bool> deleteCatalogSection(String key) async {

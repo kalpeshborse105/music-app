@@ -141,9 +141,7 @@ class LibraryController extends ChangeNotifier {
         await _store.setPlaylists(remotePlaylists);
       }
       final List<HistoryEntry> remoteHistory = await _supabase.fetchRecentlyPlayed();
-      if (remoteHistory.isNotEmpty) {
-        await _store.setHistory(remoteHistory);
-      }
+      await _store.setHistory(remoteHistory);
       notifyListeners();
     } catch (e) {
       Logger.warn('Supabase sync error', error: e);
@@ -274,11 +272,17 @@ class LibraryController extends ChangeNotifier {
 
   Future<void> clearHistory() async {
     await _store.clearHistory();
+    if (_supabase.isAuthenticated) {
+      await _supabase.clearRecentlyPlayed();
+    }
     notifyListeners();
   }
 
   Future<void> removeFromHistory(String trackId) async {
     await _store.removeFromHistory(trackId);
+    if (_supabase.isAuthenticated) {
+      await _supabase.removeRecentlyPlayedTrack(trackId);
+    }
     notifyListeners();
   }
 

@@ -740,6 +740,29 @@ class SupabaseService {
     }
   }
 
+  Future<void> clearRecentlyPlayed() async {
+    if (!_isInitialized || currentUser == null) return;
+    try {
+      await client.from('recently_played').delete().eq('user_id', currentUser!.id);
+      debugPrint('[SupabaseService] Recently played playback history cleared on remote.');
+    } catch (e) {
+      debugPrint('[SupabaseService] clearRecentlyPlayed error: $e');
+    }
+  }
+
+  Future<void> removeRecentlyPlayedTrack(String trackId) async {
+    if (!_isInitialized || currentUser == null) return;
+    try {
+      await client
+          .from('recently_played')
+          .delete()
+          .eq('user_id', currentUser!.id)
+          .filter('custom_metadata->>id', 'eq', trackId);
+    } catch (e) {
+      debugPrint('[SupabaseService] removeRecentlyPlayedTrack error: $e');
+    }
+  }
+
   // ==========================================
   // USER SETTINGS
   // ==========================================

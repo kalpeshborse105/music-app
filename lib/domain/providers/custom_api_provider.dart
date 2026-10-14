@@ -526,6 +526,29 @@ class CustomApiProvider extends BaseMusicProvider {
     throw const ProviderException('custom_api', message: 'Invalid response format from catalogue server');
   }
 
+  Future<Map<String, dynamic>> resolveTrack(String urlOrId) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/catalog/resolve_track');
+    final http.Response res = await http.post(
+      uri,
+      headers: _buildHeaders(),
+      body: jsonEncode(<String, dynamic>{
+        'url': urlOrId.startsWith('http') ? urlOrId : null,
+        'song_id': !urlOrId.startsWith('http') ? urlOrId : null,
+      }),
+    ).timeout(const Duration(seconds: 12));
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      String msg = 'Failed to resolve track (${res.statusCode})';
+      try {
+        final dynamic b = jsonDecode(res.body);
+        if (b is Map && b['error'] != null) msg = b['error'].toString();
+      } catch (_) {}
+      throw ProviderException('custom_api', message: msg);
+    }
+    final dynamic body = jsonDecode(res.body);
+    if (body is Map<String, dynamic>) return body;
+    throw const ProviderException('custom_api', message: 'Invalid response format from resolve_track');
+  }
+
   Future<bool> deleteCatalogSection(String key) async {
     final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/$key');
     final http.Response res = await http.delete(

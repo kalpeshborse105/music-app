@@ -14,6 +14,8 @@ Live JioSaavn catalog gateway with:
 Runs on Render/Heroku (gunicorn server:app) and Vercel (zero-config Flask).
 """
 
+import requests
+import requests_oauthlib
 import os
 import re
 import sys
@@ -1929,7 +1931,20 @@ def parse_catalog_url(raw_url: str):
             "default_group": "Festival Specials" if is_festive else "Featured Albums"
         }, None
 
-    return None, f"Unsupported path '{path}'. Supported formats: /artist/<slug>/<id>, /featured/<slug>/<id>, /album/<slug>/<id>, /new-releases, /charts, /top-artists"
+    m_song = re.match(r"^/song/([^/]+)/([^/?#]+)$", path)
+    if m_song:
+        slug, token = m_song.groups()
+        title = slug.replace("-", " ").title()
+        is_bhakti = any(k in slug.lower() for k in ("bhakti", "bhajan", "aarti", "chalisa", "mantra", "god", "krishna", "ram", "shiv"))
+        return {
+            "source_type": "song",
+            "source_id": token,
+            "slug": slug,
+            "default_title": title,
+            "default_group": "Devotional & Bhakti" if is_bhakti else "Special Releases"
+        }, None
+
+    return None, f"Unsupported path '{path}'. Supported formats: /artist/<slug>/<id>, /featured/<slug>/<id>, /album/<slug>/<id>, /song/<slug>/<id>, /new-releases, /charts, /top-artists"
 
 
 def get_mock_catalog_items(source_type, source_id, slug, language="all"):
@@ -2055,6 +2070,19 @@ def get_mock_catalog_items(source_type, source_id, slug, language="all"):
             })
         return items
 
+    elif source_type == "song":
+        return [{
+            "id": f"mock_song_{source_id}",
+            "title": f"[MOCK] {clean_name}",
+            "artist": "Featured Artist",
+            "album": clean_name,
+            "duration_ms": 230000,
+            "artwork_url": art_placeholder,
+            "language": language if language != "all" else "all",
+            "year": "2026",
+            "is_mock": True
+        }]
+
     return []
 
 
@@ -2067,7 +2095,22 @@ def resolve_catalog_items(source_type, source_id, slug, language="all"):
     langs = [language] if (language and language != "all") else ["hindi", "punjabi", "marathi", "bhojpuri", "gujarati"]
     detected_artwork = None
     try:
-        if source_type == "playlist" and source_id:
+        if source_type == "song" and source_id:
+            # 1. Try resolving via token first
+            res = jio_call("webapi.get", {"token": source_id, "type": "song"}, langs)
+            raw_songs = res.get("songs") if isinstance(res, dict) else []
+            if not raw_songs:
+                # 2. Try direct song details PID
+                dt = song_details(source_id)
+                if dt and dt.get("id"):
+                    return [dt], False, "ok", dt.get("title"), dt.get("artwork_url")
+            if raw_songs:
+                tracks = dedupe(_tracks(raw_songs))
+                detected_artwork = tracks[0].get("artwork_url") if tracks else None
+                detected_title = tracks[0].get("title") if tracks else slug.replace("-", " ").title()
+                return tracks, False, "ok", detected_title, detected_artwork
+
+        elif source_type == "playlist" and source_id:
             info = entity_details("playlist", token=source_id, limit=40, languages=langs)
             tracks = info.get("tracks") or []
             detected_artwork = info.get("artwork_url") or info.get("image")
@@ -2192,17 +2235,101 @@ def _generate_default_catalog_sections():
     return sections
 
 
+def matches_section_key(section, target_key):
+    if not section or not target_key:
+        return False
+    target_str = str(target_key).strip().lower()
+    norm_target = target_str.replace("-", "_").replace("sec_", "")
+
+    s_key = str(section.get("key", "")).strip().lower()
+    s_id = str(section.get("id", "")).strip().lower()
+    s_slug = str(section.get("slug", "")).strip().lower()
+    s_source = str(section.get("source_id", "")).strip().lower()
+
+    if target_str in (s_key, s_id, s_slug, s_source):
+        return True
+    norm_key = s_key.replace("-", "_").replace("sec_", "")
+    norm_id = s_id.replace("-", "_").replace("sec_", "")
+    norm_slug = s_slug.replace("-", "_").replace("sec_", "")
+
+    return norm_target in (norm_key, norm_id, norm_slug)
+
+
+def sync_catalog_from_supabase():
+    try:
+        url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections?select=*&order=position.asc"
+        headers = {"apikey": SUPABASE_ANON_KEY, "Authorization": f"Bearer {SUPABASE_ANON_KEY}"}
+        r = requests.get(url, headers=headers, timeout=4)
+        if r.status_code == 200:
+            rows = r.json()
+            if isinstance(rows, list) and len(rows) > 0:
+                return rows
+    except Exception as e:
+        print(f"[Catalog Supabase Sync] error: {e}")
+    return None
+
+
+def sync_catalog_to_supabase(sections):
+    try:
+        auth_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
+        headers = {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": f"Bearer {auth_key}",
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates"
+        }
+        url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections"
+        allowed_cols = {
+            "id", "key", "source_url", "source_type", "source_id", "slug",
+            "display_title", "display_group", "subtitle", "language", "position",
+            "is_enabled", "custom_artwork_url", "is_banner", "campaign_start", "campaign_end"
+        }
+        payload = []
+        for s in sections:
+            row = {k: v for k, v in s.items() if k in allowed_cols}
+            payload.append(row)
+        if payload:
+            requests.post(url, headers=headers, json=payload, timeout=4)
+    except Exception as e:
+        print(f"[Catalog Supabase Upsert] error: {e}")
+
+
 def load_catalog_sections():
     with CATALOG_LOCK:
+        # 1. Attempt to load from local storage
+        local_sections = None
         if os.path.exists(CATALOG_STORAGE_FILE):
             try:
                 with open(CATALOG_STORAGE_FILE, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    if isinstance(data, list):
-                        return sorted(data, key=lambda x: x.get("position", 999))
+                    if isinstance(data, list) and len(data) > 0:
+                        local_sections = sorted(data, key=lambda x: x.get("position", 999))
             except Exception as e:
                 print(f"[Catalog] Failed to load {CATALOG_STORAGE_FILE}: {e}")
-        # Initialize default sections
+
+        # 2. Check Supabase cloud database
+        remote_rows = sync_catalog_from_supabase()
+        if remote_rows:
+            # Merge remote rows with local (local preserves excluded_track_ids / custom_tracks)
+            local_map = {s.get("key"): s for s in (local_sections or [])}
+            merged = []
+            for r in remote_rows:
+                k = r.get("key")
+                loc = local_map.get(k, {})
+                loc.update(r)
+                merged.append(loc)
+            merged.sort(key=lambda x: x.get("position", 999))
+            try:
+                with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
+                    json.dump(merged, f, indent=2)
+            except Exception:
+                pass
+            return merged
+
+        if local_sections is not None:
+            return local_sections
+
+        # 3. Fallback to default sections
         default_sections = _generate_default_catalog_sections()
         try:
             with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
@@ -2216,33 +2343,54 @@ _CATALOG_ITEMS_CACHE = {}
 
 
 def get_section_items(section, force_refresh=False):
-    """Dynamically resolves items for a catalog section with in-memory caching."""
+    """Dynamically resolves items for a catalog section with in-memory caching and track exclusion."""
     key = section.get("key") or section.get("id") or section.get("slug")
     now = time.time()
+    excluded_ids = set(str(x) for x in (section.get("excluded_track_ids") or []))
+    custom_tracks = section.get("custom_tracks") or []
+
+    base_items = []
     if not force_refresh and key in _CATALOG_ITEMS_CACHE:
         ts, items = _CATALOG_ITEMS_CACHE[key]
         if now - ts < 1800:  # 30 minutes in-memory cache
-            return items
-    items, is_mock, status, title, art = resolve_catalog_items(
-        section.get("source_type"),
-        section.get("source_id"),
-        section.get("slug"),
-        section.get("language", "all")
-    )
-    _CATALOG_ITEMS_CACHE[key] = (now, items)
-    return items
+            base_items = items
+
+    if not base_items:
+        items, is_mock, status, title, art = resolve_catalog_items(
+            section.get("source_type"),
+            section.get("source_id"),
+            section.get("slug"),
+            section.get("language", "all")
+        )
+        base_items = items
+        _CATALOG_ITEMS_CACHE[key] = (now, items)
+
+    # Combine custom tracks + base items, then filter out excluded_track_ids
+    combined = []
+    seen_ids = set()
+    for t in (custom_tracks + base_items):
+        tid = str(t.get("id") or t.get("token") or "")
+        clean_tid = tid.replace("custom_api:track:", "")
+        if clean_tid in excluded_ids or tid in excluded_ids:
+            continue
+        if clean_tid and clean_tid in seen_ids:
+            continue
+        if clean_tid:
+            seen_ids.add(clean_tid)
+        combined.append(t)
+    return combined
 
 
 def save_catalog_sections(sections):
     with CATALOG_LOCK:
         try:
-            # Strip live items from disk representation to avoid bloated JSON snapshots
             disk_sections = []
             for s in sections:
                 clean_s = {k: v for k, v in s.items() if k != "items"}
                 disk_sections.append(clean_s)
             with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
                 json.dump(disk_sections, f, indent=2)
+            sync_catalog_to_supabase(disk_sections)
             return True
         except Exception as e:
             print(f"[Catalog] Failed to save {CATALOG_STORAGE_FILE}: {e}")
@@ -2254,7 +2402,7 @@ def find_catalog_section(key_or_id):
         return None
     sections = load_catalog_sections()
     for s in sections:
-        if s.get("key") == key_or_id or s.get("id") == key_or_id or s.get("source_id") == key_or_id:
+        if matches_section_key(s, key_or_id):
             return s
     return None
 
@@ -2294,6 +2442,8 @@ def api_catalog_sections():
         sec_copy = dict(s)
         sec_copy["items"] = get_section_items(s)
         sec_copy["item_count"] = len(sec_copy["items"])
+        sec_copy["excluded_track_ids"] = s.get("excluded_track_ids") or []
+        sec_copy["custom_tracks"] = s.get("custom_tracks") or []
         enriched.append(sec_copy)
 
     return ok({"sections": enriched, "total": len(enriched), "source": "admin_catalog"}, 0)
@@ -2304,7 +2454,12 @@ def api_catalog_section_detail(section_key):
     sec = find_catalog_section(section_key)
     if not sec:
         return not_found(f"Catalog section '{section_key}' not found")
-    return ok(sec, 0)
+    sec_copy = dict(sec)
+    sec_copy["items"] = get_section_items(sec)
+    sec_copy["item_count"] = len(sec_copy["items"])
+    sec_copy["excluded_track_ids"] = sec.get("excluded_track_ids") or []
+    sec_copy["custom_tracks"] = sec.get("custom_tracks") or []
+    return ok(sec_copy, 0)
 
 
 @app.route("/api/catalog/preview", methods=["POST"])
@@ -2335,6 +2490,31 @@ def api_catalog_preview():
         "items": items,
         "preview_items": items
     })
+
+
+@app.route("/api/catalog/resolve_track", methods=["POST"])
+def api_catalog_resolve_track():
+    body = request.get_json(silent=True) or {}
+    raw_url = (body.get("url") or body.get("source_url") or "").strip()
+    song_id = (body.get("song_id") or "").strip()
+
+    if raw_url:
+        parsed, err = parse_catalog_url(raw_url)
+        if err:
+            return jsonify({"valid": False, "error": err}), 400
+        if parsed.get("source_type") != "song":
+            return jsonify({"valid": False, "error": "URL must be a JioSaavn song link (/song/...)"}), 400
+        song_id = parsed.get("source_id")
+
+    if not song_id:
+        return jsonify({"valid": False, "error": "Provide a valid JioSaavn song URL or song ID"}), 400
+
+    items, is_mock, status, title, art = resolve_catalog_items("song", song_id, song_id)
+    if not items:
+        return jsonify({"valid": False, "error": f"Track could not be resolved from '{song_id}'"}), 404
+
+    track = items[0]
+    return jsonify({"valid": True, "track": track, "is_mock": is_mock})
 
 
 @app.route("/api/catalog/sections", methods=["POST"])
@@ -2385,6 +2565,9 @@ def api_catalog_create_section():
     campaign_start = int(c_start) if c_start is not None and str(c_start).isdigit() else None
     campaign_end = int(c_end) if c_end is not None and str(c_end).isdigit() else None
 
+    excluded_track_ids = list(body.get("excluded_track_ids") or []) if isinstance(body.get("excluded_track_ids"), list) else []
+    custom_tracks = list(body.get("custom_tracks") or []) if isinstance(body.get("custom_tracks"), list) else []
+
     items, is_mock, provider_status, detected_title, detected_artwork = resolve_catalog_items(
         parsed["source_type"], parsed["source_id"], parsed["slug"], language
     )
@@ -2410,6 +2593,8 @@ def api_catalog_create_section():
         "is_banner": is_banner,
         "campaign_start": campaign_start,
         "campaign_end": campaign_end,
+        "excluded_track_ids": excluded_track_ids,
+        "custom_tracks": custom_tracks,
         "provider_status": provider_status,
         "last_refresh": int(time.time()),
         "last_error": None,
@@ -2431,7 +2616,7 @@ def api_catalog_update_section(section_key):
         return jsonify({"error": "Admin privileges required to update catalog sections"}), 403
 
     sections = load_catalog_sections()
-    sec = next((s for s in sections if s.get("key") == section_key or s.get("id") == section_key), None)
+    sec = next((s for s in sections if matches_section_key(s, section_key)), None)
     if not sec:
         return not_found(f"Catalog section '{section_key}' not found")
 
@@ -2491,6 +2676,10 @@ def api_catalog_update_section(section_key):
     if "is_enabled" in body:
         val = body["is_enabled"]
         sec["is_enabled"] = val if isinstance(val, bool) else str(val).lower() in ("true", "1", "yes")
+    if "excluded_track_ids" in body:
+        sec["excluded_track_ids"] = list(body["excluded_track_ids"]) if isinstance(body["excluded_track_ids"], list) else []
+    if "custom_tracks" in body:
+        sec["custom_tracks"] = list(body["custom_tracks"]) if isinstance(body["custom_tracks"], list) else []
 
     sec["last_refresh"] = int(time.time())
     sections.sort(key=lambda x: x.get("position", 999))
@@ -2505,7 +2694,7 @@ def api_catalog_delete_section(section_key):
 
     sections = load_catalog_sections()
     initial_len = len(sections)
-    sections = [s for s in sections if s.get("key") != section_key and s.get("id") != section_key]
+    sections = [s for s in sections if not matches_section_key(s, section_key)]
     if len(sections) == initial_len:
         return not_found(f"Catalog section '{section_key}' not found")
 
@@ -2550,7 +2739,7 @@ def api_catalog_toggle_section(section_key):
         return jsonify({"error": "Admin privileges required to toggle catalog sections"}), 403
 
     sections = load_catalog_sections()
-    sec = next((s for s in sections if s.get("key") == section_key or s.get("id") == section_key), None)
+    sec = next((s for s in sections if matches_section_key(s, section_key)), None)
     if not sec:
         return not_found(f"Catalog section '{section_key}' not found")
 

@@ -46,6 +46,15 @@ class TestCatalogUrlParsing:
         assert p3["source_type"] == "top_artists"
         assert p3["source_id"] == "top-artists"
 
+    def test_song_url(self):
+        url = "https://www.jiosaavn.com/song/bhakti-geet/BxwzaSVoA3I"
+        parsed, err = parse_catalog_url(url)
+        assert err is None
+        assert parsed["source_type"] == "song"
+        assert parsed["source_id"] == "BxwzaSVoA3I"
+        assert parsed["slug"] == "bhakti-geet"
+        assert "Bhakti Geet" in parsed["default_title"]
+
     def test_invalid_hostname(self):
         parsed, err = parse_catalog_url("https://spotify.com/playlist/123")
         assert parsed is None
@@ -108,3 +117,26 @@ class TestCatalogEndpoints:
 
         # Clean up
         client.delete(f"/api/catalog/sections/{key}")
+
+    def test_section_key_tolerance(self, client):
+        # Even with hyphen vs underscore or sec_ prefix, section should be found
+        resp = client.get("/api/catalog/sections")
+        sections = resp.get_json()["sections"]
+        assert len(sections) > 0
+        first_sec = sections[0]
+        k = first_sec["key"]
+        hyphen_k = k.replace("_", "-")
+
+        # Test lookup with hyphen version
+        resp_h = client.get(f"/api/catalog/sections/{hyphen_k}")
+        assert resp_h.status_code == 200, f"Expected 200 for {hyphen_k}, got {resp_h.status_code}"
+
+    def test_resolve_track_endpoint(self, client):
+        resp = client.post("/api/catalog/resolve_track", json={
+            "url": "https://www.jiosaavn.com/song/bhakti-geet/BxwzaSVoA3I"
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["valid"] is True
+        assert "track" in data
+        assert "title" in data["track"]

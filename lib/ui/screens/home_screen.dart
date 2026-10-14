@@ -86,7 +86,6 @@ class _HomeScreenState extends State<HomeScreen> {
   static List<String> get _moods => <String>[..._languages, ..._moodFilters];
 
   late Future<List<Track>> _trendingFuture;
-  late Future<List<Track>> _newReleasesFuture;
   late Future<List<Track>> _spotlightFuture;
   late Future<List<CatalogSection>> _catalogSectionsFuture;
   bool _initialized = false;
@@ -129,8 +128,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final String? lang = _activeLang;
     setState(() {
       _trendingFuture = repo.trending(limit: 20, language: lang);
-      // newReleases is refreshed independently — does NOT fall back to trending
-      _newReleasesFuture = repo.newReleases(limit: 10, language: lang);
       _spotlightFuture = repo.trending(limit: 1, language: lang);
       _catalogSectionsFuture = repo.getCatalogSections(lang: lang);
     });
@@ -235,7 +232,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedMood = 'All';
       final String? lang = _activeLang;
       _trendingFuture = repo.trending(limit: 20, language: lang);
-      _newReleasesFuture = repo.newReleases(limit: 8, language: lang);
       _spotlightFuture = repo.trending(limit: 1, language: lang);
       _catalogSectionsFuture = repo.getCatalogSections(lang: lang);
       _loadInitialTracks();
@@ -248,7 +244,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedMood = mood;
       final String? lang = _activeLang;
       _trendingFuture = repo.trending(limit: 20, language: lang);
-      _newReleasesFuture = repo.newReleases(limit: 8, language: lang);
       _spotlightFuture = repo.trending(limit: 1, language: lang);
       _catalogSectionsFuture = repo.getCatalogSections(lang: lang);
     });
@@ -335,17 +330,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _buildRecentlyPlayedOrTrending(context, library, repo),
                   ),
 
-                  // Dynamic Admin-Managed Catalogue Sections (Includes Seasonal/Festival Banners)
+                  // Dynamic Admin-Managed Catalogue Sections (Top Charts, New Releases, Featured Artists)
                   SliverToBoxAdapter(
                     child: _buildAdminCatalogSections(context, repo),
                   ),
 
-                  // 4. Jump Back In / Fresh Releases Carousel
-                  SliverToBoxAdapter(
-                    child: _buildJumpBackInSection(context, repo),
-                  ),
-
-                  // 5. Featured Release Spotlight Banner
+                  // 4. Featured Release Spotlight Banner
                   SliverToBoxAdapter(
                     child: _buildFeaturedSpotlight(context),
                   ),
@@ -356,19 +346,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: _buildFollowedArtistsBar(context, library, repo),
                     ),
 
-                  // 6. Made For You Curated Algorithmic Mixes
-                  SliverToBoxAdapter(
-                    child: _buildMadeForYouSection(context, repo, library),
-                  ),
-
-                  // 7. Trending Now & Fresh Picks (Infinite scroll)
+                  // 5. Trending Now & Fresh Picks (Infinite scroll)
                   SliverToBoxAdapter(
                     child: _buildTrendingRankedSection(context, playback),
-                  ),
-
-                  // 8. Latest JioSaavn Releases Shelf
-                  SliverToBoxAdapter(
-                    child: _buildBottomJioSaavnReleases(context, repo),
                   ),
                 ],
 
@@ -1102,65 +1082,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildJumpBackInSection(BuildContext context, MusicRepository repo) {
-    return FutureBuilder<List<Track>>(
-      future: _newReleasesFuture,
-      builder: (BuildContext context, AsyncSnapshot<List<Track>> snap) {
-        final bool isLoading = snap.connectionState == ConnectionState.waiting;
-        final List<Track> tracks = snap.data ?? <Track>[];
-        if (!isLoading && tracks.isEmpty) {
-          return const SizedBox.shrink();
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            SectionHeader(
-              title: 'Fresh Releases',
-              subtitle: 'Latest tracks and singles hot off the press',
-              topPadding: AppSpacing.sm,
-              actionLabel: 'See all',
-              onAction: () async {
-                final List<Track> all = await repo.newReleases(limit: 20);
-                if (context.mounted) {
-                  Navigator.of(context).push(MaterialPageRoute<void>(
-                    builder: (_) => TrackListScreen(title: 'Fresh Releases', tracks: all),
-                  ));
-                }
-              },
-            ),
-            SizedBox(
-              height: 204,
-              child: isLoading
-                  ? ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                      itemCount: 4,
-                      separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
-                      itemBuilder: (_, __) => _buildTrackSkeletonCard(context),
-                    )
-                  : ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                      itemCount: tracks.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
-                      itemBuilder: (BuildContext ctx, int i) {
-                        final Track track = tracks[i];
-                        return MediaCard.forTrack(
-                          track: track,
-                          onTap: () => TrackActions.play(context, track, queue: tracks),
-                          onPlay: () => TrackActions.play(context, track, queue: tracks),
-                          width: 136,
-                        );
-                      },
-                    ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Widget _buildTopFestivalPosterHero(BuildContext context) {
     return FutureBuilder<List<CatalogSection>>(
       future: _catalogSectionsFuture,
@@ -1173,46 +1094,6 @@ class _HomeScreenState extends State<HomeScreen> {
         if (festival == null) return const SizedBox.shrink();
 
         return _buildFestivalHeroBanner(context, festival);
-      },
-    );
-  }
-
-  Widget _buildBottomJioSaavnReleases(BuildContext context, MusicRepository repo) {
-    return FutureBuilder<List<Track>>(
-      future: _newReleasesFuture,
-      builder: (BuildContext context, AsyncSnapshot<List<Track>> snapshot) {
-        final List<Track> tracks = snapshot.data ?? <Track>[];
-        if (tracks.isEmpty) return const SizedBox.shrink();
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            SectionHeader(
-              title: 'Fresh Releases from JioSaavn',
-              subtitle: 'Latest track drops from official catalogues',
-              topPadding: AppSpacing.md,
-              actionLabel: 'Play All (${tracks.length})',
-              onAction: () => TrackActions.play(context, tracks.first, queue: tracks),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              child: Column(
-                children: <Widget>[
-                  for (int i = 0; i < tracks.length; i++) ...<Widget>[
-                    TrackTile(
-                      index: i,
-                      track: tracks[i],
-                      dense: true,
-                      onTap: () => TrackActions.play(context, tracks[i], queue: tracks),
-                      onMenu: () => showTrackActionsSheet(context, tracks[i]),
-                    ),
-                    if (i < tracks.length - 1) const Divider(height: 1, indent: 64),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        );
       },
     );
   }
@@ -1300,9 +1181,13 @@ class _HomeScreenState extends State<HomeScreen> {
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(color: AppColors.primary, width: 0.8),
                           ),
-                          child: const Text(
-                            'FESTIVAL & SEASONAL SPECIAL',
-                            style: TextStyle(
+                          child: Text(
+                            (banner.subtitle != null && banner.subtitle!.isNotEmpty)
+                                ? banner.subtitle!.toUpperCase()
+                                : (banner.displayGroup.isNotEmpty
+                                    ? banner.displayGroup.toUpperCase()
+                                    : 'FEATURED SPOTLIGHT'),
+                            style: const TextStyle(
                               fontSize: 9.5,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.6,
@@ -1363,10 +1248,6 @@ class _HomeScreenState extends State<HomeScreen> {
           return const SizedBox.shrink();
         }
 
-        final List<CatalogSection> banners = sections
-            .where((CatalogSection s) => s.isBanner && s.isCampaignActive && s.isEnabled)
-            .toList();
-
         // Regular non-banner sections (Phase 4)
         final List<CatalogSection> regularSections = sections
             .where((CatalogSection s) => (!s.isBanner || !s.isCampaignActive) && s.isEnabled)
@@ -1423,11 +1304,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            // Festival / Seasonal Top Banners if enabled and active
-            for (final CatalogSection banner in banners)
-              _buildFestivalHeroBanner(context, banner),
-
-            // Regular / Dynamic Sections grouped by category (Phase 4)
+            // Dynamic Sections grouped by category (Phase 4)
             for (final MapEntry<String, List<CatalogSection>> entry in grouped.entries) ...<Widget>[
               Builder(
                 builder: (BuildContext ctx) {
@@ -1871,67 +1748,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               );
             },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMadeForYouSection(
-    BuildContext context,
-    MusicRepository repo,
-    LibraryController library,
-  ) {
-    if (library.followedArtists.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        const SectionHeader(
-          title: 'Made For You',
-          subtitle: 'Tuned specifically to your acoustic habits',
-        ),
-        SizedBox(
-          height: 236,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            children: <Widget>[
-              EchoMixCard(
-                title: '${library.followedArtists.first.name} & Mix',
-                subtitle: 'Auto-suggestion mix tailored to your artists.',
-                stats: '${library.followedArtists.length} followed',
-                icon: Icons.person_search_rounded,
-                gradient: const LinearGradient(
-                  colors: <Color>[Color(0xFF6366F1), Color(0xFF1E1B4B)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                onTap: () async {
-                  final List<Track> tracks = <Track>[];
-                  for (final Artist a in library.followedArtists.take(3)) {
-                    try {
-                      final List<Track> artistTracks = await repo.artistTopTracks(a);
-                      tracks.addAll(artistTracks.take(8));
-                    } catch (_) {}
-                  }
-                  if (tracks.isEmpty) {
-                    final List<Track> fallback = await repo.recommendations(limit: 25);
-                    tracks.addAll(fallback);
-                  }
-                  if (context.mounted) {
-                    Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => TrackListScreen(
-                        title: '${library.followedArtists.first.name} & Mix',
-                        tracks: tracks,
-                      ),
-                    ));
-                  }
-                },
-              ),
-            ],
           ),
         ),
       ],

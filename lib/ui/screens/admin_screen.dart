@@ -85,6 +85,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   String? _previewProviderStatus;
   bool _previewIsMock = false;
   List<Track> _previewItems = <Track>[];
+  final Set<String> _excludedTrackIds = <String>{};
+  final TextEditingController _addTrackUrlController = TextEditingController();
+  bool _isResolvingCustomTrack = false;
 
   // Radio Management State
   bool _isLoadingRadio = false;
@@ -702,6 +705,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           campaignStart: campStart,
           campaignEnd: campEnd,
           sourceUrl: url,
+          excludedTrackIds: _excludedTrackIds.toList(),
         );
       } else {
         await repo.createCatalogSection(
@@ -716,6 +720,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           isBanner: _catalogIsBanner,
           campaignStart: campStart,
           campaignEnd: campEnd,
+          excludedTrackIds: _excludedTrackIds.toList(),
         );
       }
 
@@ -747,6 +752,51 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     }
   }
 
+  Future<void> _addCustomTrack() async {
+    final String input = _addTrackUrlController.text.trim();
+    if (input.isEmpty) return;
+    setState(() => _isResolvingCustomTrack = true);
+    try {
+      final MusicRepository repo = context.read<MusicRepository>();
+      final Track? track = await repo.resolveTrack(input);
+      if (track != null) {
+        setState(() {
+          _previewItems.insert(0, track);
+          _excludedTrackIds.remove(track.id);
+          _addTrackUrlController.clear();
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Added track: "${track.title}"'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not resolve song from URL/ID'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error adding track: ${e.toString().replaceFirst("Exception: ", "")}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isResolvingCustomTrack = false);
+    }
+  }
+
   void _startEditSection(CatalogSection s) {
     setState(() {
       _editingSection = s;
@@ -769,7 +819,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       _detectedSourceId = s.sourceId;
       _previewProviderStatus = s.providerStatus;
       _previewIsMock = s.isMock;
-      _previewItems = s.items;
+      _previewItems = List<Track>.from(s.items);
+      _excludedTrackIds.clear();
+      _excludedTrackIds.addAll(s.excludedTrackIds);
       _previewError = null;
     });
   }
@@ -793,6 +845,8 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       _previewProviderStatus = null;
       _previewIsMock = false;
       _previewItems = <Track>[];
+      _excludedTrackIds.clear();
+      _addTrackUrlController.clear();
       _previewError = null;
     });
   }
@@ -1979,6 +2033,43 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 },
               ),
 
+              // Add Song via JioSaavn URL or ID (Direct Custom Track Integration)
+              const SizedBox(height: 16),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: TextField(
+                      controller: _addTrackUrlController,
+                      style: const TextStyle(fontSize: 13),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        labelText: 'Add Song to Section by JioSaavn URL or ID',
+                        hintText: 'https://www.jiosaavn.com/song/... or song token',
+                        hintStyle: TextStyle(fontSize: 11.5, color: context.textMuted),
+                        prefixIcon: const Icon(Icons.music_note_rounded, size: 18),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onSubmitted: (_) => _addCustomTrack(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                    onPressed: _isResolvingCustomTrack ? null : _addCustomTrack,
+                    icon: _isResolvingCustomTrack
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Add Track', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
+              ),
+
               // Resolved Preview Tracks List
               if (_previewItems.isNotEmpty) ...<Widget>[
                 const SizedBox(height: 16),
@@ -1986,7 +2077,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
                     Text(
-                      'Resolved Items Preview (${_previewItems.length} tracks):',
+                      'Resolved Items Preview (${_previewItems.length - _excludedTrackIds.length} active, ${_excludedTrackIds.length} excluded / ${_previewItems.length} total):',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
@@ -2012,7 +2103,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  height: 130,
+                  height: 140,
                   decoration: BoxDecoration(
                     color: isDark ? AppColors.surfaceContainerLowest : AppColors.lightElevatedSurface,
                     borderRadius: BorderRadius.circular(10),
@@ -2024,41 +2115,104 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (BuildContext ctx, int i) {
                       final Track track = _previewItems[i];
-                      return Container(
-                        width: 160,
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: isDark ? AppColors.surfaceContainerHigh : Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
+                      final bool isExcluded = _excludedTrackIds.contains(track.id);
+
+                      return Opacity(
+                        opacity: isExcluded ? 0.42 : 1.0,
+                        child: Container(
+                          width: 175,
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.surfaceContainerHigh : Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isExcluded
+                                  ? Colors.redAccent.withValues(alpha: 0.5)
+                                  : (isDark ? AppColors.borderSubtle : AppColors.lightBorder),
+                            ),
                           ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: <Widget>[
-                            Text(
-                              track.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              track.artistNames,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(color: context.textSecondary, fontSize: 10.5),
-                            ),
-                            const Spacer(),
-                            Text(
-                              track.duration.inSeconds > 0
-                                  ? '${track.duration.inMinutes}:${(track.duration.inSeconds % 60).toString().padLeft(2, "0")}'
-                                  : '--:--',
-                              style: TextStyle(color: context.textMuted, fontSize: 9.5),
-                            ),
-                          ],
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Expanded(
+                                    child: Text(
+                                      track.title,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 11.5,
+                                        decoration: isExcluded ? TextDecoration.lineThrough : null,
+                                        color: isExcluded ? context.textMuted : null,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    icon: Icon(
+                                      isExcluded
+                                          ? Icons.add_circle_outline_rounded
+                                          : Icons.remove_circle_outline_rounded,
+                                      color: isExcluded ? AppColors.success : Colors.redAccent,
+                                      size: 19,
+                                    ),
+                                    tooltip: isExcluded
+                                        ? 'Restore / Include song in section'
+                                        : 'Exclude song (will not be added)',
+                                    onPressed: () {
+                                      setState(() {
+                                        if (isExcluded) {
+                                          _excludedTrackIds.remove(track.id);
+                                        } else {
+                                          _excludedTrackIds.add(track.id);
+                                        }
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                track.artistNames,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: context.textSecondary, fontSize: 10),
+                              ),
+                              const Spacer(),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: <Widget>[
+                                  if (isExcluded)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                                      decoration: BoxDecoration(
+                                        color: Colors.redAccent.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: const Text(
+                                        'EXCLUDED',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.redAccent,
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    Text(
+                                      track.duration.inSeconds > 0
+                                          ? '${track.duration.inMinutes}:${(track.duration.inSeconds % 60).toString().padLeft(2, "0")}'
+                                          : '--:--',
+                                      style: TextStyle(color: context.textMuted, fontSize: 9.5),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     },

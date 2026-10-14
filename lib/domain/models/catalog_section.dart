@@ -27,6 +27,8 @@ class CatalogSection {
   final bool isMock;
   final int itemCount;
   final List<Track> items;
+  final List<String> excludedTrackIds;
+  final List<Track> customTracks;
 
   String get sectionKey => key;
 
@@ -65,6 +67,8 @@ class CatalogSection {
     required this.isMock,
     required this.itemCount,
     required this.items,
+    this.excludedTrackIds = const <String>[],
+    this.customTracks = const <Track>[],
   });
 
   factory CatalogSection.fromJson(Map<String, dynamic> json) {
@@ -160,6 +164,9 @@ class CatalogSection {
       isMock: json['is_mock'] == true,
       itemCount: (json['item_count'] as num?)?.toInt() ?? parsedItems.length,
       items: parsedItems,
+      excludedTrackIds: ((json['excluded_track_ids'] as List<dynamic>?) ?? <dynamic>[])
+          .map((dynamic e) => e.toString())
+          .toList(),
     );
   }
 
@@ -186,6 +193,7 @@ class CatalogSection {
       'last_error': lastError,
       'is_mock': isMock,
       'item_count': itemCount,
+      'excluded_track_ids': excludedTrackIds,
     };
   }
 
@@ -212,6 +220,8 @@ class CatalogSection {
     bool? isMock,
     int? itemCount,
     List<Track>? items,
+    List<String>? excludedTrackIds,
+    List<Track>? customTracks,
   }) {
     return CatalogSection(
       id: id ?? this.id,
@@ -236,6 +246,8 @@ class CatalogSection {
       isMock: isMock ?? this.isMock,
       itemCount: itemCount ?? this.itemCount,
       items: items ?? this.items,
+      excludedTrackIds: excludedTrackIds ?? this.excludedTrackIds,
+      customTracks: customTracks ?? this.customTracks,
     );
   }
 }
