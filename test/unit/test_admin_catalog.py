@@ -1,142 +1,215 @@
+import copy
+
 import pytest
-import json
-from server import app, parse_catalog_url, get_mock_catalog_items, load_catalog_sections
+import server
+
+
+@pytest.fixture
+def catalog_test_env(monkeypatch):
+    """In-memory catalogue storage: tests must never touch the connected Supabase project."""
+    rows = []
+    monkeypatch.setattr(server, "is_admin_request", lambda _request: True)
+    monkeypatch.setattr(server, "load_catalog_sections", lambda: sorted(
+        copy.deepcopy(rows), key=lambda section: section.get("position", 999)
+    ))
+
+    def save_sections(sections):
+        rows[:] = copy.deepcopy(sections)
+        return True
+
+    monkeypatch.setattr(server, "save_catalog_sections", save_sections)
+    monkeypatch.setattr(server, "delete_catalog_section_from_supabase", lambda *_args: True)
+    monkeypatch.setattr(
+        server,
+        "resolve_catalog_items",
+        lambda source_type, source_id, slug, language="all": (
+            [{
+                "id": str(source_id or "fixture-track"),
+                "title": str(slug or "Fixture track").replace("-", " ").title(),
+                "artist": "Fixture Artist",
+                "language": language if language != "all" else "hindi",
+                "is_mock": False,
+            }],
+            False,
+            "fixture",
+            str(slug or "Fixture title"),
+            None,
+        ),
+    )
+    monkeypatch.setattr(server, "get_section_items", lambda section, force_refresh=False, language=None: [
+        {
+            "id": str(section.get("source_id") or "track-1"),
+            "title": str(section.get("display_title") or "Test track"),
+            "artist": "Fixture Artist",
+            "language": language or section.get("language") or "hindi",
+            "is_mock": False,
+        }
+    ])
+    server._CATALOG_ITEMS_CACHE.clear()
+    server.app.config["TESTING"] = True
+    yield rows
+    server._CATALOG_ITEMS_CACHE.clear()
+
 
 @pytest.fixture
 def client():
-    app.config["TESTING"] = True
-    with app.test_client() as client:
-        yield client
+    server.app.config["TESTING"] = True
+    with server.app.test_client() as test_client:
+        yield test_client
+
 
 class TestCatalogUrlParsing:
     def test_artist_url(self):
-        url = "https://www.jiosaavn.com/artist/salman-khan-songs/uuAKJcbNOKg_"
-        parsed, err = parse_catalog_url(url)
-        assert err is None
+        parsed, error = server.parse_catalog_url(
+            "https://www.jiosaavn.com/artist/salman-khan-songs/uuAKJcbNOKg_"
+        )
+        assert error is None
         assert parsed["source_type"] == "artist"
         assert parsed["source_id"] == "uuAKJcbNOKg_"
         assert parsed["slug"] == "salman-khan-songs"
         assert parsed["default_title"] == "Salman Khan"
 
     def test_featured_playlist_url(self):
-        url = "https://www.jiosaavn.com/featured/hindi-india-superhits-top-50/zlJfJYVuyjpxWb5,FqsjKg__"
-        parsed, err = parse_catalog_url(url)
-        assert err is None
+        parsed, error = server.parse_catalog_url(
+            "https://www.jiosaavn.com/featured/hindi-india-superhits-top-50/zlJfJYVuyjpxWb5,FqsjKg__"
+        )
+        assert error is None
         assert parsed["source_type"] == "playlist"
         assert parsed["source_id"] == "zlJfJYVuyjpxWb5,FqsjKg__"
         assert parsed["slug"] == "hindi-india-superhits-top-50"
         assert parsed["default_title"] == "Hindi India Superhits Top 50"
 
     def test_collection_pages(self):
-        # new-releases
-        p1, e1 = parse_catalog_url("https://www.jiosaavn.com/new-releases")
-        assert e1 is None
-        assert p1["source_type"] == "new_releases"
-        assert p1["source_id"] == "new-releases"
+        releases, releases_error = server.parse_catalog_url("https://www.jiosaavn.com/new-releases")
+        charts, charts_error = server.parse_catalog_url("https://www.jiosaavn.com/charts")
+        assert releases_error is None and releases["source_type"] == "new_releases"
+        assert charts_error is None and charts["source_type"] == "charts"
 
-        # charts
-        p2, e2 = parse_catalog_url("https://www.jiosaavn.com/charts")
-        assert e2 is None
-        assert p2["source_type"] == "charts"
-        assert p2["source_id"] == "charts"
-
-        # top-artists
-        p3, e3 = parse_catalog_url("https://www.jiosaavn.com/top-artists")
-        assert e3 is None
-        assert p3["source_type"] == "top_artists"
-        assert p3["source_id"] == "top-artists"
-
-    def test_song_url(self):
-        url = "https://www.jiosaavn.com/song/bhakti-geet/BxwzaSVoA3I"
-        parsed, err = parse_catalog_url(url)
-        assert err is None
-        assert parsed["source_type"] == "song"
-        assert parsed["source_id"] == "BxwzaSVoA3I"
-        assert parsed["slug"] == "bhakti-geet"
-        assert "Bhakti Geet" in parsed["default_title"]
+    def test_top_artists_is_not_a_fake_special_endpoint(self):
+        parsed, error = server.parse_catalog_url("https://www.jiosaavn.com/top-artists")
+        assert parsed is None
+        assert "Unsupported path" in error
 
     def test_invalid_hostname(self):
-        parsed, err = parse_catalog_url("https://spotify.com/playlist/123")
+        parsed, error = server.parse_catalog_url("https://spotify.com/playlist/123")
         assert parsed is None
-        assert "Invalid hostname" in err
+        assert "Invalid hostname" in error
 
     def test_unsupported_path(self):
-        parsed, err = parse_catalog_url("https://www.jiosaavn.com/unsupported/random")
+        parsed, error = server.parse_catalog_url("https://www.jiosaavn.com/unsupported/random")
         assert parsed is None
-        assert "Unsupported path" in err
+        assert "Unsupported path" in error
 
-class TestCatalogMockProvider:
-    def test_mock_items_are_tagged(self):
-        items = get_mock_catalog_items("playlist", "test_id", "hindi-india-superhits-top-50")
-        assert len(items) > 0
-        for item in items:
-            assert item["is_mock"] is True
-            assert "[MOCK]" in item["title"]
 
-    def test_mock_artist_items(self):
-        items = get_mock_catalog_items("artist", "uuAKJcbNOKg_", "salman-khan-songs")
-        assert len(items) > 0
-        titles = [i["title"] for i in items]
-        assert any("O O Jane Jaana" in t for t in titles)
-        for item in items:
-            assert item["is_mock"] is True
+class TestNoStaticCatalogFallback:
+    def test_mock_catalog_is_always_empty(self):
+        assert server.get_mock_catalog_items("playlist", "test_id", "sample") == []
+        assert server.get_mock_catalog_items("artist", "test_id", "sample") == []
 
-class TestCatalogEndpoints:
-    def test_get_sections(self, client):
-        resp = client.get("/api/catalog/sections")
-        assert resp.status_code == 200
-        data = resp.get_json()
-        assert "sections" in data
-        assert len(data["sections"]) >= 5
+    def test_get_sections_does_not_seed_static_content(self, client, catalog_test_env):
+        response = client.get("/api/catalog/sections")
+        assert response.status_code == 200
+        payload = response.get_json()
+        assert payload["sections"] == []
+        assert payload["source"] == "admin_catalog"
 
-    def test_preview_endpoint(self, client):
-        resp = client.post("/api/catalog/preview", json={
+    def test_home_is_empty_when_admin_has_published_nothing(self, client, catalog_test_env):
+        response = client.get("/api/home?lang=hindi")
+        assert response.status_code == 200
+        payload = response.get_json()
+        assert payload["sections"] == []
+        assert payload["source"] == "supabase_catalog"
+
+
+class TestCatalogAdminMutations:
+    def test_preview_uses_real_resolver_contract_without_network(self, client, monkeypatch):
+        monkeypatch.setattr(
+            server,
+            "resolve_catalog_items",
+            lambda *_args, **_kwargs: (
+                [{"id": "fixture-playlist", "title": "Real fixture item", "language": "hindi", "is_mock": False}],
+                False,
+                "fixture",
+                "Hindi Fixture Playlist",
+                None,
+            ),
+        )
+        response = client.post("/api/catalog/preview", json={
             "url": "https://www.jiosaavn.com/featured/hindi-india-superhits-top-50/zlJfJYVuyjpxWb5,FqsjKg__"
         })
-        assert resp.status_code == 200
-        data = resp.get_json()
-        assert data["valid"] is True
-        assert data["source_type"] == "playlist"
-        assert isinstance(data["is_mock"], bool)
-        assert len(data["preview_items"]) > 0
+        assert response.status_code == 200
+        payload = response.get_json()
+        assert payload["valid"] is True
+        assert payload["source_type"] == "playlist"
+        assert payload["is_mock"] is False
+        assert payload["preview_items"][0]["id"] == "fixture-playlist"
 
-    def test_source_type_independent_of_display_group(self, client):
-        # A playlist can appear under Top Charts without being misclassified as a chart
-        resp = client.post("/api/catalog/sections", json={
+    def test_create_and_read_back_admin_section(self, client, catalog_test_env):
+        response = client.post("/api/catalog/sections", json={
             "source_url": "https://www.jiosaavn.com/featured/hindi-india-superhits-top-50/zlJfJYVuyjpxWb5,FqsjKg__",
-            "display_title": "Hindi Superhits in Charts",
+            "display_title": "Hindi Superhits",
             "display_group": "Top Charts",
-            "position": 99,
-            "is_enabled": True
+            "subtitle": "Admin-written subtitle",
+            "language": "hindi",
+            "position": 8,
+            "is_enabled": True,
         })
-        assert resp.status_code == 201
-        data = resp.get_json()
-        assert data["source_type"] == "playlist"
-        assert data["display_group"] == "Top Charts"
-        key = data["key"]
+        assert response.status_code == 201
+        saved = response.get_json()
+        assert saved["display_title"] == "Hindi Superhits"
+        assert saved["display_group"] == "Top Charts"
+        assert saved["language"] == "hindi"
+        assert len(catalog_test_env) == 1
 
-        # Clean up
-        client.delete(f"/api/catalog/sections/{key}")
+        read_back = client.get("/api/catalog/sections?lang=hindi").get_json()["sections"]
+        assert len(read_back) == 1
+        assert read_back[0]["key"] == saved["key"]
+        assert read_back[0]["subtitle"] == "Admin-written subtitle"
 
-    def test_section_key_tolerance(self, client):
-        # Even with hyphen vs underscore or sec_ prefix, section should be found
-        resp = client.get("/api/catalog/sections")
-        sections = resp.get_json()["sections"]
-        assert len(sections) > 0
-        first_sec = sections[0]
-        k = first_sec["key"]
-        hyphen_k = k.replace("_", "-")
-
-        # Test lookup with hyphen version
-        resp_h = client.get(f"/api/catalog/sections/{hyphen_k}")
-        assert resp_h.status_code == 200, f"Expected 200 for {hyphen_k}, got {resp_h.status_code}"
-
-    def test_resolve_track_endpoint(self, client):
-        resp = client.post("/api/catalog/resolve_track", json={
-            "url": "https://www.jiosaavn.com/song/bhakti-geet/BxwzaSVoA3I"
+    def test_failed_supabase_write_returns_service_unavailable(self, client, monkeypatch, catalog_test_env):
+        monkeypatch.setattr(server, "save_catalog_sections", lambda _sections: False)
+        response = client.post("/api/catalog/sections", json={
+            "source_url": "https://www.jiosaavn.com/featured/hindi-india-superhits-top-50/zlJfJYVuyjpxWb5,FqsjKg__",
+            "display_title": "Must Not Pretend Saved",
+            "display_group": "Test",
         })
-        assert resp.status_code == 200
-        data = resp.get_json()
-        assert data["valid"] is True
-        assert "track" in data
-        assert "title" in data["track"]
+        assert response.status_code == 503
+        assert "not saved to Supabase" in response.get_json()["error"]
+
+    def test_admin_gate_blocks_write(self, client, monkeypatch):
+        monkeypatch.setattr(server, "is_admin_request", lambda _request: False)
+        response = client.post("/api/catalog/sections", json={
+            "source_url": "https://www.jiosaavn.com/new-releases",
+        })
+        assert response.status_code == 403
+
+
+def test_selected_language_filters_mixed_provider_items(monkeypatch):
+    server._CATALOG_ITEMS_CACHE.clear()
+    monkeypatch.setattr(
+        server,
+        "resolve_catalog_items",
+        lambda *_args, **_kwargs: (
+            [
+                {"id": "h-1", "title": "Hindi track", "language": "hindi"},
+                {"id": "te-1", "title": "Telugu track", "language": "telugu"},
+                {"id": "unknown-1", "title": "Unclassified track"},
+            ],
+            False,
+            "fixture",
+            "Test",
+            None,
+        ),
+    )
+    section = {
+        "key": "language-filter-test",
+        "source_type": "playlist",
+        "source_id": "fixture",
+        "slug": "fixture",
+        "language": "all",
+        "custom_tracks": [],
+        "excluded_track_ids": [],
+    }
+    items = server.get_section_items(section, force_refresh=True, language="hindi")
+    assert [item["id"] for item in items] == ["h-1"]
+    server._CATALOG_ITEMS_CACHE.clear()

@@ -529,7 +529,8 @@ class TestImports(unittest.TestCase):
     def test_language_lists_populated(self):
         self.assertIn("telugu", SUPPORTED_LANGUAGES)
         self.assertIn("hindi", INDIAN_LANGUAGES)
-        self.assertGreater(len(DEFAULT_LANGUAGES), 3)
+        self.assertEqual(DEFAULT_LANGUAGES, ["hindi"])
+        self.assertGreater(len(SUPPORTED_LANGUAGES), 3)
 
 
 if __name__ == "__main__":

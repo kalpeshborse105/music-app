@@ -9,8 +9,9 @@ import '../../state/library_controller.dart';
 import '../services/track_actions.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
-import '../widgets/artwork.dart';
 import '../widgets/cards.dart';
+import '../widgets/glass_card.dart';
+import '../widgets/state_views.dart';
 import '../../domain/models/album.dart';
 import '../../domain/models/artist.dart';
 import 'album_screen.dart';
@@ -728,5 +729,147 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-
+  Widget _buildFestivalHeroBanner(BuildContext context, CatalogSection banner) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.md),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          Navigator.of(context).push(MaterialPageRoute<void>(
+            builder: (_) => TrackListScreen(
+              title: banner.displayTitle,
+              tracks: banner.items,
+            ),
+          ));
+        },
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: isDark
+                  ? <Color>[
+                      AppColors.primary.withValues(alpha: 0.35),
+                      const Color(0xFF1B1B26),
+                    ]
+                  : <Color>[
+                      AppColors.primary.withValues(alpha: 0.15),
+                      Colors.white,
+                    ],
+            ),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.4),
+              width: 1.2,
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.15),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: <Widget>[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: banner.effectiveArtworkUrl != null && banner.effectiveArtworkUrl!.isNotEmpty
+                    ? Image.network(
+                        banner.effectiveArtworkUrl!,
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 80,
+                          height: 80,
+                          color: AppColors.primary.withValues(alpha: 0.2),
+                          child: const Icon(Icons.celebration_rounded, color: AppColors.primaryLight, size: 36),
+                        ),
+                      )
+                    : Container(
+                        width: 80,
+                        height: 80,
+                        color: AppColors.primary.withValues(alpha: 0.2),
+                        child: const Icon(Icons.celebration_rounded, color: AppColors.primaryLight, size: 36),
+                      ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: AppColors.primary, width: 0.8),
+                          ),
+                          child: Text(
+                            (banner.subtitle != null && banner.subtitle!.isNotEmpty)
+                                ? banner.subtitle!.toUpperCase()
+                                : (banner.displayGroup.isNotEmpty
+                                    ? banner.displayGroup.toUpperCase()
+                                    : 'FEATURED SPOTLIGHT'),
+                            style: const TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.6,
+                              color: AppColors.primaryLight,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      banner.displayTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: context.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${banner.items.length} songs • ${banner.language.toUpperCase()} • Curated for you',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: context.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.tonal(
+                style: FilledButton.styleFrom(
+                  shape: const CircleBorder(),
+                  padding: const EdgeInsets.all(12),
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () {
+                  if (banner.items.isNotEmpty) {
+                    TrackActions.play(context, banner.items.first, queue: banner.items);
+                  }
+                },
+                child: const Icon(Icons.play_arrow_rounded, size: 24),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
+
