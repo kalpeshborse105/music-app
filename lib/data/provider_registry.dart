@@ -8,7 +8,6 @@ import '../domain/models/provider_status.dart';
 import '../domain/providers/archive_provider.dart';
 import '../domain/providers/audius_provider.dart';
 import '../domain/providers/custom_api_provider.dart';
-import '../domain/providers/demo_provider.dart';
 import '../domain/providers/jamendo_provider.dart';
 import '../domain/providers/licensed_provider_stub.dart';
 import '../domain/providers/listenfree_provider.dart';
@@ -28,7 +27,6 @@ class ProviderRegistry {
         _cache = cache,
         _settings = settings {
     _providers = <MusicProvider>[
-      DemoProvider(api: _api, cache: _cache),
       ArchiveProvider(api: _api, cache: _cache),
       JamendoProvider(api: _api, cache: _cache),
       AudiusProvider(api: _api, cache: _cache),

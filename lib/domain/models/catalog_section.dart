@@ -73,32 +73,17 @@ class CatalogSection {
 
   factory CatalogSection.fromJson(Map<String, dynamic> json) {
     final List<dynamic> rawItems = (json['items'] as List<dynamic>?) ?? <dynamic>[];
-    final List<Track> parsedItems = rawItems.map((dynamic item) {
-      if (item is! Map<String, dynamic>) {
-        return Track(
-          id: 'custom_api:track:unknown',
-          providerId: 'custom_api',
-          providerTrackId: 'unknown',
-          title: 'Unknown Track',
-          artists: const <Artist>[],
-          duration: Duration.zero,
-          explicit: false,
-          mediaType: MediaType.audio,
-          isStreamable: false,
-          isDownloadable: false,
-          hasLyrics: false,
-          qualityOptions: const <AudioQuality>[],
-          commercialUseAllowed: false,
-          backgroundPlaybackAllowed: true,
-          license: 'Mock',
-          attributionRequired: false,
-        );
-      }
+    final List<Track> parsedItems = rawItems
+        .whereType<Map<String, dynamic>>()
+        .where((Map<String, dynamic> item) =>
+            (item['id']?.toString().trim().isNotEmpty ?? false) &&
+            (item['title']?.toString().trim().isNotEmpty ?? false))
+        .map((Map<String, dynamic> item) {
       final String trackId = item['id'] as String? ?? '';
       final String title = item['title'] as String? ?? 'Untitled';
       final String artist = item['artist'] as String? ?? 'Unknown Artist';
       final String? artworkUrl = item['artwork_url'] as String?;
-      final int durationMs = (item['duration_ms'] as num?)?.toInt() ?? 210000;
+      final int durationMs = (item['duration_ms'] as num?)?.toInt() ?? 0;
       final bool isMock = item['is_mock'] == true;
 
       return Track(

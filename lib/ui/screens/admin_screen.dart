@@ -92,6 +92,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   // Radio Management State
   bool _isLoadingRadio = false;
   List<RadioStation> _adminRadioStations = <RadioStation>[];
+  String? _radioLoadError;
 
   // Library Categories Management State
   bool _isLoadingLibraryCats = false;
@@ -4112,7 +4113,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   // ==========================================
 
   Future<void> _loadRadioStations() async {
-    setState(() => _isLoadingRadio = true);
+    setState(() {
+      _isLoadingRadio = true;
+      _radioLoadError = null;
+    });
     try {
       final MusicRepository repo = context.read<MusicRepository>();
       final List<Map<String, dynamic>> raw = await repo.fetchRadioStations();
@@ -4125,7 +4129,8 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     } catch (e) {
       if (mounted) {
         setState(() {
-          _adminRadioStations = RadioStation.stations;
+          _adminRadioStations = <RadioStation>[];
+          _radioLoadError = 'Could not load stations from the database: $e';
           _isLoadingRadio = false;
         });
       }
@@ -4135,7 +4140,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   Future<void> _showAddEditRadioStationDialog({RadioStation? existing}) async {
     final TextEditingController nameCtrl = TextEditingController(text: existing?.name ?? '');
     final TextEditingController taglineCtrl = TextEditingController(text: existing?.tagline ?? '');
-    final TextEditingController freqCtrl = TextEditingController(text: existing?.frequency ?? '102.8 FM');
+    final TextEditingController freqCtrl = TextEditingController(text: existing?.frequency ?? '');
     final TextEditingController stateCtrl = TextEditingController(text: existing?.state ?? 'National');
     final TextEditingController streamCtrl = TextEditingController(text: existing?.streamUrl ?? '');
     final TextEditingController artCtrl = TextEditingController(text: existing?.artworkUrl ?? '');
@@ -4160,7 +4165,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     const SizedBox(height: 10),
                     TextField(
                       controller: freqCtrl,
-                      decoration: const InputDecoration(labelText: 'Frequency / Dial *', hintText: 'e.g. 102.8 FM'),
+                      decoration: const InputDecoration(labelText: 'Verified frequency (optional)', hintText: 'Optional; add only a verified broadcast frequency'),
                     ),
                     const SizedBox(height: 10),
                     TextField(
@@ -4228,9 +4233,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         'frequency': freqCtrl.text.trim(),
         'state': stateCtrl.text.trim(),
         'stream_url': streamCtrl.text.trim(),
-        'artwork_url': artCtrl.text.trim().isNotEmpty
-            ? artCtrl.text.trim()
-            : 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80',
+        'artwork_url': artCtrl.text.trim(),
         'category': catCtrl.text.trim(),
         'is_live': isLive,
       };
@@ -4320,7 +4323,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Manage Akashvani and live Indian FM stations (${_adminRadioStations.length} active)',
+                  'Manage verified radio stream records (${_adminRadioStations.length} configured)',
                   style: TextStyle(fontSize: 12.5, color: context.textSecondary),
                 ),
               ],
@@ -4351,6 +4354,11 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           const Padding(
             padding: EdgeInsets.all(40),
             child: Center(child: CircularProgressIndicator()),
+          )
+        else if (_radioLoadError != null)
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Text(_radioLoadError!, style: const TextStyle(color: AppColors.error)),
           )
         else if (_adminRadioStations.isEmpty)
           const Padding(

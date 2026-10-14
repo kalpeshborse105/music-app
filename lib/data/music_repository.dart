@@ -619,7 +619,9 @@ class MusicRepository {
     String? group,
   }) async {
     final CustomApiProvider? provider = _customApiProvider;
-    if (provider == null) return <CatalogSection>[];
+    if (provider == null) {
+      throw const ProviderException('custom_api', message: 'Catalogue API provider unavailable.');
+    }
     final List<Map<String, dynamic>> raw = await provider.getCatalogSections(
       includeDisabled: includeDisabled,
       lang: lang,
@@ -807,7 +809,9 @@ class MusicRepository {
   // ---------------------------------------------------------------------------
   Future<List<Map<String, dynamic>>> fetchRadioStations() async {
     final CustomApiProvider? provider = _customApiProvider;
-    if (provider == null) return <Map<String, dynamic>>[];
+    if (provider == null) {
+      throw const ProviderException('custom_api', message: 'Radio API provider unavailable.');
+    }
     return provider.fetchRadioStations();
   }
 
