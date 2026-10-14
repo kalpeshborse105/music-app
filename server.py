@@ -287,7 +287,6 @@ MOOD_QUERIES = {
 # Editorial homepage rows and time-of-day playlists are admin-configured now.
 SESSIONS = []
 
-RADIO_STATIONS = []
 
 
 def parse_languages(raw):
@@ -1673,7 +1672,7 @@ def api_playlist(playlist_id):
             "subtitle": cat_sec.get("display_group"),
             "tracks": cat_sec.get("items", []),
             "total": len(cat_sec.get("items", [])),
-            "is_mock": cat_sec.get("is_mock", True)
+            "is_mock": cat_sec.get("is_mock", False)
         }, 0)
 
     limit = arg_int("limit", 50, 1, 100, "n")
@@ -1894,7 +1893,7 @@ def resolve_catalog_items(source_type, source_id, slug, language="all"):
     """
     Fetches live items from JioSaavn in real-time.
     Returns (items, is_mock, provider_status, detected_title, detected_artwork).
-    Falls back gracefully to clean tracks if network is unavailable.
+    Returns an empty result on provider failure; it never invents catalogue records.
     """
     langs = [language] if (language and language != "all") else ["hindi", "punjabi", "marathi", "bhojpuri", "gujarati"]
     detected_artwork = None
@@ -2715,7 +2714,11 @@ def api_radio_stations():
         if not station_id:
             station_id = re.sub(r"[^a-z0-9_]+", "_", name.lower()).strip("_")
         
-        stations = load_radio_stations()
+        try:
+            stations = load_radio_stations()
+        except Exception as exc:
+            print(f"[Radio] Catalogue read failed: {exc}")
+            return jsonify({"error": "Radio station database is unavailable."}), 503
         if any(s.get("id") == station_id for s in stations):
             station_id = f"{station_id}_{int(time.time())}"
 
@@ -2736,7 +2739,11 @@ def api_radio_stations():
             return jsonify({"error": "Unable to save radio station to Supabase. Check radio_stations table and service-role configuration."}), 503
         return jsonify(new_station), 201
 
-    stations = load_radio_stations()
+    try:
+        stations = load_radio_stations()
+    except Exception as exc:
+        print(f"[Radio] Catalogue read failed: {exc}")
+        return jsonify({"error": "Radio station database is unavailable."}), 503
     return ok({"stations": stations, "count": len(stations)}, 60)
 
 
@@ -2745,7 +2752,11 @@ def api_radio_station_detail(station_id):
     if not is_admin_request(request):
         return jsonify({"error": "Admin privileges required"}), 403
 
-    stations = load_radio_stations()
+    try:
+        stations = load_radio_stations()
+    except Exception as exc:
+        print(f"[Radio] Catalogue read failed: {exc}")
+        return jsonify({"error": "Radio station database is unavailable."}), 503
     idx = next((i for i, s in enumerate(stations) if s.get("id") == station_id), None)
     if idx is None:
         return not_found(f"Station '{station_id}' not found")
