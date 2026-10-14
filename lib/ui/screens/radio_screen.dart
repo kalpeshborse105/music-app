@@ -34,8 +34,7 @@ class _RadioScreenState extends State<RadioScreen> {
         .map(RadioStation.fromJson)
         .where((RadioStation station) =>
             station.isLive && station.streamUrl.trim().isNotEmpty)
-        .toList()
-      ..sort((RadioStation a, RadioStation b) => a.id.compareTo(b.id));
+        .toList();
   }
 
   void _refresh() {
