@@ -14,8 +14,6 @@ Live JioSaavn catalog gateway with:
 Runs on Render/Heroku (gunicorn server:app) and Vercel (zero-config Flask).
 """
 
-import requests
-import requests_oauthlib
 import os
 import re
 import sys
@@ -2258,12 +2256,18 @@ def matches_section_key(section, target_key):
 def sync_catalog_from_supabase():
     try:
         url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections?select=*&order=position.asc"
-        headers = {"apikey": SUPABASE_ANON_KEY, "Authorization": f"Bearer {SUPABASE_ANON_KEY}"}
-        r = requests.get(url, headers=headers, timeout=4)
-        if r.status_code == 200:
-            rows = r.json()
-            if isinstance(rows, list) and len(rows) > 0:
-                return rows
+        headers = {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+            "User-Agent": "MusicApp/1.0"
+        }
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            if resp.status == 200:
+                body = resp.read().decode("utf-8")
+                rows = json.loads(body)
+                if isinstance(rows, list) and len(rows) > 0:
+                    return rows
     except Exception as e:
         print(f"[Catalog Supabase Sync] error: {e}")
     return None
@@ -2276,7 +2280,8 @@ def sync_catalog_to_supabase(sections):
             "apikey": SUPABASE_ANON_KEY,
             "Authorization": f"Bearer {auth_key}",
             "Content-Type": "application/json",
-            "Prefer": "resolution=merge-duplicates"
+            "Prefer": "resolution=merge-duplicates",
+            "User-Agent": "MusicApp/1.0"
         }
         url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections"
         allowed_cols = {
@@ -2289,7 +2294,10 @@ def sync_catalog_to_supabase(sections):
             row = {k: v for k, v in s.items() if k in allowed_cols}
             payload.append(row)
         if payload:
-            requests.post(url, headers=headers, json=payload, timeout=4)
+            data = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                pass
     except Exception as e:
         print(f"[Catalog Supabase Upsert] error: {e}")
 
