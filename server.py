@@ -1697,7 +1697,7 @@ def api_artist(artist_id):
             "name": cat_sec.get("display_title"),
             "top_songs": cat_sec.get("items", []),
             "albums": [],
-            "is_mock": cat_sec.get("is_mock", True)
+            "is_mock": cat_sec.get("is_mock", False)
         }, 0)
     n_song = arg_int("songs", 30, 1, 50)
     n_album = arg_int("albums", 20, 0, 50)
@@ -2251,7 +2251,11 @@ def api_catalog_sections():
     lang_filter = request.args.get("lang")
     now = int(time.time())
 
-    sections = load_catalog_sections()
+    try:
+        sections = load_catalog_sections()
+    except Exception as exc:
+        print(f"[Catalog] Catalogue read failed: {exc}")
+        return jsonify({"error": "Catalogue database is unavailable."}), 503
     if not include_disabled:
         active_sections = []
         for s in sections:
@@ -2441,7 +2445,6 @@ def api_catalog_create_section():
         "items": items
     }
 
-    _CATALOG_ITEMS_CACHE[key] = (time.time(), items)
     sections.append(new_section)
     sections.sort(key=lambda x: x.get("position", 999))
     if not save_catalog_sections(sections):
@@ -2488,7 +2491,6 @@ def api_catalog_update_section(section_key):
         sec["provider_status"] = provider_status
         if detected_artwork and not body.get("custom_artwork_url"):
             sec["custom_artwork_url"] = detected_artwork
-        _CATALOG_ITEMS_CACHE[sec.get("key", section_key)] = (time.time(), items)
 
     if "display_title" in body:
         sec["display_title"] = str(body["display_title"]).strip()
