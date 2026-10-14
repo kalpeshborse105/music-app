@@ -598,7 +598,6 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         final String? defaultTitle = (preview['default_title'] ?? preview['detected_title']) as String?;
         final String detectedType = (preview['source_type'] as String?) ?? _inferSourceType(url);
         final String? detectedArt = (preview['custom_artwork_url'] ?? preview['detected_artwork']) as String?;
-        final bool isMock = false;
 
         setState(() {
           _detectedSourceType = detectedType;
@@ -640,9 +639,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       if (mounted) {
         setState(() {
           _isPreviewingCatalog = false;
+          _previewProviderStatus = 'unavailable';
           _previewError = 'Preview failed: ${e.toString().replaceFirst("Exception: ", "")}. Nothing was saved. Correct the URL or retry the preview.';
           _detectedSourceType ??= _inferSourceType(url);
-          _previewIsMock = false;
           _previewItems = <Track>[];
         });
       }
@@ -676,9 +675,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
   Future<void> _saveCatalogSection() async {
     final String url = _catalogUrlController.text.trim();
-    if (_previewError != null || _previewProviderStatus == null) {
+    if (_previewError != null || _previewProviderStatus == null || _previewProviderStatus!.toLowerCase() != 'ok' || _previewItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Preview and validate the source URL before saving.'), backgroundColor: AppColors.error),
+        const SnackBar(content: Text('A successful preview with real catalogue items is required before saving.'), backgroundColor: AppColors.error),
       );
       return;
     }
@@ -838,7 +837,6 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       _detectedSourceType = s.sourceType;
       _detectedSourceId = s.sourceId;
       _previewProviderStatus = s.providerStatus;
-      _previewIsMock = s.isMock;
       _previewItems = List<Track>.from(s.items);
       _excludedTrackIds.clear();
       _excludedTrackIds.addAll(s.excludedTrackIds);
@@ -863,7 +861,6 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       _detectedSourceType = null;
       _detectedSourceId = null;
       _previewProviderStatus = null;
-      _previewIsMock = false;
       _previewItems = <Track>[];
       _excludedTrackIds.clear();
       _addTrackUrlController.clear();
@@ -1095,15 +1092,15 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: (section.isMock ? AppColors.secondary : AppColors.success).withValues(alpha: 0.15),
+                        color: (section.providerStatus.toLowerCase() == 'ok' ? AppColors.success : AppColors.error).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        section.isMock ? 'MOCK' : 'LIVE',
+                        section.providerStatus.toUpperCase(),
                         style: TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
-                          color: section.isMock ? AppColors.secondary : AppColors.success,
+                          color: section.providerStatus.toLowerCase() == 'ok' ? AppColors.success : AppColors.error,
                         ),
                       ),
                     ),
@@ -1347,15 +1344,15 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: (section.isMock ? AppColors.secondary : AppColors.success).withValues(alpha: 0.15),
+                            color: (section.providerStatus.toLowerCase() == 'ok' ? AppColors.success : AppColors.error).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            section.isMock ? 'MOCK' : 'LIVE',
+                            section.providerStatus.toUpperCase(),
                             style: TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.w800,
-                              color: section.isMock ? AppColors.secondary : AppColors.success,
+                              color: section.providerStatus.toLowerCase() == 'ok' ? AppColors.success : AppColors.error,
                             ),
                           ),
                         ),
@@ -1714,15 +1711,15 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: (_previewIsMock ? AppColors.secondary : AppColors.success).withValues(alpha: 0.15),
+                          color: (_previewProviderStatus?.toLowerCase() == 'ok' ? AppColors.success : AppColors.error).withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          _previewProviderStatus ?? (_previewIsMock ? 'OK [MOCK]' : 'OK [LIVE]'),
+                          _previewProviderStatus ?? 'NOT CHECKED',
                           style: TextStyle(
                             fontSize: 10.5,
                             fontWeight: FontWeight.w700,
-                            color: _previewIsMock ? AppColors.secondary : AppColors.success,
+                            color: _previewProviderStatus?.toLowerCase() == 'ok' ? AppColors.success : AppColors.error,
                           ),
                         ),
                       ),
@@ -2144,15 +2141,15 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: (_previewIsMock ? AppColors.secondary : AppColors.success).withValues(alpha: 0.15),
+                        color: (_previewProviderStatus?.toLowerCase() == 'ok' ? AppColors.success : AppColors.error).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        _previewIsMock ? '[MOCK DATA]' : '[LIVE DATA]',
+                        _previewProviderStatus?.toUpperCase() ?? '[NOT VERIFIED]',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
-                          color: _previewIsMock ? AppColors.secondary : AppColors.success,
+                          color: _previewProviderStatus?.toLowerCase() == 'ok' ? AppColors.success : AppColors.error,
                         ),
                       ),
                     ),
