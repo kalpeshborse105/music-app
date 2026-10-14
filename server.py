@@ -305,51 +305,7 @@ SESSIONS = [
      "moods": ["lofi", "sad"]},
 ]
 
-RADIO_STATIONS = [
-    {"id": "air_vividh_bharati", "name": "AIR Vividh Bharati", "category": "Golden Era / Retro Classics",
-     "stream_url": "https://air.pc.cdn.bitgravity.com/air/live/pbaudio001/playlist.m3u8",
-     "description": "Immortal Bollywood classics & golden era memories from Akashvani Mumbai.",
-     "bitrate": "192 kbps HD", "is_live": True},
-    {"id": "air_marathi_asmita", "name": "Akashvani Marathi Samvad", "category": "Akashvani Maharashtra / News & Culture",
-     "stream_url": "https://air.pc.cdn.bitgravity.com/air/live/pbaudio024/playlist.m3u8",
-     "description": "Prasar Bharati Marathi broadcasts, Natyasangeet, Bhavgeete & state news.",
-     "bitrate": "128 kbps", "is_live": True},
-    {"id": "air_pune", "name": "Akashvani Pune", "category": "Akashvani Maharashtra / Western Region",
-     "stream_url": "https://air.pc.cdn.bitgravity.com/air/live/pbaudio025/playlist.m3u8",
-     "description": "Akashvani Pune live Marathi programming, classical recitals & cultural talks.",
-     "bitrate": "128 kbps", "is_live": True},
-    {"id": "air_nagpur", "name": "Akashvani Nagpur", "category": "Akashvani Maharashtra / Vidarbha",
-     "stream_url": "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio026/hlspbaudio02664kbps.m3u8",
-     "description": "Akashvani Nagpur Marathi and regional folk, news & devotional programming.",
-     "bitrate": "64 kbps", "is_live": True},
-    {"id": "air_fm_rainbow_mumbai", "name": "AIR FM Rainbow Mumbai", "category": "Mumbai Retro & Contemporary",
-     "stream_url": "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio002/hlspbaudio00264kbps.m3u8",
-     "description": "AIR FM Rainbow Mumbai 107.1 FM live melodies and city youth programming.",
-     "bitrate": "64 kbps", "is_live": True},
-    {"id": "air_fm_gold", "name": "AIR FM Gold Delhi", "category": "Retro Melodies & News",
-     "stream_url": "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio005/hlspbaudio00564kbps.m3u8",
-     "description": "National broadcast of timeless retro songs and midday melodies.",
-     "bitrate": "192 kbps HD", "is_live": True},
-    {"id": "hindi_gold_retro", "name": "Hindi Gold Classics", "category": "Evergreen Retro MP3",
-     "stream_url": "https://azuracast.vibesounds.in:8010/radio.mp3",
-     "description": "Non-stop Kishore Kumar, Lata Mangeshkar, and R.D. Burman gems.",
-     "bitrate": "128 kbps", "is_live": True},
-    {"id": "lofi_chill_live", "name": "Lo-Fi Chillhop Radio", "category": "Lo-Fi / Study & Focus",
-     "stream_url": "https://streams.ilovemusic.de/iloveradio17.mp3",
-     "description": "Peaceful lo-fi beats and chillhop 24/7.", "bitrate": "192 kbps HD", "is_live": True},
-    {"id": "top_charts_live", "name": "Today Top Chartbusters", "category": "Trending Chart Hits",
-     "stream_url": "https://streams.ilovemusic.de/iloveradio1.mp3",
-     "description": "Non-stop trending chart hits and party beats.", "bitrate": "192 kbps HD", "is_live": True},
-    {"id": "bhakti_sagar_live", "name": "Bhakti Sagar Divine", "category": "Devotional / Mantras",
-     "stream_url": "http://millenniumhits.out.airtime.pro:8000/millenniumhits_a",
-     "description": "Divine morning Bhajans, sacred mantras, and Aarti.", "bitrate": "128 kbps", "is_live": True},
-    {"id": "classical_symphonies", "name": "Classical Symphonies", "category": "Classical & Instrumental",
-     "stream_url": "https://stream.srg-ssr.ch/m/rsc_de/mp3_128",
-     "description": "Timeless symphonies from Mozart, Beethoven, Chopin and Bach.", "bitrate": "128 kbps", "is_live": True},
-    {"id": "indie_groove_live", "name": "SomaFM Groove Salad", "category": "Indie / Acoustic Groove",
-     "stream_url": "https://ice2.somafm.com/groovesalad-128-mp3",
-     "description": "Chilled ambient beats, grooves and indie pop.", "bitrate": "128 kbps", "is_live": True},
-]
+RADIO_STATIONS = []
 
 
 def parse_languages(raw):
@@ -1831,7 +1787,6 @@ def api_related():
 # ─── Local-First Admin Catalogue Management ────────────────────────────────────
 DATA_DIR = os.path.join(BASE_DIR, "data")
 os.makedirs(DATA_DIR, exist_ok=True)
-CATALOG_STORAGE_FILE = os.path.join(DATA_DIR, "catalog_sections.json")
 CATALOG_LOCK = threading.Lock()
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
@@ -1840,45 +1795,48 @@ SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
 
 def is_admin_request(req):
-    """Enforces admin authorization for catalog mutating endpoints and admin data views."""
+    """Allow only explicit admin credentials or verified server-side admin claims."""
     if app.config.get("TESTING"):
         return True
 
     auth_header = req.headers.get("Authorization", "")
     admin_key = req.headers.get("X-Admin-Key", "") or req.headers.get("x-admin-key", "")
     server_admin_key = os.environ.get("ADMIN_API_KEY", "")
-
-    if server_admin_key and admin_key == server_admin_key:
+    if server_admin_key and admin_key and admin_key == server_admin_key:
         return True
 
+    allow_dev_admin = (
+        os.environ.get("FLASK_ENV", "").lower() == "development"
+        and os.environ.get("ALLOW_DEV_ADMIN", "false").lower() in ("1", "true", "yes")
+    )
     if auth_header.startswith("Bearer "):
         token = auth_header.split(" ", 1)[1].strip()
-        # In development or testing with client bearer token, allow local inspection
-        if os.environ.get("FLASK_ENV") == "development" or os.environ.get("ALLOW_DEV_ADMIN", "true").lower() in ("1", "true"):
+        if allow_dev_admin and token:
             return True
         try:
+            if not SUPABASE_URL or not SUPABASE_ANON_KEY or not token:
+                return False
             req_url = f"{SUPABASE_URL.rstrip('/')}/auth/v1/user"
             req_obj = urllib.request.Request(
                 req_url,
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "apikey": SUPABASE_ANON_KEY,
-                }
+                headers={"Authorization": f"Bearer {token}", "apikey": SUPABASE_ANON_KEY}
             )
             with urllib.request.urlopen(req_obj, timeout=5) as resp:
                 if resp.status == 200:
                     user_data = json.loads(resp.read().decode("utf-8"))
-                    app_meta = user_data.get("app_metadata", {})
-                    user_meta = user_data.get("user_metadata", {})
-                    if app_meta.get("role") == "admin" or user_meta.get("is_admin") is True or user_data.get("email") in ("admin@kalpkrut.com", "admin@beats.com"):
-                        return True
+                    app_meta = user_data.get("app_metadata") or {}
+                    email = str(user_data.get("email") or "").strip().lower()
+                    admin_emails = {
+                        item.strip().lower()
+                        for item in os.environ.get("ADMIN_EMAILS", "").split(",")
+                        if item.strip()
+                    }
+                    return app_meta.get("role") == "admin" or email in admin_emails
         except Exception as e:
             print(f"[Admin Auth] Supabase auth check error: {e}")
 
-    # Fallback for local loopback in development mode
-    if req.remote_addr in ("127.0.0.1", "::1", "localhost") and (os.environ.get("FLASK_ENV") == "development" or os.environ.get("ALLOW_DEV_ADMIN", "true").lower() in ("1", "true")):
+    if req.remote_addr in ("127.0.0.1", "::1", "localhost") and allow_dev_admin:
         return True
-
     return False
 
 
@@ -1972,141 +1930,7 @@ def parse_catalog_url(raw_url: str):
 
 
 def get_mock_catalog_items(source_type, source_id, slug, language="all"):
-    """
-    Deterministic mock data for local catalogue development and testing.
-    Never calls unauthorized external endpoints.
-    Every record is visibly identified with '[MOCK]' and is_mock: True.
-    """
-    clean_name = slug.replace("-songs", "").replace("-", " ").title()
-    art_placeholder = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500"
-
-    if source_type == "artist":
-        titles = [
-            ("O O Jane Jaana", "Pyaar Kiya To Darna Kya", "Salman Khan, Kamaal Khan"),
-            ("Tere Naam", "Tere Naam", "Salman Khan, Udit Narayan"),
-            ("Hangover", "Kick", "Salman Khan, Shreya Ghoshal"),
-            ("Character Dheela", "Ready", "Salman Khan, Neeraj Shridhar"),
-            ("Jumme Ki Raat", "Kick", "Salman Khan, Mika Singh")
-        ] if "salman" in slug.lower() else [
-            (f"{clean_name} Signature 1", f"{clean_name} Hits", clean_name),
-            (f"{clean_name} Signature 2", f"{clean_name} Hits", clean_name),
-            (f"{clean_name} Signature 3", f"{clean_name} Classics", clean_name),
-            (f"{clean_name} Signature 4", f"{clean_name} Classics", clean_name),
-            (f"{clean_name} Signature 5", f"{clean_name} Live", clean_name),
-        ]
-        items = []
-        for i, (t, alb, art) in enumerate(titles, 1):
-            items.append({
-                "id": f"mock_art_{source_id}_{i}",
-                "title": f"[MOCK] {t}",
-                "artist": art,
-                "album": alb,
-                "duration_ms": 210000 + (i * 12000),
-                "artwork_url": art_placeholder,
-                "language": language if language != "all" else "hindi",
-                "year": "2026",
-                "is_mock": True
-            })
-        return items
-
-    elif source_type in ("playlist", "album"):
-        titles = [
-            ("Kesariya", "Brahmastra", "Arijit Singh, Pritam"),
-            ("Apna Bana Le", "Bhediya", "Arijit Singh, Sachin-Jigar"),
-            ("Tere Hawaale", "Laal Singh Chaddha", "Arijit Singh, Shilpa Rao"),
-            ("Chaleya", "Jawan", "Arijit Singh, Shilpa Rao, Anirudh"),
-            ("Heeriye", "Heeriye Single", "Jasleen Royal, Arijit Singh")
-        ]
-        items = []
-        for i, (t, alb, art) in enumerate(titles, 1):
-            items.append({
-                "id": f"mock_pl_{source_id[:8]}_{i}",
-                "title": f"[MOCK] {t}",
-                "artist": art,
-                "album": alb,
-                "duration_ms": 220000 + (i * 15000),
-                "artwork_url": art_placeholder,
-                "language": language if language != "all" else "hindi",
-                "year": "2026",
-                "is_mock": True
-            })
-        return items
-
-    elif source_type == "new_releases":
-        titles = [
-            ("Tujh Mein Basi Meri Jaan", "Prahaar", "Amitabh Bhattacharya"),
-            ("Chitta Kukkad", "Chitta Kukkad", "Simran Bhardwaj"),
-            ("One Name", "Jailer 2", "Anirudh Ravichander"),
-            ("Rola Hogya", "Rola Hogya", "Renuka Panwar"),
-            ("Shaky", "Shaky Single", "Sanju Rathod")
-        ]
-        items = []
-        for i, (t, alb, art) in enumerate(titles, 1):
-            items.append({
-                "id": f"mock_nr_{i}",
-                "title": f"[MOCK] {t}",
-                "artist": art,
-                "album": alb,
-                "duration_ms": 195000 + (i * 8000),
-                "artwork_url": art_placeholder,
-                "language": language if language != "all" else "all",
-                "year": "2026",
-                "is_mock": True
-            })
-        return items
-
-    elif source_type == "charts":
-        titles = [
-            ("India Top 50 Chart", "Official Weekly Chart", "Top 50 Songs in India"),
-            ("Viral 50 India", "Trending Social Chart", "Most Shared Songs"),
-            ("Bollywood Hot 20", "Bollywood Charts", "Top Hindi Film Songs"),
-            ("Punjabi 10", "Regional Charts", "Top Punjabi Hits")
-        ]
-        items = []
-        for i, (t, alb, art) in enumerate(titles, 1):
-            items.append({
-                "id": f"mock_chart_{i}",
-                "title": f"[MOCK] {t}",
-                "artist": art,
-                "album": alb,
-                "duration_ms": 240000,
-                "artwork_url": art_placeholder,
-                "language": "all",
-                "year": "2026",
-                "is_mock": True
-            })
-        return items
-
-    elif source_type == "top_artists":
-        names = ["Arijit Singh", "Shreya Ghoshal", "Pritam", "Anirudh Ravichander", "A.R. Rahman"]
-        items = []
-        for i, name in enumerate(names, 1):
-            items.append({
-                "id": f"mock_artist_star_{i}",
-                "title": f"[MOCK] {name} Radio",
-                "artist": name,
-                "album": f"Best of {name}",
-                "duration_ms": 230000,
-                "artwork_url": art_placeholder,
-                "language": "all",
-                "year": "2026",
-                "is_mock": True
-            })
-        return items
-
-    elif source_type == "song":
-        return [{
-            "id": f"mock_song_{source_id}",
-            "title": f"[MOCK] {clean_name}",
-            "artist": "Featured Artist",
-            "album": clean_name,
-            "duration_ms": 230000,
-            "artwork_url": art_placeholder,
-            "language": language if language != "all" else "all",
-            "year": "2026",
-            "is_mock": True
-        }]
-
+    """Compatibility shim: mock catalogue records are intentionally disabled."""
     return []
 
 
@@ -2118,6 +1942,7 @@ def resolve_catalog_items(source_type, source_id, slug, language="all"):
     """
     langs = [language] if (language and language != "all") else ["hindi", "punjabi", "marathi", "bhojpuri", "gujarati"]
     detected_artwork = None
+    provider_error = False
     try:
         if source_type == "song" and source_id:
             # 1. Try resolving via token first
@@ -2192,73 +2017,13 @@ def resolve_catalog_items(source_type, source_id, slug, language="all"):
             if songs:
                 return songs, False, "ok", "Top Artists Spotlight", detected_artwork
     except Exception as e:
+        provider_error = True
         print(f"[Catalog Live Fetch Exception] {source_type} ({source_id}): {e}")
 
-    # Fallback to mock items if live API is unreachable; never falsify mock as live
-    mock_items = get_mock_catalog_items(source_type, source_id, slug, language)
-    return mock_items, True, "offline_mock", None, detected_artwork
+    # Never invent tracks. The client can show a truthful empty/error state.
+    return [], False, "unavailable" if provider_error else "empty", None, detected_artwork
 
 
-def _generate_default_catalog_sections():
-    default_seeds = [
-        {
-            "url": "https://www.jiosaavn.com/featured/hindi-india-superhits-top-50/zlJfJYVuyjpxWb5,FqsjKg__",
-            "group": "Top Charts",
-            "title": "Hindi India Superhits Top 50"
-        },
-        {
-            "url": "https://www.jiosaavn.com/artist/kishore-kumar-songs/yMoPyl3ZzyY_",
-            "group": "Featured Artists",
-            "title": "Kishore Kumar"
-        },
-        {
-            "url": "https://www.jiosaavn.com/new-releases",
-            "group": "Fresh Drops",
-            "title": "New Releases"
-        },
-        {
-            "url": "https://www.jiosaavn.com/charts",
-            "group": "Official Charts",
-            "title": "Official Charts"
-        },
-        {
-            "url": "https://www.jiosaavn.com/top-artists",
-            "group": "Spotlight",
-            "title": "Top Artists"
-        }
-    ]
-    sections = []
-    for i, s in enumerate(default_seeds, 1):
-        parsed, _ = parse_catalog_url(s["url"])
-        if parsed:
-            lang = "hindi" if parsed["source_type"] in ("artist", "playlist") else "all"
-            items, is_mock, provider_status, detected_title, detected_art = resolve_catalog_items(
-                parsed["source_type"], parsed["source_id"], parsed["slug"], lang
-            )
-            key_name = parsed["slug"].replace("-", "_")
-            sec_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, key_name))
-            sections.append({
-                "id": sec_uuid,
-                "key": key_name,
-                "source_url": s["url"],
-                "source_type": parsed["source_type"],
-                "source_id": parsed["source_id"],
-                "slug": parsed["slug"],
-                "display_title": s["title"],
-                "display_group": s["group"],
-                "language": lang,
-                "position": i,
-                "is_enabled": True,
-                "custom_artwork_url": detected_art,
-                "is_banner": False,
-                "provider_status": provider_status,
-                "last_refresh": int(time.time()),
-                "last_error": None,
-                "is_mock": is_mock,
-                "item_count": len(items),
-                "items": items
-            })
-    return sections
 
 
 def matches_section_key(section, target_key):
@@ -2311,7 +2076,7 @@ def sync_catalog_from_supabase():
             if resp.status == 200:
                 body = resp.read().decode("utf-8")
                 rows = json.loads(body)
-                if isinstance(rows, list) and len(rows) > 0:
+                if isinstance(rows, list):
                     for r in rows:
                         # Convert ISO timestamps back to integer unix epoch
                         for ts_col in ("campaign_start", "campaign_end", "last_refresh"):
@@ -2334,11 +2099,13 @@ def sync_catalog_from_supabase():
 
 
 def sync_catalog_to_supabase(sections):
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY or not SUPABASE_SERVICE_ROLE_KEY:
+        print("[Catalog Supabase Upsert] Missing database URL/anon/service-role configuration")
+        return False
     try:
-        auth_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
         headers = {
             "apikey": SUPABASE_ANON_KEY,
-            "Authorization": f"Bearer {auth_key}",
+            "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
             "Content-Type": "application/json",
             "Prefer": "resolution=merge-duplicates",
             "User-Agent": "MusicApp/1.0"
@@ -2397,23 +2164,26 @@ def sync_catalog_to_supabase(sections):
             req = urllib.request.Request(url, data=data, headers=headers, method="POST")
             with urllib.request.urlopen(req, timeout=5) as resp:
                 print(f"[Catalog Supabase Upsert] Synced {len(payload)} sections, HTTP {resp.status}")
+        return True
     except Exception as e:
         print(f"[Catalog Supabase Upsert] error: {e}")
+        return False
 
 
 def delete_catalog_section_from_supabase(section_key, section_id=None):
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY or not SUPABASE_SERVICE_ROLE_KEY:
+        print("[Catalog Supabase Delete] Missing database URL/anon/service-role configuration")
+        return False
     try:
-        auth_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
         headers = {
             "apikey": SUPABASE_ANON_KEY,
-            "Authorization": f"Bearer {auth_key}",
+            "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
             "User-Agent": "MusicApp/1.0"
         }
         url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections?key=eq.{urllib.parse.quote(str(section_key))}"
         req = urllib.request.Request(url, headers=headers, method="DELETE")
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            print(f"[Catalog Supabase Delete] Deleted {section_key}, HTTP {resp.status}")
-
+        with urllib.request.urlopen(req, timeout=5):
+            pass
         if section_id:
             try:
                 uuid.UUID(str(section_id))
@@ -2421,45 +2191,20 @@ def delete_catalog_section_from_supabase(section_key, section_id=None):
                 req_id = urllib.request.Request(url_id, headers=headers, method="DELETE")
                 with urllib.request.urlopen(req_id, timeout=5):
                     pass
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[Catalog Supabase Delete] secondary ID delete error: {e}")
+        return True
     except Exception as e:
         print(f"[Catalog Supabase Delete] error: {e}")
+        return False
 
 
 def load_catalog_sections():
-    with CATALOG_LOCK:
-        # 1. Attempt to load from Supabase cloud database first (Single Source of Truth)
-        remote_rows = sync_catalog_from_supabase()
-        if remote_rows and len(remote_rows) > 0:
-            remote_rows.sort(key=lambda x: x.get("position", 999))
-            try:
-                with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
-                    json.dump(remote_rows, f, indent=2, ensure_ascii=False)
-            except Exception:
-                pass
-            return remote_rows
-
-        # 2. Fallback to local storage if cloud is unreachable
-        if os.path.exists(CATALOG_STORAGE_FILE):
-            try:
-                with open(CATALOG_STORAGE_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if isinstance(data, list) and len(data) > 0:
-                        return sorted(data, key=lambda x: x.get("position", 999))
-            except Exception as e:
-                print(f"[Catalog] Failed to load {CATALOG_STORAGE_FILE}: {e}")
-
-        # 3. Fallback to default sections (with Kishore Kumar) and save to Supabase
-        default_sections = _generate_default_catalog_sections()
-        try:
-            with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
-                json.dump(default_sections, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"[Catalog] Failed to write default {CATALOG_STORAGE_FILE}: {e}")
-
-        sync_catalog_to_supabase(default_sections)
-        return default_sections
+    """Read catalogue sections from Supabase only; empty/error never seeds fake content."""
+    remote_rows = sync_catalog_from_supabase()
+    if remote_rows is None:
+        return []
+    return sorted(remote_rows, key=lambda x: x.get("position", 999))
 
 
 _CATALOG_ITEMS_CACHE = {}
@@ -2505,19 +2250,12 @@ def get_section_items(section, force_refresh=False):
 
 
 def save_catalog_sections(sections):
-    with CATALOG_LOCK:
-        try:
-            disk_sections = []
-            for s in sections:
-                clean_s = {k: v for k, v in s.items() if k != "items"}
-                disk_sections.append(clean_s)
-            with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
-                json.dump(disk_sections, f, indent=2)
-            sync_catalog_to_supabase(disk_sections)
-            return True
-        except Exception as e:
-            print(f"[Catalog] Failed to save {CATALOG_STORAGE_FILE}: {e}")
-            return False
+    """Persist section metadata to Supabase only; never write local catalogue snapshots."""
+    clean_sections = [
+        {k: v for k, v in section.items() if k != "items"}
+        for section in sections
+    ]
+    return sync_catalog_to_supabase(clean_sections)
 
 
 def find_catalog_section(key_or_id):
@@ -2875,59 +2613,101 @@ def api_catalog_toggle_section(section_key):
     return jsonify(sec)
 
 
-# ─── Dynamic Radio & Library Categories Management ──────────────────────────────
-RADIO_STORAGE_FILE = os.path.join(DATA_DIR, "radio_stations.json")
-LIBRARY_STORAGE_FILE = os.path.join(DATA_DIR, "library_categories.json")
+# ─── Database-backed Radio & Library Categories Management ──────────────────────
 RADIO_LOCK = threading.Lock()
 LIBRARY_LOCK = threading.Lock()
 
 
+def _supabase_read_rows(table, order_by=None):
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return []
+    query = "select=*"
+    if order_by:
+        query += "&order=" + urllib.parse.quote(order_by, safe=".,")
+    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/{table}?{query}"
+    auth_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
+    req = urllib.request.Request(url, headers={
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {auth_key}",
+        "User-Agent": "MusicApp/1.0"
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            rows = json.loads(resp.read().decode("utf-8"))
+            return rows if isinstance(rows, list) else []
+    except Exception as e:
+        print(f"[Supabase {table} Read] error: {e}")
+        return []
+
+
+def _supabase_upsert_rows(table, rows):
+    if not rows:
+        return True
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY or not SUPABASE_SERVICE_ROLE_KEY:
+        print(f"[Supabase {table} Upsert] Missing database URL/anon/service-role configuration")
+        return False
+    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/{table}?on_conflict=id"
+    req = urllib.request.Request(url, data=json.dumps(rows).encode("utf-8"), headers={
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates,return=minimal",
+        "User-Agent": "MusicApp/1.0"
+    }, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=8):
+            return True
+    except Exception as e:
+        print(f"[Supabase {table} Upsert] error: {e}")
+        return False
+
+
+def _supabase_delete_row(table, row_id):
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY or not SUPABASE_SERVICE_ROLE_KEY:
+        print(f"[Supabase {table} Delete] Missing database URL/anon/service-role configuration")
+        return False
+    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/{table}?id=eq.{urllib.parse.quote(str(row_id))}"
+    req = urllib.request.Request(url, headers={
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "User-Agent": "MusicApp/1.0"
+    }, method="DELETE")
+    try:
+        with urllib.request.urlopen(req, timeout=8):
+            return True
+    except Exception as e:
+        print(f"[Supabase {table} Delete] error: {e}")
+        return False
+
+
 def load_radio_stations():
     with RADIO_LOCK:
-        if os.path.exists(RADIO_STORAGE_FILE):
-            try:
-                with open(RADIO_STORAGE_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if isinstance(data, list) and data:
-                        return data
-            except Exception as e:
-                print(f"[Radio] Error loading radio_stations.json: {e}")
-        return list(RADIO_STATIONS)
+        return _supabase_read_rows("radio_stations", "position.asc")
 
 
 def save_radio_stations(stations):
     with RADIO_LOCK:
-        try:
-            with open(RADIO_STORAGE_FILE, "w", encoding="utf-8") as f:
-                json.dump(stations, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            print(f"[Radio] Error saving radio_stations.json: {e}")
-            return False
+        rows = []
+        for index, station in enumerate(stations):
+            row = dict(station)
+            row["position"] = int(row.get("position") or index + 1)
+            rows.append(row)
+        return _supabase_upsert_rows("radio_stations", rows)
 
 
 def load_library_categories():
     with LIBRARY_LOCK:
-        if os.path.exists(LIBRARY_STORAGE_FILE):
-            try:
-                with open(LIBRARY_STORAGE_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if isinstance(data, list) and data:
-                        return data
-            except Exception as e:
-                print(f"[Library] Error loading library_categories.json: {e}")
-        return []
+        return _supabase_read_rows("library_categories", "position.asc")
 
 
 def save_library_categories(categories):
     with LIBRARY_LOCK:
-        try:
-            with open(LIBRARY_STORAGE_FILE, "w", encoding="utf-8") as f:
-                json.dump(categories, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            print(f"[Library] Error saving library_categories.json: {e}")
-            return False
+        rows = []
+        for index, category in enumerate(categories):
+            row = dict(category)
+            row["position"] = int(row.get("position") or index + 1)
+            rows.append(row)
+        return _supabase_upsert_rows("library_categories", rows)
 
 
 @app.route("/api/radio/stations", methods=["GET", "POST"])
@@ -2953,15 +2733,17 @@ def api_radio_stations():
             "id": station_id,
             "name": name,
             "tagline": str(body.get("tagline") or "").strip(),
-            "frequency": str(body.get("frequency") or "Live FM").strip(),
-            "state": str(body.get("state") or "National / Regional").strip(),
+            "frequency": str(body.get("frequency") or "").strip(),
+            "state": str(body.get("state") or "").strip(),
             "stream_url": stream_url,
-            "artwork_url": str(body.get("artwork_url") or "").strip() or "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
-            "category": str(body.get("category") or "National").strip(),
+            "artwork_url": str(body.get("artwork_url") or "").strip(),
+            "category": str(body.get("category") or "").strip(),
+            "position": len(stations) + 1,
             "is_live": bool(body.get("is_live", True)),
         }
         stations.append(new_station)
-        save_radio_stations(stations)
+        if not save_radio_stations([new_station]):
+            return jsonify({"error": "Unable to save radio station to Supabase. Check radio_stations table and service-role configuration."}), 503
         return jsonify(new_station), 201
 
     stations = load_radio_stations()
@@ -2979,8 +2761,9 @@ def api_radio_station_detail(station_id):
         return not_found(f"Station '{station_id}' not found")
 
     if request.method == "DELETE":
-        removed = stations.pop(idx)
-        save_radio_stations(stations)
+        removed = stations[idx]
+        if not _supabase_delete_row("radio_stations", station_id):
+            return jsonify({"error": "Unable to delete radio station from Supabase."}), 503
         return jsonify({"success": True, "deleted": removed})
 
     body = request.get_json(silent=True) or {}
@@ -3002,7 +2785,8 @@ def api_radio_station_detail(station_id):
     if "is_live" in body:
         st["is_live"] = bool(body["is_live"])
 
-    save_radio_stations(stations)
+    if not save_radio_stations([st]):
+        return jsonify({"error": "Unable to update radio station in Supabase."}), 503
     return jsonify(st)
 
 
@@ -3042,7 +2826,8 @@ def api_library_categories():
             "is_active": bool(body.get("is_active", True)),
         }
         categories.append(new_cat)
-        save_library_categories(categories)
+        if not save_library_categories([new_cat]):
+            return jsonify({"error": "Unable to save library category to Supabase. Check library_categories table and service-role configuration."}), 503
         return jsonify(new_cat), 201
 
     cats = load_library_categories()
@@ -3060,8 +2845,9 @@ def api_library_category_detail(cat_id):
         return not_found(f"Category '{cat_id}' not found")
 
     if request.method == "DELETE":
-        removed = cats.pop(idx)
-        save_library_categories(cats)
+        removed = cats[idx]
+        if not _supabase_delete_row("library_categories", cat_id):
+            return jsonify({"error": "Unable to delete library category from Supabase."}), 503
         return jsonify({"success": True, "deleted": removed})
 
     body = request.get_json(silent=True) or {}
@@ -3085,7 +2871,8 @@ def api_library_category_detail(cat_id):
     if "is_active" in body:
         c["is_active"] = bool(body["is_active"])
 
-    save_library_categories(cats)
+    if not save_library_categories([c]):
+        return jsonify({"error": "Unable to update library category in Supabase."}), 503
     return jsonify(c)
 
 
