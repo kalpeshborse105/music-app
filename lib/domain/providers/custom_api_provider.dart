@@ -431,7 +431,9 @@ class CustomApiProvider extends BaseMusicProvider {
     String? lang,
     String? group,
   }) async {
-    if (_baseUrl.isEmpty) return <Map<String, dynamic>>[];
+    if (_baseUrl.isEmpty) {
+      throw ProviderException(id, message: 'Catalogue API base URL is not configured.');
+    }
     try {
       final Map<String, String> queryParams = <String, String>{};
       if (includeDisabled) queryParams['include_disabled'] = 'true';
@@ -444,18 +446,21 @@ class CustomApiProvider extends BaseMusicProvider {
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
       );
       final http.Response res = await http.get(uri).timeout(const Duration(seconds: 10));
-      if (res.statusCode == 200) {
-        final dynamic data = jsonDecode(res.body);
-        if (data is Map && data['sections'] is List) {
-          return List<Map<String, dynamic>>.from(
-            (data['sections'] as List<dynamic>).whereType<Map<String, dynamic>>(),
-          );
-        }
+      if (res.statusCode != 200) {
+        throw ProviderException(id, message: 'Catalogue API request failed (${res.statusCode}).');
       }
+      final dynamic data = jsonDecode(res.body);
+      if (data is Map && data['sections'] is List) {
+        return List<Map<String, dynamic>>.from(
+          (data['sections'] as List<dynamic>).whereType<Map<String, dynamic>>(),
+        );
+      }
+      throw ProviderException(id, message: 'Catalogue API returned an invalid response.');
     } catch (e) {
       debugPrint('[CustomApiProvider] getCatalogSections error: $e');
+      if (e is ProviderException) rethrow;
+      throw ProviderException(id, message: 'Catalogue could not be loaded: $e');
     }
-    return <Map<String, dynamic>>[];
   }
 
   Future<Map<String, dynamic>> previewCatalogUrl(String url) async {
@@ -736,14 +741,17 @@ class CustomApiProvider extends BaseMusicProvider {
   // Radio Stations Admin Management
   // ---------------------------------------------------------------------------
   Future<List<Map<String, dynamic>>> fetchRadioStations() async {
+    if (_baseUrl.isEmpty) {
+      throw ProviderException(id, message: 'Radio API base URL is not configured.');
+    }
     final Uri uri = Uri.parse('$_baseUrl/api/radio/stations');
     final http.Response res = await http.get(uri).timeout(const Duration(seconds: 10));
-    if (res.statusCode == 200) {
-      final Map<String, dynamic> body = jsonDecode(res.body) as Map<String, dynamic>;
-      final List<dynamic> list = (body['stations'] as List<dynamic>?) ?? <dynamic>[];
-      return list.whereType<Map<String, dynamic>>().toList();
+    if (res.statusCode != 200) {
+      throw ProviderException(id, message: 'Radio stations could not be loaded (${res.statusCode}).');
     }
-    return <Map<String, dynamic>>[];
+    final Map<String, dynamic> body = jsonDecode(res.body) as Map<String, dynamic>;
+    final List<dynamic> list = (body['stations'] as List<dynamic>?) ?? <dynamic>[];
+    return list.whereType<Map<String, dynamic>>().toList();
   }
 
   Future<Map<String, dynamic>> createRadioStation(Map<String, dynamic> data) async {
