@@ -17,7 +17,9 @@ import '../widgets/cards.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/state_views.dart';
 import '../widgets/track_tile.dart';
+import '../../domain/models/album.dart';
 import '../../domain/models/artist.dart';
+import 'album_screen.dart';
 import 'app_shell.dart';
 import 'artist_screen.dart';
 import 'list_screen.dart';
@@ -1290,12 +1292,56 @@ class _HomeScreenState extends State<HomeScreen> {
           return const SizedBox.shrink();
         }
 
-        final List<CatalogSection> banners = sections.where((CatalogSection s) => s.isBanner && s.items.isNotEmpty).toList();
+        final List<CatalogSection> banners = sections
+            .where((CatalogSection s) => s.isBanner && s.isCampaignActive && s.items.isNotEmpty)
+            .toList();
+
+        void openSection(CatalogSection section) {
+          if (section.sourceType == 'artist') {
+            Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => ArtistScreen(
+                artist: Artist(
+                  id: 'custom_api:artist:${section.sourceId.isNotEmpty ? section.sourceId : section.key}',
+                  providerId: 'custom_api',
+                  providerArtistId: section.sourceId.isNotEmpty ? section.sourceId : section.key,
+                  name: section.displayTitle,
+                  imageUrl: section.effectiveArtworkUrl ??
+                      (section.items.isNotEmpty ? section.items.first.artworkUrl : null),
+                ),
+              ),
+            ));
+          } else if (section.sourceType == 'album') {
+            Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => AlbumScreen(
+                album: Album(
+                  id: 'custom_api:album:${section.sourceId.isNotEmpty ? section.sourceId : section.key}',
+                  providerId: 'custom_api',
+                  providerAlbumId: section.sourceId.isNotEmpty ? section.sourceId : section.key,
+                  title: section.displayTitle,
+                  artists: section.items.isNotEmpty ? section.items.first.artists : const <Artist>[],
+                  artworkUrl: section.effectiveArtworkUrl ??
+                      (section.items.isNotEmpty ? section.items.first.artworkUrl : null),
+                  year: section.items.isNotEmpty
+                      ? int.tryParse(section.items.first.extra['year']?.toString() ?? '')
+                      : null,
+                ),
+                initialTracks: section.items,
+              ),
+            ));
+          } else {
+            Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => TrackListScreen(
+                title: section.displayTitle,
+                tracks: section.items,
+              ),
+            ));
+          }
+        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            // Festival / Seasonal Top Banners if enabled by admin
+            // Festival / Seasonal Top Banners if enabled and active
             for (final CatalogSection banner in banners)
               _buildFestivalHeroBanner(context, banner),
 
@@ -1307,29 +1353,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   subtitle: '${section.displayGroup} • ${section.language.toUpperCase()}',
                   topPadding: AppSpacing.sm,
                   actionLabel: 'See all (${section.items.length})',
-                  onAction: () {
-                    if (section.sourceType == 'artist') {
-                      Navigator.of(context).push(MaterialPageRoute<void>(
-                        builder: (_) => ArtistScreen(
-                          artist: Artist(
-                            id: 'custom_api:artist:${section.sourceId.isNotEmpty ? section.sourceId : section.key}',
-                            providerId: 'custom_api',
-                            providerArtistId: section.sourceId.isNotEmpty ? section.sourceId : section.key,
-                            name: section.displayTitle,
-                            imageUrl: section.effectiveArtworkUrl ??
-                                (section.items.isNotEmpty ? section.items.first.artworkUrl : null),
-                          ),
-                        ),
-                      ));
-                    } else {
-                      Navigator.of(context).push(MaterialPageRoute<void>(
-                        builder: (_) => TrackListScreen(
-                          title: section.displayTitle,
-                          tracks: section.items,
-                        ),
-                      ));
-                    }
-                  },
+                  onAction: () => openSection(section),
                 ),
                 SizedBox(
                   height: 200,
@@ -1339,41 +1363,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     itemCount: section.items.length + 1,
                     separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
                     itemBuilder: (BuildContext cardCtx, int i) {
-                      // First Card: JioSaavn-Style Playlist Card
+                      // First Card: JioSaavn-Style Collection/Playlist/Album Card
                       if (i == 0) {
                         return MediaCard(
                           title: section.displayTitle,
                           subtitle: '${section.items.length} songs',
                           imageUrl: section.effectiveArtworkUrl ??
                               (section.items.isNotEmpty ? section.items.first.artworkUrl : null),
-                          fallbackIcon: section.sourceType == 'artist' ? Icons.person_rounded : Icons.queue_music_rounded,
+                          fallbackIcon: section.sourceType == 'artist'
+                              ? Icons.person_rounded
+                              : (section.sourceType == 'album'
+                                  ? Icons.album_rounded
+                                  : Icons.queue_music_rounded),
                           circle: section.sourceType == 'artist',
-                          badgeText: section.isBanner ? 'SPECIAL' : (section.sourceType == 'artist' ? 'ARTIST' : 'PLAYLIST'),
+                          badgeText: section.isBanner
+                              ? 'SPECIAL'
+                              : (section.sourceType == 'artist'
+                                  ? 'ARTIST'
+                                  : (section.sourceType == 'album' ? 'ALBUM' : 'PLAYLIST')),
                           badgeColor: section.isBanner ? AppColors.primaryLight : AppColors.secondary,
                           width: 144,
-                          onTap: () {
-                            if (section.sourceType == 'artist') {
-                              Navigator.of(context).push(MaterialPageRoute<void>(
-                                builder: (_) => ArtistScreen(
-                                  artist: Artist(
-                                    id: 'custom_api:artist:${section.sourceId.isNotEmpty ? section.sourceId : section.key}',
-                                    providerId: 'custom_api',
-                                    providerArtistId: section.sourceId.isNotEmpty ? section.sourceId : section.key,
-                                    name: section.displayTitle,
-                                    imageUrl: section.effectiveArtworkUrl ??
-                                        (section.items.isNotEmpty ? section.items.first.artworkUrl : null),
-                                  ),
-                                ),
-                              ));
-                            } else {
-                              Navigator.of(context).push(MaterialPageRoute<void>(
-                                builder: (_) => TrackListScreen(
-                                  title: section.displayTitle,
-                                  tracks: section.items,
-                                ),
-                              ));
-                            }
-                          },
+                          onTap: () => openSection(section),
                           onPlay: section.items.isNotEmpty
                               ? () => TrackActions.play(context, section.items.first, queue: section.items)
                               : null,

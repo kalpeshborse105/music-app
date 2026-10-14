@@ -1417,14 +1417,20 @@ def api_home():
         sections.insert(1, {"key": "spotify_new_india", "title": "New in India (Spotify)",
                             "subtitle": "Fresh releases, playable now", "position": 0, "items": spotify_tracks})
     try:
-        catalog_secs = [s for s in load_catalog_sections() if s.get("is_enabled", True)]
+        now = int(time.time())
+        catalog_secs = [
+            s for s in load_catalog_sections()
+            if s.get("is_enabled", True)
+            and (not s.get("campaign_start") or now >= s["campaign_start"])
+            and (not s.get("campaign_end") or now <= s["campaign_end"])
+        ]
         for cs in reversed(catalog_secs):
             sections.insert(0, {
                 "key": cs["key"],
                 "title": cs["display_title"],
-                "subtitle": f"{cs.get('display_group', 'Featured')} • [MOCK]" if cs.get("is_mock") else cs.get("display_group", ""),
+                "subtitle": cs.get("subtitle") or cs.get("display_group", ""),
                 "position": cs["position"],
-                "items": cs.get("items", []),
+                "items": get_section_items(cs),
                 "source_type": cs["source_type"],
                 "source_id": cs["source_id"],
                 "is_mock": cs.get("is_mock", False),
@@ -2161,11 +2167,37 @@ def load_catalog_sections():
         return default_sections
 
 
+_CATALOG_ITEMS_CACHE = {}
+
+
+def get_section_items(section, force_refresh=False):
+    """Dynamically resolves items for a catalog section with in-memory caching."""
+    key = section.get("key") or section.get("id") or section.get("slug")
+    now = time.time()
+    if not force_refresh and key in _CATALOG_ITEMS_CACHE:
+        ts, items = _CATALOG_ITEMS_CACHE[key]
+        if now - ts < 1800:  # 30 minutes in-memory cache
+            return items
+    items, is_mock, status, title, art = resolve_catalog_items(
+        section.get("source_type"),
+        section.get("source_id"),
+        section.get("slug"),
+        section.get("language", "all")
+    )
+    _CATALOG_ITEMS_CACHE[key] = (now, items)
+    return items
+
+
 def save_catalog_sections(sections):
     with CATALOG_LOCK:
         try:
+            # Strip live items from disk representation to avoid bloated JSON snapshots
+            disk_sections = []
+            for s in sections:
+                clean_s = {k: v for k, v in s.items() if k != "items"}
+                disk_sections.append(clean_s)
             with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
-                json.dump(sections, f, indent=2)
+                json.dump(disk_sections, f, indent=2)
             return True
         except Exception as e:
             print(f"[Catalog] Failed to save {CATALOG_STORAGE_FILE}: {e}")
@@ -2187,16 +2219,37 @@ def api_catalog_sections():
     include_disabled = request.args.get("include_disabled", "").lower() in ("1", "true", "yes")
     group_filter = request.args.get("group")
     lang_filter = request.args.get("lang")
+    now = int(time.time())
 
     sections = load_catalog_sections()
     if not include_disabled:
-        sections = [s for s in sections if s.get("is_enabled", True)]
+        active_sections = []
+        for s in sections:
+            if not s.get("is_enabled", True):
+                continue
+            c_start = s.get("campaign_start")
+            c_end = s.get("campaign_end")
+            if c_start and now < c_start:
+                continue
+            if c_end and now > c_end:
+                continue
+            active_sections.append(s)
+        sections = active_sections
+
     if group_filter:
         sections = [s for s in sections if (s.get("display_group") or "").lower() == group_filter.lower()]
     if lang_filter and lang_filter != "all":
         sections = [s for s in sections if s.get("language") in ("all", lang_filter)]
 
-    return ok({"sections": sections, "total": len(sections), "source": "admin_catalog"}, 0)
+    # Attach live items dynamically in-memory
+    enriched = []
+    for s in sections:
+        sec_copy = dict(s)
+        sec_copy["items"] = get_section_items(s)
+        sec_copy["item_count"] = len(sec_copy["items"])
+        enriched.append(sec_copy)
+
+    return ok({"sections": enriched, "total": len(enriched), "source": "admin_catalog"}, 0)
 
 
 @app.route("/api/catalog/sections/<section_key>", methods=["GET"])
@@ -2276,6 +2329,12 @@ def api_catalog_create_section():
     if isinstance(is_banner, str):
         is_banner = is_banner.lower() in ("true", "1", "yes")
 
+    subtitle = (body.get("subtitle") or "").strip() or None
+    c_start = body.get("campaign_start")
+    c_end = body.get("campaign_end")
+    campaign_start = int(c_start) if c_start is not None and str(c_start).isdigit() else None
+    campaign_end = int(c_end) if c_end is not None and str(c_end).isdigit() else None
+
     items, is_mock, provider_status, detected_title, detected_artwork = resolve_catalog_items(
         parsed["source_type"], parsed["source_id"], parsed["slug"], language
     )
@@ -2292,12 +2351,15 @@ def api_catalog_create_section():
         "source_id": parsed["source_id"],
         "slug": parsed["slug"],
         "display_title": display_title,
+        "subtitle": subtitle,
         "display_group": display_group,
         "language": language,
         "position": position,
         "is_enabled": is_enabled,
         "custom_artwork_url": custom_artwork_url,
         "is_banner": is_banner,
+        "campaign_start": campaign_start,
+        "campaign_end": campaign_end,
         "provider_status": provider_status,
         "last_refresh": int(time.time()),
         "last_error": None,
@@ -2306,6 +2368,7 @@ def api_catalog_create_section():
         "items": items
     }
 
+    _CATALOG_ITEMS_CACHE[key] = (time.time(), items)
     sections.append(new_section)
     sections.sort(key=lambda x: x.get("position", 999))
     save_catalog_sections(sections)
@@ -2346,9 +2409,12 @@ def api_catalog_update_section(section_key):
         sec["provider_status"] = provider_status
         if detected_artwork and not body.get("custom_artwork_url"):
             sec["custom_artwork_url"] = detected_artwork
+        _CATALOG_ITEMS_CACHE[sec.get("key", section_key)] = (time.time(), items)
 
     if "display_title" in body:
         sec["display_title"] = str(body["display_title"]).strip()
+    if "subtitle" in body:
+        sec["subtitle"] = str(body["subtitle"]).strip() or None
     if "display_group" in body:
         sec["display_group"] = str(body["display_group"]).strip()
     if "language" in body:
@@ -2358,6 +2424,12 @@ def api_catalog_update_section(section_key):
     if "is_banner" in body:
         val = body["is_banner"]
         sec["is_banner"] = val if isinstance(val, bool) else str(val).lower() in ("true", "1", "yes")
+    if "campaign_start" in body:
+        val = body.get("campaign_start")
+        sec["campaign_start"] = int(val) if val is not None and str(val).isdigit() else None
+    if "campaign_end" in body:
+        val = body.get("campaign_end")
+        sec["campaign_end"] = int(val) if val is not None and str(val).isdigit() else None
     if "position" in body:
         try:
             sec["position"] = int(body["position"])
@@ -2381,6 +2453,7 @@ def api_catalog_delete_section(section_key):
     if len(sections) == initial_len:
         return not_found(f"Catalog section '{section_key}' not found")
 
+    _CATALOG_ITEMS_CACHE.pop(section_key, None)
     save_catalog_sections(sections)
     return jsonify({"success": True, "deleted_key": section_key})
 

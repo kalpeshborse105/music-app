@@ -67,12 +67,15 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   CatalogSection? _editingSection;
   final TextEditingController _catalogUrlController = TextEditingController();
   final TextEditingController _catalogTitleController = TextEditingController();
+  final TextEditingController _catalogSubtitleController = TextEditingController();
   final TextEditingController _catalogGroupController = TextEditingController();
   final TextEditingController _catalogPositionController = TextEditingController(text: '1');
   final TextEditingController _catalogArtworkController = TextEditingController();
   String _catalogLanguage = 'all';
   bool _catalogIsEnabled = true;
   bool _catalogIsBanner = false;
+  DateTime? _campaignStart;
+  DateTime? _campaignEnd;
   bool _isPreviewingCatalog = false;
   bool _isSavingCatalog = false;
   String? _previewError;
@@ -266,8 +269,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     _tabController.dispose();
     _catalogUrlController.dispose();
     _catalogTitleController.dispose();
+    _catalogSubtitleController.dispose();
     _catalogGroupController.dispose();
     _catalogPositionController.dispose();
+    _catalogArtworkController.dispose();
     super.dispose();
   }
 
@@ -602,12 +607,40 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     }
   }
 
+  Future<void> _pickCampaignDateTime(bool isStart) async {
+    final DateTime now = DateTime.now();
+    final DateTime initial = (isStart ? _campaignStart : _campaignEnd) ?? now;
+    final DateTime? date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2035),
+    );
+    if (date == null || !mounted) return;
+    final TimeOfDay? time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (time == null || !mounted) return;
+    setState(() {
+      final DateTime dt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+      if (isStart) {
+        _campaignStart = dt;
+      } else {
+        _campaignEnd = dt;
+      }
+    });
+  }
+
   Future<void> _saveCatalogSection() async {
     final String url = _catalogUrlController.text.trim();
     final String title = _catalogTitleController.text.trim();
+    final String subtitle = _catalogSubtitleController.text.trim();
     final String group = _catalogGroupController.text.trim();
     final String customArt = _catalogArtworkController.text.trim();
     final int pos = int.tryParse(_catalogPositionController.text.trim()) ?? 1;
+    final int? campStart = _campaignStart != null ? (_campaignStart!.millisecondsSinceEpoch ~/ 1000) : null;
+    final int? campEnd = _campaignEnd != null ? (_campaignEnd!.millisecondsSinceEpoch ~/ 1000) : null;
 
     if (url.isEmpty || title.isEmpty || group.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -625,11 +658,14 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           _editingSection!.sectionKey,
           displayTitle: title,
           displayGroup: group,
+          subtitle: subtitle.isNotEmpty ? subtitle : null,
           language: _catalogLanguage,
           position: pos,
           isEnabled: _catalogIsEnabled,
           customArtworkUrl: customArt.isNotEmpty ? customArt : null,
           isBanner: _catalogIsBanner,
+          campaignStart: campStart,
+          campaignEnd: campEnd,
           sourceUrl: url,
         );
       } else {
@@ -637,11 +673,14 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           sourceUrl: url,
           displayTitle: title,
           displayGroup: group,
+          subtitle: subtitle.isNotEmpty ? subtitle : null,
           language: _catalogLanguage,
           position: pos,
           isEnabled: _catalogIsEnabled,
           customArtworkUrl: customArt.isNotEmpty ? customArt : null,
           isBanner: _catalogIsBanner,
+          campaignStart: campStart,
+          campaignEnd: campEnd,
         );
       }
 
@@ -678,12 +717,19 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       _editingSection = s;
       _catalogUrlController.text = s.sourceUrl;
       _catalogTitleController.text = s.displayTitle;
+      _catalogSubtitleController.text = s.subtitle ?? '';
       _catalogGroupController.text = s.displayGroup;
       _catalogArtworkController.text = s.customArtworkUrl ?? '';
       _catalogLanguage = s.language;
       _catalogPositionController.text = s.position.toString();
       _catalogIsEnabled = s.isEnabled;
       _catalogIsBanner = s.isBanner;
+      _campaignStart = s.campaignStart != null
+          ? DateTime.fromMillisecondsSinceEpoch(s.campaignStart! * 1000)
+          : null;
+      _campaignEnd = s.campaignEnd != null
+          ? DateTime.fromMillisecondsSinceEpoch(s.campaignEnd! * 1000)
+          : null;
       _detectedSourceType = s.sourceType;
       _detectedSourceId = s.sourceId;
       _previewProviderStatus = s.providerStatus;
@@ -698,12 +744,15 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       _editingSection = null;
       _catalogUrlController.clear();
       _catalogTitleController.clear();
+      _catalogSubtitleController.clear();
       _catalogGroupController.clear();
       _catalogArtworkController.clear();
       _catalogPositionController.text = (_catalogSections.length + 1).toString();
       _catalogLanguage = 'all';
       _catalogIsEnabled = true;
       _catalogIsBanner = false;
+      _campaignStart = null;
+      _campaignEnd = null;
       _detectedSourceType = null;
       _detectedSourceId = null;
       _previewProviderStatus = null;
@@ -980,6 +1029,24 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                         ),
                       ),
                     ),
+                    if (section.campaignStart != null || section.campaignEnd != null) ...<Widget>[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: (section.isCampaignActive ? AppColors.success : AppColors.error).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          section.isCampaignActive ? 'CAMPAIGN ACTIVE' : 'CAMPAIGN INACTIVE',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: section.isCampaignActive ? AppColors.success : AppColors.error,
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(width: 8),
                     Text(
                       '${section.items.length} tracks • Lang: ${section.language.toUpperCase()}',
@@ -1385,6 +1452,19 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                       ),
                       const SizedBox(height: 14),
 
+                      // Subtitle / Campaign Tagline (Optional)
+                      TextField(
+                        controller: _catalogSubtitleController,
+                        decoration: InputDecoration(
+                          labelText: 'Subtitle / Campaign Tagline (Optional)',
+                          hintText: 'e.g. Celebrate Navratri & Diwali with sacred devotional beats',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          filled: true,
+                          fillColor: isDark ? AppColors.surfaceContainerHigh : AppColors.lightInputBackground,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
                       // Custom Cover Artwork URL (with live preview)
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1547,6 +1627,83 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Festival & Seasonal Campaign Scheduling Card
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.surfaceContainerLow : AppColors.lightElevatedSurface,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: (_campaignStart != null || _campaignEnd != null)
+                                ? AppColors.primary
+                                : (isDark ? AppColors.borderSubtle : AppColors.lightBorder),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Row(
+                              children: <Widget>[
+                                const Icon(Icons.event_available_rounded, size: 18, color: AppColors.primaryLight),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Campaign / Festival Schedule (Optional)',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12.5,
+                                    color: context.textPrimary,
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (_campaignStart != null || _campaignEnd != null)
+                                  TextButton(
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    onPressed: () => setState(() {
+                                      _campaignStart = null;
+                                      _campaignEnd = null;
+                                    }),
+                                    child: const Text('Clear Schedule', style: TextStyle(fontSize: 11)),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: <Widget>[
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => _pickCampaignDateTime(true),
+                                    icon: const Icon(Icons.access_time_rounded, size: 16),
+                                    label: Text(
+                                      _campaignStart != null
+                                          ? 'Start: ${_campaignStart!.day}/${_campaignStart!.month}/${_campaignStart!.year} ${_campaignStart!.hour.toString().padLeft(2, "0")}:${_campaignStart!.minute.toString().padLeft(2, "0")}'
+                                          : 'Start: Immediate',
+                                      style: const TextStyle(fontSize: 11),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => _pickCampaignDateTime(false),
+                                    icon: const Icon(Icons.timer_off_rounded, size: 16),
+                                    label: Text(
+                                      _campaignEnd != null
+                                          ? 'End: ${_campaignEnd!.day}/${_campaignEnd!.month}/${_campaignEnd!.year} ${_campaignEnd!.hour.toString().padLeft(2, "0")}:${_campaignEnd!.minute.toString().padLeft(2, "0")}'
+                                          : 'End: No Expiry',
+                                      style: const TextStyle(fontSize: 11),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   );

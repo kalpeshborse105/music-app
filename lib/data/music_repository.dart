@@ -592,11 +592,14 @@ class MusicRepository {
     required String sourceUrl,
     required String displayTitle,
     required String displayGroup,
+    String? subtitle,
     String language = 'all',
     int position = 1,
     bool isEnabled = true,
     String? customArtworkUrl,
     bool isBanner = false,
+    int? campaignStart,
+    int? campaignEnd,
   }) async {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) return null;
@@ -604,11 +607,14 @@ class MusicRepository {
       'source_url': sourceUrl,
       'display_title': displayTitle,
       'display_group': displayGroup,
+      if (subtitle != null && subtitle.isNotEmpty) 'subtitle': subtitle,
       'language': language,
       'position': position,
       'is_enabled': isEnabled,
       if (customArtworkUrl != null && customArtworkUrl.isNotEmpty) 'custom_artwork_url': customArtworkUrl,
       'is_banner': isBanner,
+      if (campaignStart != null) 'campaign_start': campaignStart,
+      if (campaignEnd != null) 'campaign_end': campaignEnd,
     });
     return CatalogSection.fromJson(res);
   }
@@ -618,11 +624,14 @@ class MusicRepository {
     String? sourceUrl,
     String? displayTitle,
     String? displayGroup,
+    String? subtitle,
     String? language,
     int? position,
     bool? isEnabled,
     String? customArtworkUrl,
     bool? isBanner,
+    int? campaignStart,
+    int? campaignEnd,
   }) async {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) return null;
@@ -630,11 +639,14 @@ class MusicRepository {
       if (sourceUrl != null) 'source_url': sourceUrl,
       if (displayTitle != null) 'display_title': displayTitle,
       if (displayGroup != null) 'display_group': displayGroup,
+      if (subtitle != null) 'subtitle': subtitle,
       if (language != null) 'language': language,
       if (position != null) 'position': position,
       if (isEnabled != null) 'is_enabled': isEnabled,
       if (customArtworkUrl != null) 'custom_artwork_url': customArtworkUrl,
       if (isBanner != null) 'is_banner': isBanner,
+      if (campaignStart != null) 'campaign_start': campaignStart,
+      if (campaignEnd != null) 'campaign_end': campaignEnd,
     };
     final Map<String, dynamic> res = await provider.updateCatalogSection(key, data);
     return CatalogSection.fromJson(res);

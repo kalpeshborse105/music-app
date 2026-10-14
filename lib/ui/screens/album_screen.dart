@@ -15,14 +15,22 @@ import '../widgets/track_tile.dart';
 /// Album detail: cover, metadata, track list, play/shuffle/favorite (spec §21).
 class AlbumScreen extends StatefulWidget {
   final Album album;
-  const AlbumScreen({super.key, required this.album});
+  final List<Track>? initialTracks;
+
+  const AlbumScreen({
+    super.key,
+    required this.album,
+    this.initialTracks,
+  });
 
   @override
   State<AlbumScreen> createState() => _AlbumScreenState();
 }
 
 class _AlbumScreenState extends State<AlbumScreen> {
-  late Future<List<Track>> _future = _load();
+  late Future<List<Track>> _future = (widget.initialTracks != null && widget.initialTracks!.isNotEmpty)
+      ? Future<List<Track>>.value(widget.initialTracks)
+      : _load();
 
   Future<List<Track>> _load() =>
       context.read<MusicRepository>().albumTrackList(widget.album);

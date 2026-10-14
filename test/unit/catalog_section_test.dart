@@ -114,5 +114,43 @@ void main() {
       expect(track.duration.inMilliseconds, equals(268000));
       expect(track.artworkUrl, equals('https://c.saavncdn.com/kesariya.jpg'));
     });
+
+    test('CatalogSection isCampaignActive evaluates campaignStart and campaignEnd correctly', () {
+      final int now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final CatalogSection active = CatalogSection(
+        id: 'sec_active',
+        key: 'active',
+        sourceUrl: 'https://www.jiosaavn.com/album/navratri/123',
+        sourceType: 'album',
+        sourceId: '123',
+        slug: 'navratri',
+        displayTitle: 'Navratri Festival',
+        displayGroup: 'Festival Specials',
+        language: 'hindi',
+        position: 1,
+        isEnabled: true,
+        isBanner: true,
+        campaignStart: now - 3600,
+        campaignEnd: now + 3600,
+        providerStatus: 'ok',
+        lastRefresh: now,
+        isMock: false,
+        itemCount: 10,
+        items: const <Track>[],
+      );
+      expect(active.isCampaignActive, isTrue);
+
+      final CatalogSection expired = active.copyWith(
+        campaignStart: now - 7200,
+        campaignEnd: now - 3600,
+      );
+      expect(expired.isCampaignActive, isFalse);
+
+      final CatalogSection future = active.copyWith(
+        campaignStart: now + 3600,
+        campaignEnd: now + 7200,
+      );
+      expect(future.isCampaignActive, isFalse);
+    });
   });
 }

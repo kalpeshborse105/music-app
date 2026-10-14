@@ -13,6 +13,7 @@ class CatalogSection {
   final String slug;
   final String displayTitle;
   final String displayGroup;
+  final String? subtitle;
   final String language;
   final int position;
   final bool isEnabled;
@@ -21,6 +22,8 @@ class CatalogSection {
   final String? lastError;
   final String? customArtworkUrl;
   final bool isBanner;
+  final int? campaignStart;
+  final int? campaignEnd;
   final bool isMock;
   final int itemCount;
   final List<Track> items;
@@ -32,6 +35,13 @@ class CatalogSection {
           ? customArtworkUrl
           : (items.isNotEmpty ? items.first.artworkUrl : null);
 
+  bool get isCampaignActive {
+    final int now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    if (campaignStart != null && now < campaignStart!) return false;
+    if (campaignEnd != null && now > campaignEnd!) return false;
+    return true;
+  }
+
   const CatalogSection({
     required this.id,
     required this.key,
@@ -41,11 +51,14 @@ class CatalogSection {
     required this.slug,
     required this.displayTitle,
     required this.displayGroup,
+    this.subtitle,
     required this.language,
     required this.position,
     required this.isEnabled,
     this.customArtworkUrl,
     this.isBanner = false,
+    this.campaignStart,
+    this.campaignEnd,
     required this.providerStatus,
     required this.lastRefresh,
     this.lastError,
@@ -133,11 +146,14 @@ class CatalogSection {
       slug: json['slug'] as String? ?? '',
       displayTitle: json['display_title'] as String? ?? 'Untitled Section',
       displayGroup: json['display_group'] as String? ?? 'Featured',
+      subtitle: json['subtitle'] as String?,
       language: json['language'] as String? ?? 'all',
       position: (json['position'] as num?)?.toInt() ?? 1,
       isEnabled: json['is_enabled'] != false,
       customArtworkUrl: json['custom_artwork_url'] as String? ?? json['artwork_url'] as String?,
       isBanner: json['is_banner'] == true,
+      campaignStart: (json['campaign_start'] as num?)?.toInt(),
+      campaignEnd: (json['campaign_end'] as num?)?.toInt(),
       providerStatus: json['provider_status'] as String? ?? 'ok',
       lastRefresh: (json['last_refresh'] as num?)?.toInt() ?? 0,
       lastError: json['last_error'] as String?,
@@ -157,11 +173,14 @@ class CatalogSection {
       'slug': slug,
       'display_title': displayTitle,
       'display_group': displayGroup,
+      if (subtitle != null) 'subtitle': subtitle,
       'language': language,
       'position': position,
       'is_enabled': isEnabled,
       'custom_artwork_url': customArtworkUrl,
       'is_banner': isBanner,
+      if (campaignStart != null) 'campaign_start': campaignStart,
+      if (campaignEnd != null) 'campaign_end': campaignEnd,
       'provider_status': providerStatus,
       'last_refresh': lastRefresh,
       'last_error': lastError,
@@ -179,11 +198,14 @@ class CatalogSection {
     String? slug,
     String? displayTitle,
     String? displayGroup,
+    String? subtitle,
     String? language,
     int? position,
     bool? isEnabled,
     String? customArtworkUrl,
     bool? isBanner,
+    int? campaignStart,
+    int? campaignEnd,
     String? providerStatus,
     int? lastRefresh,
     String? lastError,
@@ -200,11 +222,14 @@ class CatalogSection {
       slug: slug ?? this.slug,
       displayTitle: displayTitle ?? this.displayTitle,
       displayGroup: displayGroup ?? this.displayGroup,
+      subtitle: subtitle ?? this.subtitle,
       language: language ?? this.language,
       position: position ?? this.position,
       isEnabled: isEnabled ?? this.isEnabled,
       customArtworkUrl: customArtworkUrl ?? this.customArtworkUrl,
       isBanner: isBanner ?? this.isBanner,
+      campaignStart: campaignStart ?? this.campaignStart,
+      campaignEnd: campaignEnd ?? this.campaignEnd,
       providerStatus: providerStatus ?? this.providerStatus,
       lastRefresh: lastRefresh ?? this.lastRefresh,
       lastError: lastError ?? this.lastError,
