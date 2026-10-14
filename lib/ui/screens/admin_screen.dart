@@ -62,8 +62,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   bool _localSync = true;
   bool _hapticFeedback = true;
 
-  // Catalogue Management State (Local-first)
+  // Catalogue Management State (Supabase source of truth)
   bool _isLoadingCatalog = false;
+  String? _catalogLoadError;
   List<CatalogSection> _catalogSections = <CatalogSection>[];
   CatalogSection? _editingSection;
   final TextEditingController _catalogUrlController = TextEditingController();
@@ -519,7 +520,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   // ==========================================
 
   Future<void> _loadCatalogSections() async {
-    setState(() => _isLoadingCatalog = true);
+    setState(() {
+      _isLoadingCatalog = true;
+      _catalogLoadError = null;
+    });
     try {
       final MusicRepository repo = context.read<MusicRepository>();
       final List<CatalogSection> list =
@@ -527,12 +531,17 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       if (mounted) {
         setState(() {
           _catalogSections = list;
+          _catalogLoadError = null;
           _isLoadingCatalog = false;
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoadingCatalog = false);
+        setState(() {
+          _catalogSections = <CatalogSection>[];
+          _catalogLoadError = 'Catalogue data could not be loaded: $e';
+          _isLoadingCatalog = false;
+        });
         debugPrint('[AdminScreen] _loadCatalogSections error: $e');
       }
     }
@@ -545,7 +554,6 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     if (lower.contains('/album/')) return 'album';
     if (lower.contains('/new-releases')) return 'new_releases';
     if (lower.contains('/charts')) return 'charts';
-    if (lower.contains('/top-artists')) return 'top_artists';
     return 'playlist';
   }
 
@@ -566,6 +574,12 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     try {
       final MusicRepository repo = context.read<MusicRepository>();
       final Map<String, dynamic> preview = await repo.previewCatalogUrl(url);
+      if (preview['valid'] != true) {
+        throw StateError((preview['error'] ?? 'This URL is not supported by the configured catalogue provider.').toString());
+      }
+      if (preview['is_mock'] == true) {
+        throw StateError('The server returned mock catalogue data. Mock content is disabled; refresh the backend and try again.');
+      }
 
       if (mounted) {
         final List<Track> tracks = <Track>[];
@@ -627,7 +641,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       if (mounted) {
         setState(() {
           _isPreviewingCatalog = false;
-          _previewError = 'Preview note: ${e.toString().replaceFirst("Exception: ", "")}. You can still save this section!';
+          _previewError = 'Preview failed: ${e.toString().replaceFirst("Exception: ", "")}. Nothing was saved. Correct the URL or retry the preview.';
           _detectedSourceType ??= _inferSourceType(url);
           _previewIsMock = false;
           _previewItems = <Track>[];
@@ -663,6 +677,12 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
   Future<void> _saveCatalogSection() async {
     final String url = _catalogUrlController.text.trim();
+    if (_previewError != null || _previewProviderStatus == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Preview and validate the source URL before saving.'), backgroundColor: AppColors.error),
+      );
+      return;
+    }
     final String title = _catalogTitleController.text.trim();
     final String subtitle = _catalogSubtitleController.text.trim();
     final String group = _catalogGroupController.text.trim();
@@ -1421,7 +1441,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Admin-managed catalogue sections for App & Web. Local-first configuration.',
+                  'Supabase-backed catalogue sections published across app and web.',
                   style: TextStyle(color: context.textSecondary, fontSize: 13),
                 ),
               ],
@@ -1434,8 +1454,45 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           ],
         ),
         const SizedBox(height: 16),
+        if (_catalogLoadError != null)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: AppColors.errorContainer.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.error.withValues(alpha: 0.6)),
+            ),
+            child: Row(
+              children: <Widget>[
+                const Icon(Icons.cloud_off_rounded, color: AppColors.error),
+                const SizedBox(width: 10),
+                Expanded(child: Text(_catalogLoadError!, style: const TextStyle(color: AppColors.error, fontSize: 12))),
+                IconButton(onPressed: _loadCatalogSections, icon: const Icon(Icons.refresh_rounded), tooltip: 'Retry'),
+              ],
+            ),
+          )
+        else if (!_isLoadingCatalog && _catalogSections.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerHigh.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.borderSubtle),
+            ),
+            child: const Row(
+              children: <Widget>[
+                Icon(Icons.library_music_outlined),
+                SizedBox(width: 10),
+                Expanded(child: Text('No sections are configured in Supabase yet. Add a validated source URL below.', style: TextStyle(fontSize: 12))),
+              ],
+            ),
+          ),
 
-        // Live Gateway Status Alert Banner
+        // Catalogue status banner
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1452,7 +1509,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'LIVE CATALOGUE GATEWAY ACTIVE: Connected to live music backend. Configure dynamic playlists, seasonal festival takeovers, top charts, and artist highlights directly for App & Web.',
+                  'Supabase is the source of truth. Saved sections sync across app and web; database errors are shown instead of replacing your catalogue with demo content.',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -1500,7 +1557,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
               // Quick-fill chips for local testing
               Text(
-                'Quick-Fill Supported Test URLs:',
+                'Supported URL examples:',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
