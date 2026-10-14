@@ -76,6 +76,7 @@ class CatalogSection {
     final List<Track> parsedItems = rawItems
         .whereType<Map<String, dynamic>>()
         .where((Map<String, dynamic> item) =>
+            item['is_mock'] != true &&
             (item['id']?.toString().trim().isNotEmpty ?? false) &&
             (item['title']?.toString().trim().isNotEmpty ?? false))
         .map((Map<String, dynamic> item) {
@@ -84,7 +85,7 @@ class CatalogSection {
       final String artist = item['artist'] as String? ?? 'Unknown Artist';
       final String? artworkUrl = item['artwork_url'] as String?;
       final int durationMs = (item['duration_ms'] as num?)?.toInt() ?? 0;
-      final bool isMock = item['is_mock'] == true;
+      const bool isMock = false;
 
       return Track(
         id: 'custom_api:track:$trackId',
