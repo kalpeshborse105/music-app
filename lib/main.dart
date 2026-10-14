@@ -58,16 +58,7 @@ class _SplashScreen extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       home: Scaffold(
         backgroundColor: AppColors.darkBg,
-        body: Center(
-          child: SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.4,
-              color: AppColors.primary,
-            ),
-          ),
-        ),
+        body: SizedBox.expand(),
       ),
     );
   }

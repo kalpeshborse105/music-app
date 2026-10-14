@@ -10,6 +10,7 @@ import '../../data/music_repository.dart';
 import '../../data/services/supabase_service.dart';
 import '../../domain/models/advertisement.dart';
 import '../../domain/models/catalog_section.dart';
+import '../../domain/models/radio_station.dart';
 import '../../domain/models/track.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
@@ -85,11 +86,21 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   bool _previewIsMock = false;
   List<Track> _previewItems = <Track>[];
 
+  // Radio Management State
+  bool _isLoadingRadio = false;
+  List<RadioStation> _adminRadioStations = <RadioStation>[];
+
+  // Library Categories Management State
+  bool _isLoadingLibraryCats = false;
+  List<Map<String, dynamic>> _adminLibraryCats = <Map<String, dynamic>>[];
+
   late TabController _tabController;
 
   static const List<Map<String, dynamic>> _tabs = <Map<String, dynamic>>[
     <String, dynamic>{'title': 'Overview', 'icon': Icons.dashboard_rounded},
     <String, dynamic>{'title': 'Catalogue', 'icon': Icons.queue_music_rounded},
+    <String, dynamic>{'title': 'Radio', 'icon': Icons.radio_rounded},
+    <String, dynamic>{'title': 'Library', 'icon': Icons.category_rounded},
     <String, dynamic>{'title': 'Ads', 'icon': Icons.campaign_rounded},
     <String, dynamic>{'title': 'Users', 'icon': Icons.people_alt_rounded},
     <String, dynamic>{'title': 'Providers', 'icon': Icons.hub_rounded},
@@ -114,9 +125,11 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   void _onTabSelected(int index) {
     if (index == 0) _loadPlatformMetrics();
     if (index == 1) _loadCatalogSections();
-    if (index == 2) _loadAds();
-    if (index == 3) _loadUsers();
-    if (index == 6) _loadReports();
+    if (index == 2) _loadRadioStations();
+    if (index == 3) _loadLibraryCategories();
+    if (index == 4) _loadAds();
+    if (index == 5) _loadUsers();
+    if (index == 8) _loadReports();
   }
 
   Future<void> _loadAds() async {
@@ -436,6 +449,14 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 ),
                 SingleChildScrollView(
                   padding: const EdgeInsets.all(AppSpacing.md),
+                  child: _buildRadioTab(context),
+                ),
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: _buildLibraryTab(context),
+                ),
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   child: _buildAdsTab(context),
                 ),
                 SingleChildScrollView(
@@ -470,16 +491,20 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       case 1:
         return _buildCatalogueTab(context);
       case 2:
-        return _buildAdsTab(context);
+        return _buildRadioTab(context);
       case 3:
-        return _buildUsersTab(context);
+        return _buildLibraryTab(context);
       case 4:
-        return _buildProvidersTab(context);
+        return _buildAdsTab(context);
       case 5:
-        return _buildLicensesTab(context);
+        return _buildUsersTab(context);
       case 6:
-        return _buildReportsTab(context);
+        return _buildProvidersTab(context);
       case 7:
+        return _buildLicensesTab(context);
+      case 8:
+        return _buildReportsTab(context);
+      case 9:
       default:
         return _buildSettingsTab(context);
     }
@@ -3924,6 +3949,707 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  // ==========================================
+  // TAB: RADIO STATIONS MANAGEMENT
+  // ==========================================
+
+  Future<void> _loadRadioStations() async {
+    setState(() => _isLoadingRadio = true);
+    try {
+      final MusicRepository repo = context.read<MusicRepository>();
+      final List<Map<String, dynamic>> raw = await repo.fetchRadioStations();
+      if (mounted) {
+        setState(() {
+          _adminRadioStations = raw.map((Map<String, dynamic> m) => RadioStation.fromJson(m)).toList();
+          _isLoadingRadio = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _adminRadioStations = RadioStation.stations;
+          _isLoadingRadio = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _showAddEditRadioStationDialog({RadioStation? existing}) async {
+    final TextEditingController nameCtrl = TextEditingController(text: existing?.name ?? '');
+    final TextEditingController taglineCtrl = TextEditingController(text: existing?.tagline ?? '');
+    final TextEditingController freqCtrl = TextEditingController(text: existing?.frequency ?? '102.8 FM');
+    final TextEditingController stateCtrl = TextEditingController(text: existing?.state ?? 'National');
+    final TextEditingController streamCtrl = TextEditingController(text: existing?.streamUrl ?? '');
+    final TextEditingController artCtrl = TextEditingController(text: existing?.artworkUrl ?? '');
+    final TextEditingController catCtrl = TextEditingController(text: existing?.category ?? 'AIR National');
+    bool isLive = existing?.isLive ?? true;
+
+    final bool? saved = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext dCtx, StateSetter setModalState) {
+            return AlertDialog(
+              title: Text(existing == null ? 'Add Radio Station' : 'Edit Radio Station'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(labelText: 'Station Name *', hintText: 'e.g. AIR Vividh Bharati'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: freqCtrl,
+                      decoration: const InputDecoration(labelText: 'Frequency / Dial *', hintText: 'e.g. 102.8 FM'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: stateCtrl,
+                      decoration: const InputDecoration(labelText: 'State / Region', hintText: 'e.g. Mumbai / Maharashtra'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: catCtrl,
+                      decoration: const InputDecoration(labelText: 'Category', hintText: 'e.g. AIR National, Retro, Regional'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: streamCtrl,
+                      decoration: const InputDecoration(labelText: 'Stream URL (m3u8 / mp3) *', hintText: 'https://...'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: artCtrl,
+                      decoration: const InputDecoration(labelText: 'Cover Artwork URL', hintText: 'https://...'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: taglineCtrl,
+                      decoration: const InputDecoration(labelText: 'Tagline / Description', hintText: 'Short description'),
+                    ),
+                    const SizedBox(height: 10),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Is Live Broadcasting', style: TextStyle(fontSize: 13)),
+                      value: isLive,
+                      onChanged: (bool v) => setModalState(() => isLive = v),
+                    ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    if (nameCtrl.text.trim().isEmpty || streamCtrl.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(content: Text('Name and Stream URL are required')),
+                      );
+                      return;
+                    }
+                    Navigator.pop(ctx, true);
+                  },
+                  child: const Text('Save Station'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (saved == true) {
+      final Map<String, dynamic> data = <String, dynamic>{
+        'name': nameCtrl.text.trim(),
+        'tagline': taglineCtrl.text.trim(),
+        'frequency': freqCtrl.text.trim(),
+        'state': stateCtrl.text.trim(),
+        'stream_url': streamCtrl.text.trim(),
+        'artwork_url': artCtrl.text.trim().isNotEmpty
+            ? artCtrl.text.trim()
+            : 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80',
+        'category': catCtrl.text.trim(),
+        'is_live': isLive,
+      };
+
+      if (!mounted) return;
+      try {
+        final MusicRepository repo = context.read<MusicRepository>();
+        if (existing == null) {
+          await repo.createRadioStation(data);
+        } else {
+          await repo.updateRadioStation(existing.id, data);
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Radio station saved successfully!'), backgroundColor: AppColors.success),
+          );
+          await _loadRadioStations();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to save radio station: $e'), backgroundColor: AppColors.error),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _deleteRadioStation(RadioStation station) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('Delete Station'),
+        content: Text('Are you sure you want to delete "${station.name}"?'),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      if (!mounted) return;
+      try {
+        final MusicRepository repo = context.read<MusicRepository>();
+        await repo.deleteRadioStation(station.id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Station "${station.name}" deleted'), backgroundColor: AppColors.success),
+          );
+          await _loadRadioStations();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to delete station: $e'), backgroundColor: AppColors.error),
+          );
+        }
+      }
+    }
+  }
+
+  Widget _buildRadioTab(BuildContext context) {
+    final bool isDark = context.isDarkMode;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Radio Stations Manager',
+                  style: TextStyle(
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: context.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Manage Akashvani and live Indian FM stations (${_adminRadioStations.length} active)',
+                  style: TextStyle(fontSize: 12.5, color: context.textSecondary),
+                ),
+              ],
+            ),
+            Row(
+              children: <Widget>[
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded),
+                  onPressed: _loadRadioStations,
+                  tooltip: 'Reload',
+                ),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
+                    foregroundColor: Colors.black,
+                  ),
+                  onPressed: () => _showAddEditRadioStationDialog(),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Add Station', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (_isLoadingRadio)
+          const Padding(
+            padding: EdgeInsets.all(40),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (_adminRadioStations.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(32),
+            child: Center(child: Text('No radio stations registered.')),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _adminRadioStations.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (BuildContext ctx, int i) {
+              final RadioStation s = _adminRadioStations[i];
+              return EchoGlassCard(
+                padding: const EdgeInsets.all(12),
+                borderRadius: 14,
+                backgroundColor: isDark ? null : AppColors.lightSurface,
+                child: Row(
+                  children: <Widget>[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.network(
+                        s.artworkUrl,
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 48,
+                          height: 48,
+                          color: isDark ? AppColors.surfaceContainerHigh : AppColors.lightInputBackground,
+                          child: const Icon(Icons.radio_rounded, size: 24),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Row(
+                            children: <Widget>[
+                              Flexible(
+                                child: Text(
+                                  s.name,
+                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.secondary.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  s.frequency,
+                                  style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: AppColors.secondary),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${s.state} • ${s.category}',
+                            style: TextStyle(fontSize: 11.5, color: context.textSecondary),
+                          ),
+                          Text(
+                            s.streamUrl,
+                            style: TextStyle(fontSize: 10, color: context.textMuted),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit_rounded, size: 18),
+                      tooltip: 'Edit Station',
+                      onPressed: () => _showAddEditRadioStationDialog(existing: s),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),
+                      tooltip: 'Delete Station',
+                      onPressed: () => _deleteRadioStation(s),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  // ==========================================
+  // TAB: LIBRARY CATEGORIES MANAGEMENT
+  // ==========================================
+
+  Future<void> _loadLibraryCategories() async {
+    setState(() => _isLoadingLibraryCats = true);
+    try {
+      final MusicRepository repo = context.read<MusicRepository>();
+      final List<Map<String, dynamic>> raw = await repo.fetchLibraryCategories();
+      if (mounted) {
+        setState(() {
+          _adminLibraryCats = raw;
+          _isLoadingLibraryCats = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingLibraryCats = false);
+      }
+    }
+  }
+
+  Future<void> _showAddEditLibraryCategoryDialog({Map<String, dynamic>? existing}) async {
+    final TextEditingController titleCtrl = TextEditingController(text: existing?['title']?.toString() ?? '');
+    final TextEditingController subtitleCtrl = TextEditingController(text: existing?['subtitle']?.toString() ?? '');
+    final TextEditingController queryCtrl = TextEditingController(text: existing?['query']?.toString() ?? '');
+    final TextEditingController typeCtrl = TextEditingController(text: existing?['category_type']?.toString() ?? 'mood');
+    final TextEditingController emojiCtrl = TextEditingController(text: existing?['emoji']?.toString() ?? '🎶');
+    final TextEditingController startColorCtrl = TextEditingController(text: existing?['gradient_start']?.toString() ?? '#1E3A8A');
+    final TextEditingController endColorCtrl = TextEditingController(text: existing?['gradient_end']?.toString() ?? '#2563EB');
+    final TextEditingController artCtrl = TextEditingController(text: existing?['artwork_url']?.toString() ?? '');
+    bool isActive = existing?['is_active'] != false;
+
+    final bool? saved = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext dCtx, StateSetter setModalState) {
+            return AlertDialog(
+              title: Text(existing == null ? 'Add Library Category' : 'Edit Library Category'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    TextField(
+                      controller: titleCtrl,
+                      decoration: const InputDecoration(labelText: 'Category Title *', hintText: 'e.g. Bollywood Hits'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: subtitleCtrl,
+                      decoration: const InputDecoration(labelText: 'Subtitle', hintText: 'e.g. Top Hindi Cinema Chartbusters'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: queryCtrl,
+                      decoration: const InputDecoration(labelText: 'Search / Mood Query *', hintText: 'e.g. Bollywood Hits'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: emojiCtrl,
+                      decoration: const InputDecoration(labelText: 'Emoji Icon', hintText: 'e.g. 🎬, 🕉️, 🥁, 💖'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: typeCtrl,
+                      decoration: const InputDecoration(labelText: 'Type (mood | search | playlist)', hintText: 'mood'),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: TextField(
+                            controller: startColorCtrl,
+                            decoration: const InputDecoration(labelText: 'Gradient Start Hex', hintText: '#E11D48'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: endColorCtrl,
+                            decoration: const InputDecoration(labelText: 'Gradient End Hex', hintText: '#B45309'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: artCtrl,
+                      decoration: const InputDecoration(labelText: 'Cover Artwork URL (Optional)', hintText: 'https://...'),
+                    ),
+                    const SizedBox(height: 10),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Is Active in Library Discovery', style: TextStyle(fontSize: 13)),
+                      value: isActive,
+                      onChanged: (bool v) => setModalState(() => isActive = v),
+                    ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    if (titleCtrl.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(content: Text('Title is required')),
+                      );
+                      return;
+                    }
+                    Navigator.pop(ctx, true);
+                  },
+                  child: const Text('Save Category'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (saved == true) {
+      final Map<String, dynamic> data = <String, dynamic>{
+        'title': titleCtrl.text.trim(),
+        'subtitle': subtitleCtrl.text.trim(),
+        'query': queryCtrl.text.trim().isNotEmpty ? queryCtrl.text.trim() : titleCtrl.text.trim(),
+        'category_type': typeCtrl.text.trim().isNotEmpty ? typeCtrl.text.trim() : 'mood',
+        'emoji': emojiCtrl.text.trim().isNotEmpty ? emojiCtrl.text.trim() : '🎶',
+        'gradient_start': startColorCtrl.text.trim().isNotEmpty ? startColorCtrl.text.trim() : '#1E3A8A',
+        'gradient_end': endColorCtrl.text.trim().isNotEmpty ? endColorCtrl.text.trim() : '#2563EB',
+        'artwork_url': artCtrl.text.trim(),
+        'is_active': isActive,
+      };
+
+      if (!mounted) return;
+      try {
+        final MusicRepository repo = context.read<MusicRepository>();
+        if (existing == null) {
+          await repo.createLibraryCategory(data);
+        } else {
+          final String catId = existing['id']?.toString() ?? '';
+          await repo.updateLibraryCategory(catId, data);
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Category saved successfully!'), backgroundColor: AppColors.success),
+          );
+          await _loadLibraryCategories();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to save category: $e'), backgroundColor: AppColors.error),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _deleteLibraryCategory(Map<String, dynamic> cat) async {
+    final String catId = cat['id']?.toString() ?? '';
+    final String title = cat['title']?.toString() ?? 'Category';
+
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('Delete Category'),
+        content: Text('Are you sure you want to delete "$title"?'),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      if (!mounted) return;
+      try {
+        final MusicRepository repo = context.read<MusicRepository>();
+        await repo.deleteLibraryCategory(catId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Category "$title" deleted'), backgroundColor: AppColors.success),
+          );
+          await _loadLibraryCategories();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to delete category: $e'), backgroundColor: AppColors.error),
+          );
+        }
+      }
+    }
+  }
+
+  Widget _buildLibraryTab(BuildContext context) {
+    final bool isDark = context.isDarkMode;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Library Categories Manager',
+                  style: TextStyle(
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: context.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Control categories, query links and tags shown in the Library Discovery screen',
+                  style: TextStyle(fontSize: 12.5, color: context.textSecondary),
+                ),
+              ],
+            ),
+            Row(
+              children: <Widget>[
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded),
+                  onPressed: _loadLibraryCategories,
+                  tooltip: 'Reload',
+                ),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
+                    foregroundColor: Colors.black,
+                  ),
+                  onPressed: () => _showAddEditLibraryCategoryDialog(),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Add Category', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (_isLoadingLibraryCats)
+          const Padding(
+            padding: EdgeInsets.all(40),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (_adminLibraryCats.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(32),
+            child: Center(child: Text('No categories configured.')),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _adminLibraryCats.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (BuildContext ctx, int i) {
+              final Map<String, dynamic> c = _adminLibraryCats[i];
+              final String title = c['title']?.toString() ?? '';
+              final String subtitle = c['subtitle']?.toString() ?? '';
+              final String emoji = c['emoji']?.toString() ?? '🎶';
+              final String query = c['query']?.toString() ?? '';
+              final bool active = c['is_active'] != false;
+
+              return EchoGlassCard(
+                padding: const EdgeInsets.all(12),
+                borderRadius: 14,
+                backgroundColor: isDark ? null : AppColors.lightSurface,
+                child: Row(
+                  children: <Widget>[
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: <Color>[
+                            Color(int.tryParse(c['gradient_start']?.toString().replaceFirst('#', '0xFF') ?? '') ?? 0xFF1E3A8A),
+                            Color(int.tryParse(c['gradient_end']?.toString().replaceFirst('#', '0xFF') ?? '') ?? 0xFF2563EB),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Row(
+                            children: <Widget>[
+                              Flexible(
+                                child: Text(
+                                  title,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14.5,
+                                    decoration: active ? null : TextDecoration.lineThrough,
+                                    color: active ? context.textPrimary : context.textMuted,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              if (!active)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text('HIDDEN', style: TextStyle(color: Colors.red, fontSize: 9, fontWeight: FontWeight.bold)),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle.isNotEmpty ? subtitle : 'Query: $query',
+                            style: TextStyle(fontSize: 11.5, color: context.textSecondary),
+                          ),
+                          Text(
+                            'Links to: $query (${c["category_type"] ?? "mood"})',
+                            style: TextStyle(fontSize: 10, color: context.textMuted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit_rounded, size: 18),
+                      tooltip: 'Edit Category',
+                      onPressed: () => _showAddEditLibraryCategoryDialog(existing: c),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),
+                      tooltip: 'Delete Category',
+                      onPressed: () => _deleteLibraryCategory(c),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
       ],
     );
   }

@@ -735,4 +735,55 @@ class MusicRepository {
     final Map<String, dynamic> res = await provider.toggleCatalogSection(key);
     return CatalogSection.fromJson(res);
   }
+
+  // ---------------------------------------------------------------------------
+  // Radio & Library Category Admin Operations
+  // ---------------------------------------------------------------------------
+  Future<List<Map<String, dynamic>>> fetchRadioStations() async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return <Map<String, dynamic>>[];
+    return provider.fetchRadioStations();
+  }
+
+  Future<Map<String, dynamic>> createRadioStation(Map<String, dynamic> data) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) throw const ProviderException('custom_api', message: 'Custom API provider not configured');
+    return provider.createRadioStation(data);
+  }
+
+  Future<Map<String, dynamic>> updateRadioStation(String stationId, Map<String, dynamic> data) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) throw const ProviderException('custom_api', message: 'Custom API provider not configured');
+    return provider.updateRadioStation(stationId, data);
+  }
+
+  Future<bool> deleteRadioStation(String stationId) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return false;
+    return provider.deleteRadioStation(stationId);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchLibraryCategories() async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return <Map<String, dynamic>>[];
+    return provider.fetchLibraryCategories();
+  }
+
+  Future<Map<String, dynamic>> createLibraryCategory(Map<String, dynamic> data) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) throw const ProviderException('custom_api', message: 'Custom API provider not configured');
+    return provider.createLibraryCategory(data);
+  }
+
+  Future<Map<String, dynamic>> updateLibraryCategory(String catId, Map<String, dynamic> data) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) throw const ProviderException('custom_api', message: 'Custom API provider not configured');
+    return provider.updateLibraryCategory(catId, data);
+  }
+
+  Future<bool> deleteLibraryCategory(String catId) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return false;
+    return provider.deleteLibraryCategory(catId);
+  }
 }

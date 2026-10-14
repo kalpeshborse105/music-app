@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart' hide SearchController;
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-
-import '../../state/search_controller.dart';
 import '../theme/app_colors.dart';
 import '../widgets/ad_popup_dialog.dart';
 import '../widgets/mini_player.dart';
@@ -50,10 +47,10 @@ class _AppShellState extends State<AppShell> {
     if (_index == i) {
       // Re-tapping current active tab
       if (i == 0) {
-        HomeScreen.scrollToTopAndRefresh();
+        HomeScreen.resetToDefaultAndRefresh();
       } else if (i == 1) {
-        // Tapped Library again -> reset search query
-        context.read<SearchController>().clear();
+        // Tapped Library again -> reset search query and category filter
+        LibraryScreen.resetToDefault(context);
       }
       return;
     }
@@ -61,9 +58,13 @@ class _AppShellState extends State<AppShell> {
     final int prevIndex = _index;
     setState(() => _index = i);
 
-    // If leaving library tab, reset search so returning is clean
-    if (prevIndex == 1 && i != 1) {
-      context.read<SearchController>().clear();
+    // If switching to Home, reset mood tabs to 'All'
+    if (i == 0) {
+      HomeScreen.resetToDefaultAndRefresh();
+    }
+    // If switching to or leaving library tab, ensure filter and search are reset
+    if (i == 1 || prevIndex == 1) {
+      LibraryScreen.resetToDefault(context);
     }
   }
 

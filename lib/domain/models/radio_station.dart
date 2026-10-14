@@ -14,6 +14,9 @@ class RadioStation {
   final String streamUrl;
   final String artworkUrl;
 
+  final String category;
+  final bool isLive;
+
   const RadioStation({
     required this.id,
     required this.name,
@@ -22,7 +25,37 @@ class RadioStation {
     required this.state,
     required this.streamUrl,
     required this.artworkUrl,
+    this.category = 'National',
+    this.isLive = true,
   });
+
+  factory RadioStation.fromJson(Map<String, dynamic> json) {
+    return RadioStation(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? 'Radio Station',
+      tagline: json['tagline'] as String? ?? '',
+      frequency: json['frequency'] as String? ?? 'FM Live',
+      state: json['state'] as String? ?? 'India',
+      streamUrl: json['stream_url'] as String? ?? '',
+      artworkUrl: json['artwork_url'] as String? ?? 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80',
+      category: json['category'] as String? ?? 'National',
+      isLive: json['is_live'] as bool? ?? true,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'name': name,
+      'tagline': tagline,
+      'frequency': frequency,
+      'state': state,
+      'stream_url': streamUrl,
+      'artwork_url': artworkUrl,
+      'category': category,
+      'is_live': isLive,
+    };
+  }
 
   /// Converts this radio station into a standard Kalpkrut Beats [Track] for the audio engine.
   Track toTrack() {
@@ -33,10 +66,10 @@ class RadioStation {
       title: name,
       artists: <Artist>[
         Artist(
-          id: 'radio:akashvani',
+          id: 'radio:station:$id',
           providerId: 'radio',
-          providerArtistId: 'akashvani',
-          name: 'Akashvani • All India Radio',
+          providerArtistId: id,
+          name: '$frequency • $state',
         ),
       ],
       album: Album(
@@ -61,52 +94,17 @@ class RadioStation {
     );
   }
 
-  /// Official verified live Akashvani & 24/7 radio stations list
+  /// Official verified live Indian radio stations list (Akashvani & curated live Indian FM)
   static const List<RadioStation> stations = <RadioStation>[
     RadioStation(
       id: 'air_vividh_bharati',
       name: 'AIR Vividh Bharati',
       tagline: 'Classic Hindi Songs & Golden Era Melodies',
       frequency: '102.8 FM',
-      state: 'National / Mumbai',
+      state: 'Mumbai / National',
       streamUrl: 'https://air.pc.cdn.bitgravity.com/air/live/pbaudio001/playlist.m3u8',
       artworkUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80',
-    ),
-    RadioStation(
-      id: 'air_marathi_asmita',
-      name: 'Akashvani Marathi Samvad',
-      tagline: 'Prasar Bharati Marathi broadcasts, Bhavgeete & state news',
-      frequency: 'Statewide Live',
-      state: 'Maharashtra',
-      streamUrl: 'https://air.pc.cdn.bitgravity.com/air/live/pbaudio024/playlist.m3u8',
-      artworkUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80',
-    ),
-    RadioStation(
-      id: 'air_pune',
-      name: 'Akashvani Pune',
-      tagline: 'Akashvani Pune live Marathi programming & classical recitals',
-      frequency: '101.0 FM',
-      state: 'Pune / Western Maharashtra',
-      streamUrl: 'https://air.pc.cdn.bitgravity.com/air/live/pbaudio025/playlist.m3u8',
-      artworkUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80',
-    ),
-    RadioStation(
-      id: 'air_nagpur',
-      name: 'Akashvani Nagpur',
-      tagline: 'Vidarbha regional broadcasts, Marathi folk & devotional news',
-      frequency: 'Live Broadcast',
-      state: 'Nagpur / Vidarbha',
-      streamUrl: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio026/hlspbaudio02664kbps.m3u8',
-      artworkUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&q=80',
-    ),
-    RadioStation(
-      id: 'air_fm_rainbow_mumbai',
-      name: 'AIR FM Rainbow Mumbai',
-      tagline: 'Mumbai 107.1 FM live melodies and youth programming',
-      frequency: '107.1 FM',
-      state: 'Mumbai',
-      streamUrl: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio002/hlspbaudio00264kbps.m3u8',
-      artworkUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=500&q=80',
+      category: 'AIR National',
     ),
     RadioStation(
       id: 'air_fm_gold',
@@ -116,60 +114,87 @@ class RadioStation {
       state: 'Delhi / National',
       streamUrl: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio005/hlspbaudio00564kbps.m3u8',
       artworkUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80',
+      category: 'AIR National',
     ),
     RadioStation(
-      id: 'hindi_gold_retro',
-      name: 'Hindi Gold Classics',
+      id: 'air_fm_rainbow_mumbai',
+      name: 'AIR FM Rainbow Mumbai',
+      tagline: 'Mumbai 107.1 FM live melodies and youth programming',
+      frequency: '107.1 FM',
+      state: 'Mumbai / Western',
+      streamUrl: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio002/hlspbaudio00264kbps.m3u8',
+      artworkUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=500&q=80',
+      category: 'AIR Regional',
+    ),
+    RadioStation(
+      id: 'air_marathi_asmita',
+      name: 'Akashvani Mumbai Asmita',
+      tagline: 'Prasar Bharati Marathi broadcasts, Natyasangeet & Bhavgeete',
+      frequency: '100.1 FM',
+      state: 'Maharashtra',
+      streamUrl: 'https://air.pc.cdn.bitgravity.com/air/live/pbaudio024/playlist.m3u8',
+      artworkUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&q=80',
+      category: 'AIR Regional',
+    ),
+    RadioStation(
+      id: 'air_pune',
+      name: 'Akashvani Pune',
+      tagline: 'Akashvani Pune Marathi programming, news & classical recitals',
+      frequency: '101.0 FM',
+      state: 'Pune / Maharashtra',
+      streamUrl: 'https://air.pc.cdn.bitgravity.com/air/live/pbaudio025/playlist.m3u8',
+      artworkUrl: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=500&q=80',
+      category: 'AIR Regional',
+    ),
+    RadioStation(
+      id: 'air_nagpur',
+      name: 'Akashvani Nagpur',
+      tagline: 'Vidarbha regional broadcasts, Marathi folk & news',
+      frequency: '102.2 FM',
+      state: 'Nagpur / Vidarbha',
+      streamUrl: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio026/hlspbaudio02664kbps.m3u8',
+      artworkUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500&q=80',
+      category: 'AIR Regional',
+    ),
+    RadioStation(
+      id: 'hindi_gold_classics',
+      name: 'Radio City Hindi Classics',
       tagline: 'Evergreen 60s, 70s, 80s & 90s Golden Melodies',
       frequency: 'Online 24/7',
       state: 'National',
-      streamUrl: 'https://azuracast.vibesounds.in:8010/radio.mp3',
+      streamUrl: 'https://cast1.asurahosting.com/proxy/radiocity/stream',
       artworkUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&q=80',
+      category: 'Retro Melodies',
     ),
     RadioStation(
-      id: 'lofi_chill_live',
-      name: 'Lo-Fi Chillhop Radio',
-      tagline: 'Mellow Beats, Rain Textures & Study Vibes',
-      frequency: 'HD 24/7',
-      state: 'Global Live',
-      streamUrl: 'https://streams.ilovemusic.de/iloveradio17.mp3',
-      artworkUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500&q=80',
-    ),
-    RadioStation(
-      id: 'top_charts_live',
-      name: 'Today Top Chartbusters',
-      tagline: 'Non-stop trending chart hits & fresh party beats',
-      frequency: 'Live 24/7',
+      id: 'vividh_bharati_retro',
+      name: 'Vividh Bharati Retro',
+      tagline: 'Non-stop Kishore Kumar, Lata Mangeshkar, and R.D. Burman gems',
+      frequency: 'Web HD 24/7',
       state: 'National',
-      streamUrl: 'https://streams.ilovemusic.de/iloveradio1.mp3',
-      artworkUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=500&q=80',
+      streamUrl: 'https://stream.zeno.fm/f3wvbbqmdg8uv',
+      artworkUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80',
+      category: 'Retro Melodies',
     ),
     RadioStation(
-      id: 'bhakti_sagar_live',
-      name: 'Bhakti Sagar Divine',
-      tagline: 'Divine morning Bhajans, sacred mantras & Aartis',
+      id: 'bhakti_sagar_divine',
+      name: 'Akashvani Bhakti Sagar',
+      tagline: 'Divine morning Bhajans, sacred mantras, Aarti & Hanuman Chalisa',
       frequency: 'Devotional 24/7',
       state: 'National',
-      streamUrl: 'http://millenniumhits.out.airtime.pro:8000/millenniumhits_a',
+      streamUrl: 'https://stream.zeno.fm/m9w6q1k5y1zuv',
       artworkUrl: 'https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=500&q=80',
+      category: 'Devotional',
     ),
     RadioStation(
-      id: 'classical_symphonies',
-      name: 'Classical Symphonies',
-      tagline: 'Masterpieces from Mozart, Beethoven & Bach',
-      frequency: 'Lossless HD',
-      state: 'International',
-      streamUrl: 'https://stream.srg-ssr.ch/m/rsc_de/mp3_128',
-      artworkUrl: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=500&q=80',
-    ),
-    RadioStation(
-      id: 'indie_groove_live',
-      name: 'SomaFM Groove Salad',
-      tagline: 'Independent acoustic gems, chill groove & ambient pop',
-      frequency: 'Direct MP3',
-      state: 'Global',
-      streamUrl: 'https://ice2.somafm.com/groovesalad-128-mp3',
-      artworkUrl: 'https://images.unsplash.com/photo-1487180144351-b8472da7d491?w=500&q=80',
+      id: 'marathi_sangeet_live',
+      name: 'Radio Marathi Sangeet',
+      tagline: 'Marathi Bhavgeete, Lavani, Natyasangeet & evergreen classics',
+      frequency: 'Regional 24/7',
+      state: 'Maharashtra',
+      streamUrl: 'https://stream.zeno.fm/0r0xa792kwzuv',
+      artworkUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80',
+      category: 'Regional',
     ),
   ];
 }

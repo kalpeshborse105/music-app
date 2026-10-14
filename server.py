@@ -395,14 +395,15 @@ def jio_call(call, params=None, languages=None, ctx="web6dot0", api_version="4",
     query.update({k: v for k, v in (params or {}).items() if v is not None})
     url = f"{JIO_API}?{urllib.parse.urlencode(query)}"
     lang_list = languages or DEFAULT_LANGUAGES
-    primary_lang = lang_list[0] if lang_list else "hindi"
+    # Music catalogue languages: user/default selected Indian languages (Hindi, Punjabi, etc.)
+    # Display language: English (DL=english) so titles and artist names are readable in Latin script
     lang_cookie = urllib.parse.quote(",".join(lang_list))
     headers = {
         "User-Agent": _USER_AGENT,
         "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "hi,en-IN;q=0.9,en;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
         "Referer": "https://www.jiosaavn.com/",
-        "Cookie": f"L={lang_cookie}; DL={primary_lang}; gdpr_acceptance=true",
+        "Cookie": f"L={lang_cookie}; DL=english; gdpr_acceptance=true",
     }
     last_exc = None
     for _ in range(retries + 1):
@@ -1082,8 +1083,8 @@ def related_tracks(song_id, title="", artist="", limit=15, exclude=None, languag
     seed = {}
     if song_id:
         exclude_ids.add(song_id)
-        seed = song_details(song_id)
-    elif title or artist:
+        seed = song_details(song_id) or {}
+    if not seed and (title or artist):
         found = search_songs(f"{title} {artist}".strip(), 1, 1, languages)
         if found:
             seed = found[0]
@@ -2558,19 +2559,219 @@ def api_catalog_toggle_section(section_key):
     return jsonify(sec)
 
 
-# ─── Radio ──────────────────────────────────────────────────────────────────────
-@app.route("/api/radio/stations")
+# ─── Dynamic Radio & Library Categories Management ──────────────────────────────
+RADIO_STORAGE_FILE = os.path.join(DATA_DIR, "radio_stations.json")
+LIBRARY_STORAGE_FILE = os.path.join(DATA_DIR, "library_categories.json")
+RADIO_LOCK = threading.Lock()
+LIBRARY_LOCK = threading.Lock()
+
+
+def load_radio_stations():
+    with RADIO_LOCK:
+        if os.path.exists(RADIO_STORAGE_FILE):
+            try:
+                with open(RADIO_STORAGE_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list) and data:
+                        return data
+            except Exception as e:
+                print(f"[Radio] Error loading radio_stations.json: {e}")
+        return list(RADIO_STATIONS)
+
+
+def save_radio_stations(stations):
+    with RADIO_LOCK:
+        try:
+            with open(RADIO_STORAGE_FILE, "w", encoding="utf-8") as f:
+                json.dump(stations, f, indent=2, ensure_ascii=False)
+            return True
+        except Exception as e:
+            print(f"[Radio] Error saving radio_stations.json: {e}")
+            return False
+
+
+def load_library_categories():
+    with LIBRARY_LOCK:
+        if os.path.exists(LIBRARY_STORAGE_FILE):
+            try:
+                with open(LIBRARY_STORAGE_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list) and data:
+                        return data
+            except Exception as e:
+                print(f"[Library] Error loading library_categories.json: {e}")
+        return []
+
+
+def save_library_categories(categories):
+    with LIBRARY_LOCK:
+        try:
+            with open(LIBRARY_STORAGE_FILE, "w", encoding="utf-8") as f:
+                json.dump(categories, f, indent=2, ensure_ascii=False)
+            return True
+        except Exception as e:
+            print(f"[Library] Error saving library_categories.json: {e}")
+            return False
+
+
+@app.route("/api/radio/stations", methods=["GET", "POST"])
 def api_radio_stations():
-    languages = req_languages()
-    home_data = live_home(languages)
-    jio_radio = next((s["items"] for s in home_data.get("sections", []) if s["key"] == "radio"), [])
-    return ok({"stations": RADIO_STATIONS, "count": len(RADIO_STATIONS), "jiosaavn_stations": jio_radio}, 3600)
+    if request.method == "POST":
+        if not is_admin_request(request):
+            return jsonify({"error": "Admin privileges required"}), 403
+        body = request.get_json(silent=True) or {}
+        name = str(body.get("name") or "").strip()
+        stream_url = str(body.get("stream_url") or "").strip()
+        if not name or not stream_url:
+            return jsonify({"error": "Name and Stream URL are required"}), 400
+
+        station_id = str(body.get("id") or "").strip()
+        if not station_id:
+            station_id = re.sub(r"[^a-z0-9_]+", "_", name.lower()).strip("_")
+        
+        stations = load_radio_stations()
+        if any(s.get("id") == station_id for s in stations):
+            station_id = f"{station_id}_{int(time.time())}"
+
+        new_station = {
+            "id": station_id,
+            "name": name,
+            "tagline": str(body.get("tagline") or "").strip(),
+            "frequency": str(body.get("frequency") or "Live FM").strip(),
+            "state": str(body.get("state") or "National / Regional").strip(),
+            "stream_url": stream_url,
+            "artwork_url": str(body.get("artwork_url") or "").strip() or "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+            "category": str(body.get("category") or "National").strip(),
+            "is_live": bool(body.get("is_live", True)),
+        }
+        stations.append(new_station)
+        save_radio_stations(stations)
+        return jsonify(new_station), 201
+
+    stations = load_radio_stations()
+    return ok({"stations": stations, "count": len(stations)}, 60)
+
+
+@app.route("/api/radio/stations/<station_id>", methods=["PUT", "DELETE"])
+def api_radio_station_detail(station_id):
+    if not is_admin_request(request):
+        return jsonify({"error": "Admin privileges required"}), 403
+
+    stations = load_radio_stations()
+    idx = next((i for i, s in enumerate(stations) if s.get("id") == station_id), None)
+    if idx is None:
+        return not_found(f"Station '{station_id}' not found")
+
+    if request.method == "DELETE":
+        removed = stations.pop(idx)
+        save_radio_stations(stations)
+        return jsonify({"success": True, "deleted": removed})
+
+    body = request.get_json(silent=True) or {}
+    st = stations[idx]
+    if "name" in body:
+        st["name"] = str(body["name"]).strip()
+    if "tagline" in body:
+        st["tagline"] = str(body["tagline"]).strip()
+    if "frequency" in body:
+        st["frequency"] = str(body["frequency"]).strip()
+    if "state" in body:
+        st["state"] = str(body["state"]).strip()
+    if "stream_url" in body:
+        st["stream_url"] = str(body["stream_url"]).strip()
+    if "artwork_url" in body:
+        st["artwork_url"] = str(body["artwork_url"]).strip()
+    if "category" in body:
+        st["category"] = str(body["category"]).strip()
+    if "is_live" in body:
+        st["is_live"] = bool(body["is_live"])
+
+    save_radio_stations(stations)
+    return jsonify(st)
 
 
 @app.route("/api/radio/stream/<station_id>")
 def api_radio_stream(station_id):
-    station = next((s for s in RADIO_STATIONS if s["id"] == station_id), None)
+    stations = load_radio_stations()
+    station = next((s for s in stations if s["id"] == station_id), None)
     return redirect(station["stream_url"], code=302) if station else not_found("Station not found")
+
+
+# ─── Library Categories Endpoints ───────────────────────────────────────────────
+@app.route("/api/library/categories", methods=["GET", "POST"])
+def api_library_categories():
+    if request.method == "POST":
+        if not is_admin_request(request):
+            return jsonify({"error": "Admin privileges required"}), 403
+        body = request.get_json(silent=True) or {}
+        title = str(body.get("title") or "").strip()
+        if not title:
+            return jsonify({"error": "Title is required"}), 400
+
+        cat_id = str(body.get("id") or "").strip()
+        if not cat_id:
+            cat_id = re.sub(r"[^a-z0-9_]+", "_", title.lower()).strip("_")
+
+        categories = load_library_categories()
+        new_cat = {
+            "id": cat_id,
+            "title": title,
+            "subtitle": str(body.get("subtitle") or "").strip(),
+            "query": str(body.get("query") or title).strip(),
+            "category_type": str(body.get("category_type") or "mood").strip(),
+            "gradient_start": str(body.get("gradient_start") or "#1E3A8A").strip(),
+            "gradient_end": str(body.get("gradient_end") or "#2563EB").strip(),
+            "artwork_url": str(body.get("artwork_url") or "").strip(),
+            "emoji": str(body.get("emoji") or "🎶").strip(),
+            "is_active": bool(body.get("is_active", True)),
+        }
+        categories.append(new_cat)
+        save_library_categories(categories)
+        return jsonify(new_cat), 201
+
+    cats = load_library_categories()
+    return ok({"categories": cats, "count": len(cats)}, 60)
+
+
+@app.route("/api/library/categories/<cat_id>", methods=["PUT", "DELETE"])
+def api_library_category_detail(cat_id):
+    if not is_admin_request(request):
+        return jsonify({"error": "Admin privileges required"}), 403
+
+    cats = load_library_categories()
+    idx = next((i for i, c in enumerate(cats) if c.get("id") == cat_id), None)
+    if idx is None:
+        return not_found(f"Category '{cat_id}' not found")
+
+    if request.method == "DELETE":
+        removed = cats.pop(idx)
+        save_library_categories(cats)
+        return jsonify({"success": True, "deleted": removed})
+
+    body = request.get_json(silent=True) or {}
+    c = cats[idx]
+    if "title" in body:
+        c["title"] = str(body["title"]).strip()
+    if "subtitle" in body:
+        c["subtitle"] = str(body["subtitle"]).strip()
+    if "query" in body:
+        c["query"] = str(body["query"]).strip()
+    if "category_type" in body:
+        c["category_type"] = str(body["category_type"]).strip()
+    if "gradient_start" in body:
+        c["gradient_start"] = str(body["gradient_start"]).strip()
+    if "gradient_end" in body:
+        c["gradient_end"] = str(body["gradient_end"]).strip()
+    if "artwork_url" in body:
+        c["artwork_url"] = str(body["artwork_url"]).strip()
+    if "emoji" in body:
+        c["emoji"] = str(body["emoji"]).strip()
+    if "is_active" in body:
+        c["is_active"] = bool(body["is_active"])
+
+    save_library_categories(cats)
+    return jsonify(c)
+
 
 
 # ─── YouTube (yt-dlp) ───────────────────────────────────────────────────────────

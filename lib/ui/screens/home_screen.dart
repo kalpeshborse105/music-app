@@ -36,12 +36,26 @@ class HomeScreen extends StatefulWidget {
     _activeState?._onScrollToTop();
   }
 
+  static void resetToDefaultAndRefresh() {
+    _activeState?._resetToDefault();
+  }
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
   String _selectedMood = 'All';
+
+  void _resetToDefault() {
+    if (_selectedMood != 'All') {
+      setState(() {
+        _selectedMood = 'All';
+      });
+      _refreshData();
+    }
+    _onScrollToTop();
+  }
 
   /// Language preference chips — these map to the `lang=` backend parameter.
   /// A `null` language means 'all'.
@@ -217,17 +231,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_initialized) {
       _initialized = true;
       final MusicRepository repo = context.read<MusicRepository>();
-      final LibraryController library = context.read<LibraryController>();
-      final String? userLang = library.preferredLanguage;
-      if (userLang != null && userLang.isNotEmpty && userLang.toLowerCase() != 'all') {
-        final String match = _languages.firstWhere(
-          (String m) => m.toLowerCase() == userLang.toLowerCase(),
-          orElse: () => '',
-        );
-        if (match.isNotEmpty) {
-          _selectedMood = match;
-        }
-      }
+      // Ensure home screen always defaults to 'All'
+      _selectedMood = 'All';
       final String? lang = _activeLang;
       _trendingFuture = repo.trending(limit: 20, language: lang);
       _newReleasesFuture = repo.newReleases(limit: 8, language: lang);
@@ -309,6 +314,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: _buildLiveRadioBanner(context),
                 ),
 
+                // Top Festival / Special Hero Banner (if active)
+                SliverToBoxAdapter(
+                  child: _buildTopFestivalPosterHero(context),
+                ),
+
                 // 2. Greeting & Mood Filter Carousel
                 SliverToBoxAdapter(
                   child: _buildGreetingAndMoods(context, repo),
@@ -354,6 +364,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   // 7. Trending Now & Fresh Picks (Infinite scroll)
                   SliverToBoxAdapter(
                     child: _buildTrendingRankedSection(context, playback),
+                  ),
+
+                  // 8. Latest JioSaavn Releases Shelf
+                  SliverToBoxAdapter(
+                    child: _buildBottomJioSaavnReleases(context, repo),
                   ),
                 ],
 
@@ -1139,6 +1154,62 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                     ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTopFestivalPosterHero(BuildContext context) {
+    return FutureBuilder<List<CatalogSection>>(
+      future: _catalogSectionsFuture,
+      builder: (BuildContext context, AsyncSnapshot<List<CatalogSection>> snapshot) {
+        final List<CatalogSection> sections = snapshot.data ?? <CatalogSection>[];
+        final CatalogSection? festival = sections.cast<CatalogSection?>().firstWhere(
+          (CatalogSection? s) => s != null && s.isBanner && s.isCampaignActive && s.isEnabled,
+          orElse: () => null,
+        );
+        if (festival == null) return const SizedBox.shrink();
+
+        return _buildFestivalHeroBanner(context, festival);
+      },
+    );
+  }
+
+  Widget _buildBottomJioSaavnReleases(BuildContext context, MusicRepository repo) {
+    return FutureBuilder<List<Track>>(
+      future: _newReleasesFuture,
+      builder: (BuildContext context, AsyncSnapshot<List<Track>> snapshot) {
+        final List<Track> tracks = snapshot.data ?? <Track>[];
+        if (tracks.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            SectionHeader(
+              title: 'Fresh Releases from JioSaavn',
+              subtitle: 'Latest track drops from official catalogues',
+              topPadding: AppSpacing.md,
+              actionLabel: 'Play All (${tracks.length})',
+              onAction: () => TrackActions.play(context, tracks.first, queue: tracks),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              child: Column(
+                children: <Widget>[
+                  for (int i = 0; i < tracks.length; i++) ...<Widget>[
+                    TrackTile(
+                      index: i,
+                      track: tracks[i],
+                      dense: true,
+                      onTap: () => TrackActions.play(context, tracks[i], queue: tracks),
+                      onMenu: () => showTrackActionsSheet(context, tracks[i]),
+                    ),
+                    if (i < tracks.length - 1) const Divider(height: 1, indent: 64),
+                  ],
+                ],
+              ),
             ),
           ],
         );

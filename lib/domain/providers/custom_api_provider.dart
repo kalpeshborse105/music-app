@@ -708,4 +708,102 @@ class CustomApiProvider extends BaseMusicProvider {
     final SearchResult s = await search(query, limit: limit);
     return s.tracks.where((Track t) => t.id != track.id).toList();
   }
+
+  // ---------------------------------------------------------------------------
+  // Radio Stations Admin Management
+  // ---------------------------------------------------------------------------
+  Future<List<Map<String, dynamic>>> fetchRadioStations() async {
+    final Uri uri = Uri.parse('$_baseUrl/api/radio/stations');
+    final http.Response res = await http.get(uri).timeout(const Duration(seconds: 10));
+    if (res.statusCode == 200) {
+      final Map<String, dynamic> body = jsonDecode(res.body) as Map<String, dynamic>;
+      final List<dynamic> list = (body['stations'] as List<dynamic>?) ?? <dynamic>[];
+      return list.whereType<Map<String, dynamic>>().toList();
+    }
+    return <Map<String, dynamic>>[];
+  }
+
+  Future<Map<String, dynamic>> createRadioStation(Map<String, dynamic> data) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/radio/stations');
+    final http.Response res = await http.post(
+      uri,
+      headers: _buildHeaders(),
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 10));
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    }
+    throw ProviderException(id, message: 'Failed to create radio station (${res.statusCode})');
+  }
+
+  Future<Map<String, dynamic>> updateRadioStation(String stationId, Map<String, dynamic> data) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/radio/stations/$stationId');
+    final http.Response res = await http.put(
+      uri,
+      headers: _buildHeaders(),
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 10));
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    }
+    throw ProviderException(id, message: 'Failed to update radio station (${res.statusCode})');
+  }
+
+  Future<bool> deleteRadioStation(String stationId) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/radio/stations/$stationId');
+    final http.Response res = await http.delete(
+      uri,
+      headers: _buildHeaders(),
+    ).timeout(const Duration(seconds: 10));
+    return res.statusCode >= 200 && res.statusCode < 300;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Library Discovery Categories Admin Management
+  // ---------------------------------------------------------------------------
+  Future<List<Map<String, dynamic>>> fetchLibraryCategories() async {
+    final Uri uri = Uri.parse('$_baseUrl/api/library/categories');
+    final http.Response res = await http.get(uri).timeout(const Duration(seconds: 10));
+    if (res.statusCode == 200) {
+      final Map<String, dynamic> body = jsonDecode(res.body) as Map<String, dynamic>;
+      final List<dynamic> list = (body['categories'] as List<dynamic>?) ?? <dynamic>[];
+      return list.whereType<Map<String, dynamic>>().toList();
+    }
+    return <Map<String, dynamic>>[];
+  }
+
+  Future<Map<String, dynamic>> createLibraryCategory(Map<String, dynamic> data) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/library/categories');
+    final http.Response res = await http.post(
+      uri,
+      headers: _buildHeaders(),
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 10));
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    }
+    throw ProviderException(id, message: 'Failed to create library category (${res.statusCode})');
+  }
+
+  Future<Map<String, dynamic>> updateLibraryCategory(String catId, Map<String, dynamic> data) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/library/categories/$catId');
+    final http.Response res = await http.put(
+      uri,
+      headers: _buildHeaders(),
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 10));
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    }
+    throw ProviderException(id, message: 'Failed to update library category (${res.statusCode})');
+  }
+
+  Future<bool> deleteLibraryCategory(String catId) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/library/categories/$catId');
+    final http.Response res = await http.delete(
+      uri,
+      headers: _buildHeaders(),
+    ).timeout(const Duration(seconds: 10));
+    return res.statusCode >= 200 && res.statusCode < 300;
+  }
 }

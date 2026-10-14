@@ -1,0 +1,112 @@
+[
+  {
+    "id": "air_vividh_bharati",
+    "name": "AIR Vividh Bharati",
+    "tagline": "Classic Hindi Songs & Golden Era Melodies",
+    "frequency": "102.8 FM",
+    "state": "Mumbai / National",
+    "stream_url": "https://air.pc.cdn.bitgravity.com/air/live/pbaudio001/playlist.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "AIR National",
+    "is_live": true
+  },
+  {
+    "id": "air_fm_gold",
+    "name": "AIR FM Gold Delhi",
+    "tagline": "Retro Bollywood, News & Melodious Classics",
+    "frequency": "106.4 FM",
+    "state": "Delhi / National",
+    "stream_url": "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio005/hlspbaudio00564kbps.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80",
+    "category": "AIR National",
+    "is_live": true
+  },
+  {
+    "id": "air_fm_rainbow_mumbai",
+    "name": "AIR FM Rainbow Mumbai",
+    "tagline": "Mumbai 107.1 FM live melodies and youth programming",
+    "frequency": "107.1 FM",
+    "state": "Mumbai / Western",
+    "stream_url": "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio002/hlspbaudio00264kbps.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=500&q=80",
+    "category": "AIR Regional",
+    "is_live": true
+  },
+  {
+    "id": "air_marathi_asmita",
+    "name": "Akashvani Mumbai Asmita",
+    "tagline": "Prasar Bharati Marathi broadcasts, Natyasangeet & Bhavgeete",
+    "frequency": "100.1 FM",
+    "state": "Maharashtra",
+    "stream_url": "https://air.pc.cdn.bitgravity.com/air/live/pbaudio024/playlist.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&q=80",
+    "category": "AIR Regional",
+    "is_live": true
+  },
+  {
+    "id": "air_pune",
+    "name": "Akashvani Pune",
+    "tagline": "Akashvani Pune Marathi programming, news & classical recitals",
+    "frequency": "101.0 FM",
+    "state": "Pune / Maharashtra",
+    "stream_url": "https://air.pc.cdn.bitgravity.com/air/live/pbaudio025/playlist.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=500&q=80",
+    "category": "AIR Regional",
+    "is_live": true
+  },
+  {
+    "id": "air_nagpur",
+    "name": "Akashvani Nagpur",
+    "tagline": "Vidarbha regional broadcasts, Marathi folk & news",
+    "frequency": "102.2 FM",
+    "state": "Nagpur / Vidarbha",
+    "stream_url": "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio026/hlspbaudio02664kbps.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500&q=80",
+    "category": "AIR Regional",
+    "is_live": true
+  },
+  {
+    "id": "hindi_gold_classics",
+    "name": "Radio City Hindi Classics",
+    "tagline": "Evergreen 60s, 70s, 80s & 90s Golden Melodies",
+    "frequency": "Online 24/7",
+    "state": "National",
+    "stream_url": "https://cast1.asurahosting.com/proxy/radiocity/stream",
+    "artwork_url": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&q=80",
+    "category": "Retro Melodies",
+    "is_live": true
+  },
+  {
+    "id": "vividh_bharati_retro",
+    "name": "Vividh Bharati Retro",
+    "tagline": "Non-stop Kishore Kumar, Lata Mangeshkar, and R.D. Burman gems",
+    "frequency": "Web HD 24/7",
+    "state": "National",
+    "stream_url": "https://stream.zeno.fm/f3wvbbqmdg8uv",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Retro Melodies",
+    "is_live": true
+  },
+  {
+    "id": "bhakti_sagar_divine",
+    "name": "Akashvani Bhakti Sagar",
+    "tagline": "Divine morning Bhajans, sacred mantras, Aarti & Hanuman Chalisa",
+    "frequency": "Devotional 24/7",
+    "state": "National",
+    "stream_url": "https://stream.zeno.fm/m9w6q1k5y1zuv",
+    "artwork_url": "https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=500&q=80",
+    "category": "Devotional",
+    "is_live": true
+  },
+  {
+    "id": "marathi_sangeet_live",
+    "name": "Radio Marathi Sangeet",
+    "tagline": "Marathi Bhavgeete, Lavani, Natyasangeet & evergreen classics",
+    "frequency": "Regional 24/7",
+    "state": "Maharashtra",
+    "stream_url": "https://stream.zeno.fm/0r0xa792kwzuv",
+    "artwork_url": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80",
+    "category": "Regional",
+    "is_live": true
+  }
+]

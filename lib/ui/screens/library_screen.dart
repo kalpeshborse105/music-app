@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide SearchController;
 import 'package:provider/provider.dart';
 
+import '../../data/music_repository.dart';
 import '../../domain/models/album.dart';
 import '../../domain/models/artist.dart';
 import '../../domain/models/history_entry.dart';
@@ -20,6 +21,7 @@ import '../widgets/cards.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/state_views.dart';
 import '../widgets/track_tile.dart';
+import 'category_detail_screen.dart';
 import 'list_screen.dart';
 import 'onboarding_auth_screen.dart';
 
@@ -29,18 +31,15 @@ import 'onboarding_auth_screen.dart';
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
 
+  static _LibraryScreenState? _activeState;
+
+  static void resetToDefault(BuildContext context) {
+    _activeState?._resetToDefault();
+    context.read<SearchController>().clear();
+  }
+
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
-}
-
-class _GenreCardData {
-  final String title;
-  final Color color1;
-  final Color color2;
-  final IconData icon;
-  final String emoji;
-
-  const _GenreCardData(this.title, this.color1, this.color2, this.icon, {this.emoji = ''});
 }
 
 class _LibraryScreenState extends State<LibraryScreen> {
@@ -49,6 +48,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
   bool _isGridView = false;
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  List<Map<String, dynamic>> _dynamicCategories = <Map<String, dynamic>>[];
+  bool _loadingCategories = false;
+
+  void _resetToDefault() {
+    setState(() {
+      _selectedFilter = 'All';
+      _searchController.clear();
+    });
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+  }
 
   static const List<String> _filters = <String>[
     'All',
@@ -61,25 +72,347 @@ class _LibraryScreenState extends State<LibraryScreen> {
     'Device Audio',
   ];
 
-  static const List<_GenreCardData> _genres = <_GenreCardData>[
-    _GenreCardData('Ambient', Color(0xFF1E3A8A), Color(0xFF2563EB), Icons.nightlight_round, emoji: '🌌'),
-    _GenreCardData('Synthwave', Color(0xFF701A75), Color(0xFFA21CAF), Icons.location_city_rounded, emoji: '🌆'),
-    _GenreCardData('Chill', Color(0xFF065F46), Color(0xFF059669), Icons.eco_rounded, emoji: '🍃'),
-    _GenreCardData('Electronic', Color(0xFF0284C7), Color(0xFF0EA5E9), Icons.bolt_rounded, emoji: '⚡'),
-    _GenreCardData('Focus', Color(0xFF4338CA), Color(0xFF6366F1), Icons.psychology_rounded, emoji: '🧠'),
-    _GenreCardData('Workout', Color(0xFF991B1B), Color(0xFFDC2626), Icons.local_fire_department_rounded, emoji: '🔥'),
-    _GenreCardData('Acoustic', Color(0xFFC2410C), Color(0xFFEA580C), Icons.music_note_rounded, emoji: '🎸'),
-    _GenreCardData('Bollywood & Regional', Color(0xFFB45309), Color(0xFFE11D48), Icons.library_music_rounded, emoji: '🎶'),
-    _GenreCardData('Punjabi Hits', Color(0xFFD97706), Color(0xFFF59E0B), Icons.speaker_group_rounded, emoji: '🥁'),
-    _GenreCardData('Bhakti & Aarti', Color(0xFFEA580C), Color(0xFFEAB308), Icons.self_improvement_rounded, emoji: '🕉️'),
-    _GenreCardData('Romantic & Love', Color(0xFFBE185D), Color(0xFFF43F5E), Icons.favorite_rounded, emoji: '💖'),
-    _GenreCardData('Lo-Fi & Beats', Color(0xFF0369A1), Color(0xFF0D9488), Icons.coffee_rounded, emoji: '☕'),
+  static const List<Map<String, dynamic>> _defaultIndianCategories = <Map<String, dynamic>>[
+    <String, dynamic>{
+      'id': 'cat_bollywood',
+      'title': 'Bollywood Hits',
+      'subtitle': 'Top Hindi Cinema Chartbusters',
+      'query': 'Bollywood Hits',
+      'gradient_start': '#E11D48',
+      'gradient_end': '#B45309',
+      'artwork_url': 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&q=80',
+      'emoji': '🎬',
+    },
+    <String, dynamic>{
+      'id': 'cat_bhakti',
+      'title': 'Bhakti & Aarti',
+      'subtitle': 'Devotional Bhajans & Aartis',
+      'query': 'Bhakti Songs',
+      'gradient_start': '#EA580C',
+      'gradient_end': '#EAB308',
+      'artwork_url': 'https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=500&q=80',
+      'emoji': '🕉️',
+    },
+    <String, dynamic>{
+      'id': 'cat_punjabi',
+      'title': 'Punjabi Beats',
+      'subtitle': 'High Energy Bhangra & Punjabi Pop',
+      'query': 'Punjabi Party Songs',
+      'gradient_start': '#D97706',
+      'gradient_end': '#F59E0B',
+      'artwork_url': 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80',
+      'emoji': '🥁',
+    },
+    <String, dynamic>{
+      'id': 'cat_romantic',
+      'title': 'Romantic & Love',
+      'subtitle': 'Heartfelt Hindi Melodies',
+      'query': 'Romantic Hindi Hits',
+      'gradient_start': '#BE185D',
+      'gradient_end': '#F43F5E',
+      'artwork_url': 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500&q=80',
+      'emoji': '💖',
+    },
+    <String, dynamic>{
+      'id': 'cat_retro',
+      'title': 'Golden Retro 80s 90s',
+      'subtitle': 'Kishore, Lata, Rafi Classics',
+      'query': 'Lata Mangeshkar Hits',
+      'gradient_start': '#7C2D12',
+      'gradient_end': '#EA580C',
+      'artwork_url': 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80',
+      'emoji': '📻',
+    },
+    <String, dynamic>{
+      'id': 'cat_marathi',
+      'title': 'Marathi Sangeet',
+      'subtitle': 'Natya Sangeet, Bhavgeet & Lavani',
+      'query': 'Marathi Hits',
+      'gradient_start': '#059669',
+      'gradient_end': '#10B981',
+      'artwork_url': 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=500&q=80',
+      'emoji': '🪕',
+    },
+    <String, dynamic>{
+      'id': 'cat_garba',
+      'title': 'Gujarati & Garba',
+      'subtitle': 'Dandiya Beats & Gujarati Folk',
+      'query': 'Garba Hits',
+      'gradient_start': '#DC2626',
+      'gradient_end': '#F97316',
+      'artwork_url': 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=500&q=80',
+      'emoji': '💃',
+    },
+    <String, dynamic>{
+      'id': 'cat_south',
+      'title': 'South Cinema',
+      'subtitle': 'Tamil, Telugu, Malayalam Chartbusters',
+      'query': 'South Indian Hits',
+      'gradient_start': '#4338CA',
+      'gradient_end': '#6366F1',
+      'artwork_url': 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=500&q=80',
+      'emoji': '🌟',
+    },
+    <String, dynamic>{
+      'id': 'cat_lofi',
+      'title': 'Lo-Fi & Chill',
+      'subtitle': 'Relaxing Indian Lo-Fi Beats',
+      'query': 'Hindi Lo-Fi Hits',
+      'gradient_start': '#0369A1',
+      'gradient_end': '#0D9488',
+      'artwork_url': 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80',
+      'emoji': '☕',
+    },
+    <String, dynamic>{
+      'id': 'cat_sufi',
+      'title': 'Sufi & Ghazals',
+      'subtitle': 'Soulful Qawwalis & Poetry',
+      'query': 'Sufi Hits',
+      'gradient_start': '#312E81',
+      'gradient_end': '#4C1D95',
+      'artwork_url': 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500&q=80',
+      'emoji': '🌙',
+    },
+    <String, dynamic>{
+      'id': 'cat_workout',
+      'title': 'Workout & Gym',
+      'subtitle': 'High BPM Indian Workout Beats',
+      'query': 'Workout Hindi Songs',
+      'gradient_start': '#991B1B',
+      'gradient_end': '#DC2626',
+      'artwork_url': 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=500&q=80',
+      'emoji': '🔥',
+    },
+    <String, dynamic>{
+      'id': 'cat_indie',
+      'title': 'Indian Indie & Pop',
+      'subtitle': 'Independent Artists & Modern Waves',
+      'query': 'Indian Indie Songs',
+      'gradient_start': '#0F766E',
+      'gradient_end': '#14B8A6',
+      'artwork_url': 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80',
+      'emoji': '🎸',
+    },
   ];
+
+  static final List<Artist> _curatedIndianArtists = <Artist>[
+    const Artist(
+      id: 'artist:arijit_singh',
+      providerId: 'custom_api',
+      providerArtistId: 'arijit_singh',
+      name: 'Arijit Singh',
+      imageUrl: 'https://c.saavncdn.com/artists/Arijit_Singh_002_20230323062147_500x500.jpg',
+      popularity: 98,
+    ),
+    const Artist(
+      id: 'artist:shreya_ghoshal',
+      providerId: 'custom_api',
+      providerArtistId: 'shreya_ghoshal',
+      name: 'Shreya Ghoshal',
+      imageUrl: 'https://c.saavncdn.com/artists/Shreya_Ghoshal_004_20230324072210_500x500.jpg',
+      popularity: 95,
+    ),
+    const Artist(
+      id: 'artist:ar_rahman',
+      providerId: 'custom_api',
+      providerArtistId: 'ar_rahman',
+      name: 'A.R. Rahman',
+      imageUrl: 'https://c.saavncdn.com/artists/A_R_Rahman_002_20210319080544_500x500.jpg',
+      popularity: 97,
+    ),
+    const Artist(
+      id: 'artist:sidhu_moose_wala',
+      providerId: 'custom_api',
+      providerArtistId: 'sidhu_moose_wala',
+      name: 'Sidhu Moose Wala',
+      imageUrl: 'https://c.saavncdn.com/artists/Sidhu_Moose_Wala_004_20230609101211_500x500.jpg',
+      popularity: 94,
+    ),
+    const Artist(
+      id: 'artist:neha_kakkar',
+      providerId: 'custom_api',
+      providerArtistId: 'neha_kakkar',
+      name: 'Neha Kakkar',
+      imageUrl: 'https://c.saavncdn.com/artists/Neha_Kakkar_006_20201111110751_500x500.jpg',
+      popularity: 92,
+    ),
+    const Artist(
+      id: 'artist:badshah',
+      providerId: 'custom_api',
+      providerArtistId: 'badshah',
+      name: 'Badshah',
+      imageUrl: 'https://c.saavncdn.com/artists/Badshah_005_20230614080352_500x500.jpg',
+      popularity: 91,
+    ),
+    const Artist(
+      id: 'artist:diljit_dosanjh',
+      providerId: 'custom_api',
+      providerArtistId: 'diljit_dosanjh',
+      name: 'Diljit Dosanjh',
+      imageUrl: 'https://c.saavncdn.com/artists/Diljit_Dosanjh_004_20221006184545_500x500.jpg',
+      popularity: 93,
+    ),
+    const Artist(
+      id: 'artist:lata_mangeshkar',
+      providerId: 'custom_api',
+      providerArtistId: 'lata_mangeshkar',
+      name: 'Lata Mangeshkar',
+      imageUrl: 'https://c.saavncdn.com/artists/Lata_Mangeshkar_500x500.jpg',
+      popularity: 96,
+    ),
+    const Artist(
+      id: 'artist:kishore_kumar',
+      providerId: 'custom_api',
+      providerArtistId: 'kishore_kumar',
+      name: 'Kishore Kumar',
+      imageUrl: 'https://c.saavncdn.com/artists/Kishore_Kumar_500x500.jpg',
+      popularity: 96,
+    ),
+  ];
+
+  static final List<Album> _curatedIndianAlbums = <Album>[
+    const Album(
+      id: 'album:animal',
+      providerId: 'custom_api',
+      providerAlbumId: 'animal',
+      title: 'Animal',
+      artists: <Artist>[Artist(id: 'a1', providerId: 'custom_api', providerArtistId: 'a1', name: 'Manan Bhardwaj, Vishal Mishra')],
+      artworkUrl: 'https://c.saavncdn.com/092/Animal-Hindi-2023-20231124191036-500x500.jpg',
+      year: 2023,
+      trackCount: 8,
+    ),
+    const Album(
+      id: 'album:jawan',
+      providerId: 'custom_api',
+      providerAlbumId: 'jawan',
+      title: 'Jawan',
+      artists: <Artist>[Artist(id: 'a2', providerId: 'custom_api', providerArtistId: 'a2', name: 'Anirudh Ravichander')],
+      artworkUrl: 'https://c.saavncdn.com/026/Jawan-Hindi-2023-20230905141019-500x500.jpg',
+      year: 2023,
+      trackCount: 7,
+    ),
+    const Album(
+      id: 'album:kabir_singh',
+      providerId: 'custom_api',
+      providerAlbumId: 'kabir_singh',
+      title: 'Kabir Singh',
+      artists: <Artist>[Artist(id: 'a3', providerId: 'custom_api', providerArtistId: 'a3', name: 'Sachet-Parampara, Mithoon')],
+      artworkUrl: 'https://c.saavncdn.com/408/Kabir-Singh-Hindi-2019-20240409140417-500x500.jpg',
+      year: 2019,
+      trackCount: 9,
+    ),
+    const Album(
+      id: 'album:aashiqui2',
+      providerId: 'custom_api',
+      providerAlbumId: 'aashiqui2',
+      title: 'Aashiqui 2',
+      artists: <Artist>[Artist(id: 'a4', providerId: 'custom_api', providerArtistId: 'a4', name: 'Mithoon, Ankit Tiwari')],
+      artworkUrl: 'https://c.saavncdn.com/452/Aashiqui-2-Hindi-2013-500x500.jpg',
+      year: 2013,
+      trackCount: 11,
+    ),
+    const Album(
+      id: 'album:brahmastra',
+      providerId: 'custom_api',
+      providerAlbumId: 'brahmastra',
+      title: 'Brahmāstra',
+      artists: <Artist>[Artist(id: 'a5', providerId: 'custom_api', providerArtistId: 'a5', name: 'Pritam')],
+      artworkUrl: 'https://c.saavncdn.com/514/Brahmastra-Original-Motion-Picture-Soundtrack-Hindi-2022-20221006155913-500x500.jpg',
+      year: 2022,
+      trackCount: 10,
+    ),
+    const Album(
+      id: 'album:rockstar',
+      providerId: 'custom_api',
+      providerAlbumId: 'rockstar',
+      title: 'Rockstar',
+      artists: <Artist>[Artist(id: 'a6', providerId: 'custom_api', providerArtistId: 'a6', name: 'A.R. Rahman')],
+      artworkUrl: 'https://c.saavncdn.com/391/Rockstar-Hindi-2011-20221212033008-500x500.jpg',
+      year: 2011,
+      trackCount: 14,
+    ),
+  ];
+
+  static final List<Map<String, dynamic>> _curatedIndianPlaylists = <Map<String, dynamic>>[
+    <String, dynamic>{
+      'title': 'Bollywood Top 50',
+      'query': 'Bollywood Top Hits',
+      'subtitle': 'Most popular Hindi chartbusters',
+      'artwork_url': 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&q=80',
+      'track_count': '50',
+    },
+    <String, dynamic>{
+      'title': 'Bhakti Sagar & Aarti',
+      'query': 'Bhakti Songs',
+      'subtitle': 'Divine bhajans, morning aartis & chants',
+      'artwork_url': 'https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=500&q=80',
+      'track_count': '40',
+    },
+    <String, dynamic>{
+      'title': 'Punjabi Party Hits',
+      'query': 'Punjabi Party Songs',
+      'subtitle': 'High voltage Bhangra & Punjabi pop',
+      'artwork_url': 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80',
+      'track_count': '35',
+    },
+    <String, dynamic>{
+      'title': 'Golden 90s Classics',
+      'query': 'Lata Mangeshkar Hits',
+      'subtitle': 'Timeless nostalgic melodies',
+      'artwork_url': 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80',
+      'track_count': '45',
+    },
+    <String, dynamic>{
+      'title': 'Late Night Lo-Fi',
+      'query': 'Hindi Lo-Fi Hits',
+      'subtitle': 'Chill relaxing Hindi lo-fi beats',
+      'artwork_url': 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500&q=80',
+      'track_count': '30',
+    },
+    <String, dynamic>{
+      'title': 'Marathi Gaani & Lavani',
+      'query': 'Marathi Hits',
+      'subtitle': 'Top Marathi songs and folk melodies',
+      'artwork_url': 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=500&q=80',
+      'track_count': '32',
+    },
+  ];
+
+  static Color _parseHexColor(dynamic hex, Color fallback) {
+    if (hex == null || hex is! String || hex.isEmpty) return fallback;
+    try {
+      String clean = hex.replaceAll('#', '').trim();
+      if (clean.length == 6) clean = 'FF$clean';
+      return Color(int.parse(clean, radix: 16));
+    } catch (_) {
+      return fallback;
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    LibraryScreen._activeState = this;
     _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDynamicCategories());
+  }
+
+  Future<void> _loadDynamicCategories() async {
+    if (_loadingCategories) return;
+    _loadingCategories = true;
+    try {
+      final List<Map<String, dynamic>> cats =
+          await context.read<MusicRepository>().fetchLibraryCategories();
+      if (mounted && cats.isNotEmpty) {
+        setState(() {
+          _dynamicCategories = cats.where((c) => c['is_active'] != false).toList();
+        });
+      }
+    } catch (_) {
+      // Fallback is handled automatically
+    } finally {
+      _loadingCategories = false;
+    }
   }
 
   void _onScroll() {
@@ -560,6 +893,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
     // Top Discovery & Genres Bento Cards (Explore Genres & Moods)
     if (_selectedFilter == 'All') {
+      final List<Map<String, dynamic>> categoriesToDisplay =
+          _dynamicCategories.isNotEmpty ? _dynamicCategories : _defaultIndianCategories;
+
       slivers.add(
         const SliverToBoxAdapter(
           child: Padding(
@@ -569,7 +905,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 Icon(Icons.auto_awesome_rounded, size: 16, color: AppColors.secondary),
                 SizedBox(width: 6),
                 Text(
-                  'Explore Genres & Moods',
+                  'Explore Indian Genres & Moods',
                   style: TextStyle(
                     fontFamily: 'Plus Jakarta Sans',
                     fontSize: 16,
@@ -593,82 +929,132 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 crossAxisCount: 2,
                 mainAxisSpacing: 10,
                 crossAxisSpacing: 10,
-                childAspectRatio: 1.62,
+                childAspectRatio: 1.7,
               ),
-              itemCount: _genres.length,
+              itemCount: categoriesToDisplay.length,
               itemBuilder: (BuildContext ctx, int i) {
-                final g = _genres[i];
+                final Map<String, dynamic> cat = categoriesToDisplay[i];
+                final String title = (cat['title'] as String?) ?? (cat['name'] as String?) ?? 'Music';
+                final String subtitle = (cat['subtitle'] as String?) ?? '';
+                final String query = (cat['query'] as String?) ?? title;
+                final String artworkUrl = (cat['artwork_url'] as String?) ?? '';
+                final String emoji = (cat['emoji'] as String?) ?? '🎵';
+                final Color color1 = _parseHexColor(cat['gradient_start'], const Color(0xFF6366F1));
+                final Color color2 = _parseHexColor(cat['gradient_end'], const Color(0xFF8B5CF6));
+
                 return InkWell(
                   onTap: () {
-                    _searchController.text = g.title;
-                    search.submit(g.title);
-                  },
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: <Color>[g.color1, g.color2],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+                    Navigator.of(context).push(MaterialPageRoute<void>(
+                      builder: (_) => CategoryDetailScreen(
+                        title: title,
+                        query: query,
+                        subtitle: subtitle,
+                        artworkUrl: artworkUrl,
+                        gradientColors: <Color>[color1, color2],
+                        emoji: emoji,
                       ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: <BoxShadow>[
-                        BoxShadow(
-                          color: g.color1.withValues(alpha: 0.28),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    ));
+                  },
+                  borderRadius: BorderRadius.circular(14),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Stack(
+                      fit: StackFit.expand,
                       children: <Widget>[
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.24),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.25),
-                              width: 1,
+                        if (artworkUrl.isNotEmpty)
+                          Artwork(
+                            url: artworkUrl,
+                            size: 200,
+                            fit: BoxFit.cover,
+                            fallbackIcon: Icons.music_note_rounded,
+                          )
+                        else
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: <Color>[color1, color2],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
                             ),
                           ),
-                          alignment: Alignment.center,
-                          child: g.emoji.isNotEmpty
-                              ? Text(g.emoji, style: const TextStyle(fontSize: 19))
-                              : Icon(g.icon, color: Colors.white, size: 20),
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: <Color>[
+                                color1.withValues(alpha: 0.75),
+                                color2.withValues(alpha: 0.90),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                          ),
                         ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: <Widget>[
-                            Expanded(
-                              child: Text(
-                                g.title,
-                                style: const TextStyle(
-                                  fontFamily: 'Plus Jakarta Sans',
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                  color: Colors.white,
-                                  letterSpacing: -0.2,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                        Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: <Widget>[
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: <Widget>[
+                                  Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.28),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(emoji, style: const TextStyle(fontSize: 16)),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.25),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Text(
+                                      'Play →',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Browse →',
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                color: Colors.white.withValues(alpha: 0.85),
-                                fontWeight: FontWeight.w600,
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  Text(
+                                    title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontFamily: 'Plus Jakarta Sans',
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13,
+                                      color: Colors.white,
+                                      letterSpacing: -0.2,
+                                    ),
+                                  ),
+                                  if (subtitle.isNotEmpty)
+                                    Text(
+                                      subtitle,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.white.withValues(alpha: 0.8),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                ],
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -927,49 +1313,53 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
     // Specific filter handling: Device Audio
     if (_selectedFilter == 'Device Audio') {
-      slivers.add(
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (BuildContext c, int i) {
-                final t = library.localTracks[i];
-                return TrackTile(
-                  track: t,
-                  onTap: () => TrackActions.play(context, t, queue: library.localTracks),
-                  onMenu: () => showTrackActionsSheet(context, t),
-                );
-              },
-              childCount: library.localTracks.length,
-            ),
-          ),
-        ),
-      );
-      return slivers;
-    }
-
-    // Specific filter handling: Artists (Followed Artists)
-    if (_selectedFilter == 'Artists') {
-      final List<Artist> artists = library.followedArtists;
-      if (artists.isEmpty) {
+      if (library.localTracks.isEmpty) {
         slivers.add(
-          const SliverToBoxAdapter(
+          SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 48),
-              child: Center(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 32),
+              child: Container(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.surfaceContainerHigh : AppColors.lightElevatedSurface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
+                  ),
+                ),
                 child: Column(
                   children: <Widget>[
-                    Icon(Icons.person_add_alt_1_rounded, size: 48, color: AppColors.outline),
-                    SizedBox(height: 12),
-                    Text(
-                      'No followed artists yet',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    Container(
+                      width: 58,
+                      height: 58,
+                      decoration: const BoxDecoration(
+                        gradient: AppColors.heroGradient,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.phone_android_rounded, size: 30, color: Colors.white),
                     ),
-                    SizedBox(height: 6),
-                    Text(
-                      'Tap "+ Follow" on any artist page to see them here.',
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Device Music Storage',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Play MP3, AAC, FLAC files directly from your phone storage. 100% private, files stay on your device.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 13),
+                    ),
+                    const SizedBox(height: 18),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      onPressed: () {
+                        final provider = context.read<LocalMusicProvider>();
+                        library.scanLocal(provider, force: true);
+                      },
+                      icon: Icon(library.localScanning ? Icons.sync_rounded : Icons.refresh_rounded),
+                      label: Text(library.localScanning ? 'Scanning Device...' : 'Scan Device Audio'),
                     ),
                   ],
                 ),
@@ -980,7 +1370,38 @@ class _LibraryScreenState extends State<LibraryScreen> {
       } else {
         slivers.add(
           SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (BuildContext c, int i) {
+                  final t = library.localTracks[i];
+                  return TrackTile(
+                    track: t,
+                    onTap: () => TrackActions.play(context, t, queue: library.localTracks),
+                    onMenu: () => showTrackActionsSheet(context, t),
+                  );
+                },
+                childCount: library.localTracks.length,
+              ),
+            ),
+          ),
+        );
+      }
+      return slivers;
+    }
+
+    // Specific filter handling: Artists
+    if (_selectedFilter == 'Artists') {
+      final List<Artist> artists = library.followedArtists;
+      if (artists.isNotEmpty) {
+        slivers.add(
+          const SliverToBoxAdapter(
+            child: SectionHeader(title: 'Followed Artists'),
+          ),
+        );
+        slivers.add(
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
                 (BuildContext c, int i) {
@@ -1033,33 +1454,79 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
         );
       }
+
+      // Always show Top Indian Artists
+      slivers.add(
+        const SliverToBoxAdapter(
+          child: SectionHeader(title: 'Top Indian Artists'),
+        ),
+      );
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (BuildContext c, int i) {
+                final Artist a = _curatedIndianArtists[i];
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                  leading: CircleAvatar(
+                    radius: 26,
+                    backgroundColor: AppColors.primaryContainer,
+                    child: ClipOval(
+                      child: Artwork(
+                        url: a.imageUrl,
+                        size: 52,
+                        radius: 26,
+                        fallbackIcon: Icons.person_rounded,
+                      ),
+                    ),
+                  ),
+                  title: Row(
+                    children: <Widget>[
+                      Flexible(
+                        child: Text(
+                          a.name,
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.verified_rounded, size: 14, color: AppColors.secondary),
+                    ],
+                  ),
+                  subtitle: const Text(
+                    'Popular Indian Artist',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondaryDark),
+                  ),
+                  trailing: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                    ),
+                    onPressed: () => TrackActions.openArtist(context, a),
+                    child: const Text('Explore'),
+                  ),
+                  onTap: () => TrackActions.openArtist(context, a),
+                );
+              },
+              childCount: _curatedIndianArtists.length,
+            ),
+          ),
+        ),
+      );
       return slivers;
     }
 
     // Specific filter handling: Albums
     if (_selectedFilter == 'Albums') {
-      final List<Album> albums = library.savedAlbums;
-      if (albums.isEmpty) {
+      final List<Album> savedAlbums = library.savedAlbums;
+      if (savedAlbums.isNotEmpty) {
         slivers.add(
           const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 48),
-              child: Center(
-                child: Column(
-                  children: <Widget>[
-                    Icon(Icons.album_rounded, size: 48, color: AppColors.outline),
-                    SizedBox(height: 12),
-                    Text(
-                      'No saved albums yet',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            child: SectionHeader(title: 'Saved Albums'),
           ),
         );
-      } else {
         slivers.add(
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
@@ -1072,15 +1539,154 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ),
               delegate: SliverChildBuilderDelegate(
                 (BuildContext c, int i) => MediaCard.forAlbum(
-                  album: albums[i],
-                  onTap: () => TrackActions.openAlbum(context, albums[i]),
+                  album: savedAlbums[i],
+                  onTap: () => TrackActions.openAlbum(context, savedAlbums[i]),
                 ),
-                childCount: albums.length,
+                childCount: savedAlbums.length,
               ),
             ),
           ),
         );
       }
+
+      // Always show Trending Indian Albums
+      slivers.add(
+        const SliverToBoxAdapter(
+          child: SectionHeader(title: 'Trending Indian Albums'),
+        ),
+      );
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 0.78,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (BuildContext c, int i) => MediaCard.forAlbum(
+                album: _curatedIndianAlbums[i],
+                onTap: () => TrackActions.openAlbum(context, _curatedIndianAlbums[i]),
+              ),
+              childCount: _curatedIndianAlbums.length,
+            ),
+          ),
+        ),
+      );
+      return slivers;
+    }
+
+    // Specific filter handling: Playlists
+    if (_selectedFilter == 'Playlists') {
+      final List<Playlist> userPlaylists = library.playlists;
+      if (userPlaylists.isNotEmpty) {
+        slivers.add(
+          const SliverToBoxAdapter(
+            child: SectionHeader(title: 'Your Playlists'),
+          ),
+        );
+        slivers.add(
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            sliver: _buildCollectionsList(library),
+          ),
+        );
+      }
+
+      // Always show Curated Indian Playlists
+      slivers.add(
+        const SliverToBoxAdapter(
+          child: SectionHeader(title: 'Curated Indian Playlists'),
+        ),
+      );
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 0.8,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (BuildContext c, int i) {
+                final Map<String, dynamic> p = _curatedIndianPlaylists[i];
+                return InkWell(
+                  onTap: () {
+                    Navigator.of(context).push(MaterialPageRoute<void>(
+                      builder: (_) => CategoryDetailScreen(
+                        title: p['title'] as String,
+                        query: p['query'] as String,
+                        subtitle: p['subtitle'] as String?,
+                        artworkUrl: p['artwork_url'] as String?,
+                      ),
+                    ));
+                  },
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.surfaceContainerHigh : AppColors.lightElevatedSurface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
+                      ),
+                    ),
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Artwork(
+                              url: p['artwork_url'] as String?,
+                              size: 160,
+                              fit: BoxFit.cover,
+                              fallbackIcon: Icons.queue_music_rounded,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          p['title'] as String,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          p['subtitle'] as String? ?? 'Playlist',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: AppColors.textSecondaryDark, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+              childCount: _curatedIndianPlaylists.length,
+            ),
+          ),
+        ),
+      );
+
+      // Add New Playlist Button
+      slivers.add(
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 16),
+            child: OutlinedButton.icon(
+              onPressed: () => _promptCreatePlaylist(context, library),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Create New Playlist'),
+            ),
+          ),
+        ),
+      );
       return slivers;
     }
 

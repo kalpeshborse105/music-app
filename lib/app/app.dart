@@ -99,7 +99,7 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
               Locale('en', 'US'),
               Locale('en'),
             ],
-            home: const AuthGate(),
+            home: const SplashScreen(),
             onGenerateRoute: (RouteSettings routeSettings) {
               final String name = routeSettings.name ?? '';
               final Uri? parsedUri = Uri.tryParse(name);
