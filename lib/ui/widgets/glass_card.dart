@@ -54,7 +54,12 @@ class EchoGlassCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(borderRadius),
         border: Border.all(color: borderColor ?? defaultBorder, width: 1),
       ),
-      child: child,
+      child: Material(
+        type: MaterialType.transparency,
+        borderRadius: BorderRadius.circular(borderRadius),
+        clipBehavior: Clip.antiAlias,
+        child: child,
+      ),
     );
 
     Widget result = ClipRRect(

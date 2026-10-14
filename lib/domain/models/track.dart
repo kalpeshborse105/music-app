@@ -130,37 +130,92 @@ class Track {
         'attributionRequired': attributionRequired,
       };
 
-  factory Track.fromJson(Map<String, dynamic> json) => Track(
-        id: json['id'] as String? ?? '',
-        providerId: json['providerId'] as String? ?? '',
-        providerTrackId: json['providerTrackId'] as String? ?? '',
-        title: json['title'] as String? ?? 'Unknown track',
-        artists: ((json['artists'] as List<dynamic>?) ?? <dynamic>[])
-            .map((dynamic e) => Artist.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        album: json['album'] == null
-            ? null
-            : Album.fromJson(json['album'] as Map<String, dynamic>),
-        duration: Duration(milliseconds: (json['durationMs'] as num?)?.toInt() ?? 0),
-        artworkUrl: json['artworkUrl'] as String?,
-        explicit: json['explicit'] as bool? ?? false,
-        mediaType: MediaType.values.firstWhere(
-          (MediaType m) => m.name == json['mediaType'],
-          orElse: () => MediaType.audio,
+  factory Track.fromJson(Map<String, dynamic> json) {
+    // 1. Safe Artists Parsing
+    List<Artist> parsedArtists = <Artist>[];
+    if (json['artists'] is List) {
+      for (final dynamic e in json['artists'] as List) {
+        if (e is Map<String, dynamic>) {
+          parsedArtists.add(Artist.fromJson(e));
+        } else if (e is Map) {
+          parsedArtists.add(Artist.fromJson(Map<String, dynamic>.from(e)));
+        } else if (e is String && e.trim().isNotEmpty) {
+          parsedArtists.add(Artist(
+            id: 'artist:${e.trim()}',
+            providerId: json['providerId'] as String? ?? 'custom_api',
+            providerArtistId: e.trim(),
+            name: e.trim(),
+          ));
+        }
+      }
+    }
+    if (parsedArtists.isEmpty && json['artist'] is String && (json['artist'] as String).trim().isNotEmpty) {
+      final String art = (json['artist'] as String).trim();
+      parsedArtists = <Artist>[
+        Artist(
+          id: 'artist:$art',
+          providerId: json['providerId'] as String? ?? 'custom_api',
+          providerArtistId: art,
+          name: art,
         ),
-        isStreamable: json['isStreamable'] as bool? ?? true,
-        isDownloadable: json['isDownloadable'] as bool? ?? false,
-        hasLyrics: json['hasLyrics'] as bool? ?? false,
-        qualityOptions: ((json['qualityOptions'] as List<dynamic>?) ?? <dynamic>[])
-            .map((dynamic e) => AudioQualityX.fromId(e as String?))
-            .toList(),
-        genre: json['genre'] as String?,
-        commercialUseAllowed: json['commercialUseAllowed'] as bool? ?? false,
-        backgroundPlaybackAllowed: json['backgroundPlaybackAllowed'] as bool? ?? true,
-        license: json['license'] as String?,
-        licenseUrl: json['licenseUrl'] as String?,
-        attributionRequired: json['attributionRequired'] as bool? ?? true,
+      ];
+    }
+
+    // 2. Safe Album Parsing
+    Album? parsedAlbum;
+    if (json['album'] is Map<String, dynamic>) {
+      parsedAlbum = Album.fromJson(json['album'] as Map<String, dynamic>);
+    } else if (json['album'] is Map) {
+      parsedAlbum = Album.fromJson(Map<String, dynamic>.from(json['album'] as Map));
+    } else if (json['album'] is String && (json['album'] as String).trim().isNotEmpty) {
+      final String albTitle = (json['album'] as String).trim();
+      final String albumId = json['album_id']?.toString() ?? json['albumId']?.toString() ?? albTitle;
+      final String? artUrl = json['artworkUrl'] as String? ?? json['artwork_url'] as String?;
+      parsedAlbum = Album(
+        id: 'album:$albumId',
+        providerId: json['providerId'] as String? ?? 'custom_api',
+        providerAlbumId: albumId,
+        title: albTitle,
+        artworkUrl: artUrl,
       );
+    }
+
+    // 3. Duration Parsing
+    final int durMs = (json['durationMs'] as num?)?.toInt() ??
+        (json['duration_ms'] as num?)?.toInt() ??
+        ((json['duration'] as num?)?.toInt() != null ? (json['duration'] as num).toInt() * 1000 : 0);
+
+    // 4. Artwork URL Parsing
+    final String? artworkUrl = json['artworkUrl'] as String? ?? json['artwork_url'] as String? ?? json['thumbnail'] as String?;
+
+    return Track(
+      id: json['id'] as String? ?? '',
+      providerId: json['providerId'] as String? ?? 'custom_api',
+      providerTrackId: json['providerTrackId'] as String? ?? json['id'] as String? ?? '',
+      title: json['title'] as String? ?? 'Unknown track',
+      artists: parsedArtists,
+      album: parsedAlbum,
+      duration: Duration(milliseconds: durMs),
+      artworkUrl: artworkUrl,
+      explicit: json['explicit'] as bool? ?? false,
+      mediaType: MediaType.values.firstWhere(
+        (MediaType m) => m.name == json['mediaType'],
+        orElse: () => MediaType.audio,
+      ),
+      isStreamable: json['isStreamable'] as bool? ?? true,
+      isDownloadable: json['isDownloadable'] as bool? ?? false,
+      hasLyrics: json['hasLyrics'] as bool? ?? false,
+      qualityOptions: ((json['qualityOptions'] as List<dynamic>?) ?? <dynamic>[])
+          .map((dynamic e) => AudioQualityX.fromId(e as String?))
+          .toList(),
+      genre: json['genre'] as String?,
+      commercialUseAllowed: json['commercialUseAllowed'] as bool? ?? false,
+      backgroundPlaybackAllowed: json['backgroundPlaybackAllowed'] as bool? ?? true,
+      license: json['license'] as String?,
+      licenseUrl: json['licenseUrl'] as String?,
+      attributionRequired: json['attributionRequired'] as bool? ?? true,
+    );
+  }
 
   @override
   bool operator ==(Object other) => other is Track && other.id == id;

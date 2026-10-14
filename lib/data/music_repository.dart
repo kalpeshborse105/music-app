@@ -19,6 +19,7 @@ import '../domain/models/playlist.dart';
 import '../domain/models/search_result.dart';
 import '../domain/models/stream_source.dart';
 import '../domain/models/track.dart';
+import '../domain/models/catalog_section.dart';
 import '../domain/providers/custom_api_provider.dart';
 import '../domain/providers/music_provider.dart';
 import 'provider_registry.dart';
@@ -561,5 +562,100 @@ class MusicRepository {
     }
     final List<Track> deduped = _dedupeTracks(combined);
     return deduped.length > limit ? deduped.sublist(0, limit) : deduped;
+  }
+
+  // ─── Catalogue Management ──────────────────────────────────────────────────
+  CustomApiProvider? get _customApiProvider => _registry.byId('custom_api') as CustomApiProvider?;
+
+  Future<List<CatalogSection>> getCatalogSections({
+    bool includeDisabled = false,
+    String? lang,
+    String? group,
+  }) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return <CatalogSection>[];
+    final List<Map<String, dynamic>> raw = await provider.getCatalogSections(
+      includeDisabled: includeDisabled,
+      lang: lang,
+      group: group,
+    );
+    return raw.map((Map<String, dynamic> m) => CatalogSection.fromJson(m)).toList();
+  }
+
+  Future<Map<String, dynamic>> previewCatalogUrl(String url) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return <String, dynamic>{'valid': false, 'error': 'Custom API provider unavailable'};
+    return provider.previewCatalogUrl(url);
+  }
+
+  Future<CatalogSection?> createCatalogSection({
+    required String sourceUrl,
+    required String displayTitle,
+    required String displayGroup,
+    String language = 'all',
+    int position = 1,
+    bool isEnabled = true,
+    String? customArtworkUrl,
+    bool isBanner = false,
+  }) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return null;
+    final Map<String, dynamic> res = await provider.createCatalogSection(<String, dynamic>{
+      'source_url': sourceUrl,
+      'display_title': displayTitle,
+      'display_group': displayGroup,
+      'language': language,
+      'position': position,
+      'is_enabled': isEnabled,
+      if (customArtworkUrl != null && customArtworkUrl.isNotEmpty) 'custom_artwork_url': customArtworkUrl,
+      'is_banner': isBanner,
+    });
+    return CatalogSection.fromJson(res);
+  }
+
+  Future<CatalogSection?> updateCatalogSection(
+    String key, {
+    String? sourceUrl,
+    String? displayTitle,
+    String? displayGroup,
+    String? language,
+    int? position,
+    bool? isEnabled,
+    String? customArtworkUrl,
+    bool? isBanner,
+  }) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return null;
+    final Map<String, dynamic> data = <String, dynamic>{
+      if (sourceUrl != null) 'source_url': sourceUrl,
+      if (displayTitle != null) 'display_title': displayTitle,
+      if (displayGroup != null) 'display_group': displayGroup,
+      if (language != null) 'language': language,
+      if (position != null) 'position': position,
+      if (isEnabled != null) 'is_enabled': isEnabled,
+      if (customArtworkUrl != null) 'custom_artwork_url': customArtworkUrl,
+      if (isBanner != null) 'is_banner': isBanner,
+    };
+    final Map<String, dynamic> res = await provider.updateCatalogSection(key, data);
+    return CatalogSection.fromJson(res);
+  }
+
+  Future<bool> deleteCatalogSection(String key) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return false;
+    return provider.deleteCatalogSection(key);
+  }
+
+  Future<bool> reorderCatalogSections(List<String> keys) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return false;
+    return provider.reorderCatalogSections(keys);
+  }
+
+  Future<CatalogSection?> toggleCatalogSection(String key, [bool? enabled]) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return null;
+    final Map<String, dynamic> res = await provider.toggleCatalogSection(key);
+    return CatalogSection.fromJson(res);
   }
 }

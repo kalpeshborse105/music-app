@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/utils/formatters.dart';
 import '../../data/music_repository.dart';
+import '../../domain/models/catalog_section.dart';
 import '../../domain/models/paged_result.dart';
 import '../../domain/models/track.dart';
 import '../../domain/playback/playback_controller.dart';
@@ -71,6 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late Future<List<Track>> _trendingFuture;
   late Future<List<Track>> _newReleasesFuture;
   late Future<List<Track>> _spotlightFuture;
+  late Future<List<CatalogSection>> _catalogSectionsFuture;
   bool _initialized = false;
 
   final ScrollController _scrollController = ScrollController();
@@ -114,6 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // newReleases is refreshed independently — does NOT fall back to trending
       _newReleasesFuture = repo.newReleases(limit: 10, language: lang);
       _spotlightFuture = repo.trending(limit: 1, language: lang);
+      _catalogSectionsFuture = repo.getCatalogSections(lang: lang);
     });
     await Future.wait(<Future<dynamic>>[
       _loadInitialTracks(),
@@ -227,6 +230,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _trendingFuture = repo.trending(limit: 20, language: lang);
       _newReleasesFuture = repo.newReleases(limit: 8, language: lang);
       _spotlightFuture = repo.trending(limit: 1, language: lang);
+      _catalogSectionsFuture = repo.getCatalogSections(lang: lang);
       _loadInitialTracks();
     }
   }
@@ -239,6 +243,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _trendingFuture = repo.trending(limit: 20, language: lang);
       _newReleasesFuture = repo.newReleases(limit: 8, language: lang);
       _spotlightFuture = repo.trending(limit: 1, language: lang);
+      _catalogSectionsFuture = repo.getCatalogSections(lang: lang);
     });
     _loadInitialTracks();
   }
@@ -316,6 +321,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   // 3. Recently Played (if history exists) or Trending Right Now (no dead space!)
                   SliverToBoxAdapter(
                     child: _buildRecentlyPlayedOrTrending(context, library, repo),
+                  ),
+
+                  // Dynamic Admin-Managed Catalogue Sections (Includes Seasonal/Festival Banners)
+                  SliverToBoxAdapter(
+                    child: _buildAdminCatalogSections(context, repo),
                   ),
 
                   // 4. Jump Back In / Fresh Releases Carousel
@@ -1134,6 +1144,260 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildFestivalHeroBanner(BuildContext context, CatalogSection banner) {
+    final bool isDark = context.isDarkMode;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.md),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          Navigator.of(context).push(MaterialPageRoute<void>(
+            builder: (_) => TrackListScreen(
+              title: banner.displayTitle,
+              tracks: banner.items,
+            ),
+          ));
+        },
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: isDark
+                  ? <Color>[
+                      AppColors.primary.withValues(alpha: 0.35),
+                      const Color(0xFF1B1B26),
+                    ]
+                  : <Color>[
+                      AppColors.primary.withValues(alpha: 0.15),
+                      Colors.white,
+                    ],
+            ),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.4),
+              width: 1.2,
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.15),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: <Widget>[
+              // Artwork
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: banner.effectiveArtworkUrl != null && banner.effectiveArtworkUrl!.isNotEmpty
+                    ? Image.network(
+                        banner.effectiveArtworkUrl!,
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 80,
+                          height: 80,
+                          color: AppColors.primary.withValues(alpha: 0.2),
+                          child: const Icon(Icons.celebration_rounded, color: AppColors.primaryLight, size: 36),
+                        ),
+                      )
+                    : Container(
+                        width: 80,
+                        height: 80,
+                        color: AppColors.primary.withValues(alpha: 0.2),
+                        child: const Icon(Icons.celebration_rounded, color: AppColors.primaryLight, size: 36),
+                      ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: AppColors.primary, width: 0.8),
+                          ),
+                          child: const Text(
+                            'FESTIVAL & SEASONAL SPECIAL',
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.6,
+                              color: AppColors.primaryLight,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      banner.displayTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: context.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${banner.items.length} songs • ${banner.language.toUpperCase()} • Curated for you',
+                      style: TextStyle(fontSize: 11.5, color: context.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.tonal(
+                style: FilledButton.styleFrom(
+                  shape: const CircleBorder(),
+                  padding: const EdgeInsets.all(12),
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () {
+                  if (banner.items.isNotEmpty) {
+                    TrackActions.play(context, banner.items.first, queue: banner.items);
+                  }
+                },
+                child: const Icon(Icons.play_arrow_rounded, size: 24),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminCatalogSections(BuildContext context, MusicRepository repo) {
+    return FutureBuilder<List<CatalogSection>>(
+      future: _catalogSectionsFuture,
+      builder: (BuildContext context, AsyncSnapshot<List<CatalogSection>> snapshot) {
+        final List<CatalogSection> sections = snapshot.data ?? <CatalogSection>[];
+        if (sections.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final List<CatalogSection> banners = sections.where((CatalogSection s) => s.isBanner && s.items.isNotEmpty).toList();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            // Festival / Seasonal Top Banners if enabled by admin
+            for (final CatalogSection banner in banners)
+              _buildFestivalHeroBanner(context, banner),
+
+            // Regular / Dynamic Sections
+            for (final CatalogSection section in sections)
+              if (section.items.isNotEmpty) ...<Widget>[
+                SectionHeader(
+                  title: section.displayTitle,
+                  subtitle: '${section.displayGroup} • ${section.language.toUpperCase()}',
+                  topPadding: AppSpacing.sm,
+                  actionLabel: 'See all (${section.items.length})',
+                  onAction: () {
+                    if (section.sourceType == 'artist') {
+                      Navigator.of(context).push(MaterialPageRoute<void>(
+                        builder: (_) => ArtistScreen(
+                          artist: Artist(
+                            id: 'custom_api:artist:${section.sourceId.isNotEmpty ? section.sourceId : section.key}',
+                            providerId: 'custom_api',
+                            providerArtistId: section.sourceId.isNotEmpty ? section.sourceId : section.key,
+                            name: section.displayTitle,
+                            imageUrl: section.effectiveArtworkUrl ??
+                                (section.items.isNotEmpty ? section.items.first.artworkUrl : null),
+                          ),
+                        ),
+                      ));
+                    } else {
+                      Navigator.of(context).push(MaterialPageRoute<void>(
+                        builder: (_) => TrackListScreen(
+                          title: section.displayTitle,
+                          tracks: section.items,
+                        ),
+                      ));
+                    }
+                  },
+                ),
+                SizedBox(
+                  height: 200,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                    itemCount: section.items.length + 1,
+                    separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+                    itemBuilder: (BuildContext cardCtx, int i) {
+                      // First Card: JioSaavn-Style Playlist Card
+                      if (i == 0) {
+                        return MediaCard(
+                          title: section.displayTitle,
+                          subtitle: '${section.items.length} songs',
+                          imageUrl: section.effectiveArtworkUrl ??
+                              (section.items.isNotEmpty ? section.items.first.artworkUrl : null),
+                          fallbackIcon: section.sourceType == 'artist' ? Icons.person_rounded : Icons.queue_music_rounded,
+                          circle: section.sourceType == 'artist',
+                          badgeText: section.isBanner ? 'SPECIAL' : (section.sourceType == 'artist' ? 'ARTIST' : 'PLAYLIST'),
+                          badgeColor: section.isBanner ? AppColors.primaryLight : AppColors.secondary,
+                          width: 144,
+                          onTap: () {
+                            if (section.sourceType == 'artist') {
+                              Navigator.of(context).push(MaterialPageRoute<void>(
+                                builder: (_) => ArtistScreen(
+                                  artist: Artist(
+                                    id: 'custom_api:artist:${section.sourceId.isNotEmpty ? section.sourceId : section.key}',
+                                    providerId: 'custom_api',
+                                    providerArtistId: section.sourceId.isNotEmpty ? section.sourceId : section.key,
+                                    name: section.displayTitle,
+                                    imageUrl: section.effectiveArtworkUrl ??
+                                        (section.items.isNotEmpty ? section.items.first.artworkUrl : null),
+                                  ),
+                                ),
+                              ));
+                            } else {
+                              Navigator.of(context).push(MaterialPageRoute<void>(
+                                builder: (_) => TrackListScreen(
+                                  title: section.displayTitle,
+                                  tracks: section.items,
+                                ),
+                              ));
+                            }
+                          },
+                          onPlay: section.items.isNotEmpty
+                              ? () => TrackActions.play(context, section.items.first, queue: section.items)
+                              : null,
+                        );
+                      }
+
+                      // Subsequent Cards: Individual tracks from the playlist/section (without mock badges)
+                      final Track track = section.items[i - 1];
+                      return MediaCard.forTrack(
+                        track: track,
+                        onTap: () => TrackActions.play(context, track, queue: section.items),
+                        onPlay: () => TrackActions.play(context, track, queue: section.items),
+                        width: 136,
+                      );
+                    },
+                  ),
+                ),
+              ],
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildTrackSkeletonCard(BuildContext context) {
     final bool isDark = context.isDarkMode;
     final Color baseColor = isDark
@@ -1474,6 +1738,10 @@ class _HomeScreenState extends State<HomeScreen> {
     MusicRepository repo,
     LibraryController library,
   ) {
+    if (library.followedArtists.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -1487,96 +1755,34 @@ class _HomeScreenState extends State<HomeScreen> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             children: <Widget>[
-              if (library.followedArtists.isNotEmpty) ...<Widget>[
-                EchoMixCard(
-                  title: '${library.followedArtists.first.name} & Mix',
-                  subtitle: 'Auto-suggestion mix tailored to your artists.',
-                  stats: '${library.followedArtists.length} followed',
-                  icon: Icons.person_search_rounded,
-                  gradient: const LinearGradient(
-                    colors: <Color>[Color(0xFF6366F1), Color(0xFF1E1B4B)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  onTap: () async {
-                    final List<Track> tracks = <Track>[];
-                    for (final Artist a in library.followedArtists.take(3)) {
-                      try {
-                        final List<Track> artistTracks = await repo.artistTopTracks(a);
-                        tracks.addAll(artistTracks.take(8));
-                      } catch (_) {}
-                    }
-                    if (tracks.isEmpty) {
-                      final List<Track> fallback = await repo.recommendations(limit: 25);
-                      tracks.addAll(fallback);
-                    }
-                    if (context.mounted) {
-                      Navigator.of(context).push(MaterialPageRoute<void>(
-                        builder: (_) => TrackListScreen(
-                          title: '${library.followedArtists.first.name} & Mix',
-                          tracks: tracks,
-                        ),
-                      ));
-                    }
-                  },
-                ),
-                const SizedBox(width: AppSpacing.md),
-              ],
               EchoMixCard(
-                title: 'Discover Weekly',
-                subtitle: 'Every Monday refreshed deep cuts and debuts.',
-                stats: '30 songs',
-                icon: Icons.auto_awesome_rounded,
+                title: '${library.followedArtists.first.name} & Mix',
+                subtitle: 'Auto-suggestion mix tailored to your artists.',
+                stats: '${library.followedArtists.length} followed',
+                icon: Icons.person_search_rounded,
                 gradient: const LinearGradient(
-                  colors: <Color>[Color(0xFF8B5CF6), Color(0xFF1E293B)],
+                  colors: <Color>[Color(0xFF6366F1), Color(0xFF1E1B4B)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 onTap: () async {
-                  final List<Track> tracks = await repo.recommendations(limit: 30);
-                  if (context.mounted) {
-                    Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => TrackListScreen(title: 'Discover Weekly', tracks: tracks),
-                    ));
+                  final List<Track> tracks = <Track>[];
+                  for (final Artist a in library.followedArtists.take(3)) {
+                    try {
+                      final List<Track> artistTracks = await repo.artistTopTracks(a);
+                      tracks.addAll(artistTracks.take(8));
+                    } catch (_) {}
                   }
-                },
-              ),
-              const SizedBox(width: AppSpacing.md),
-              EchoMixCard(
-                title: 'Release Radar',
-                subtitle: 'Catch brand-new singles from artists you love.',
-                stats: '24 songs',
-                icon: Icons.radar_rounded,
-                gradient: const LinearGradient(
-                  colors: <Color>[Color(0xFF06B6D4), Color(0xFF0F172A)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                onTap: () async {
-                  final List<Track> tracks = await repo.newReleases(limit: 24);
-                  if (context.mounted) {
-                    Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => TrackListScreen(title: 'Release Radar', tracks: tracks),
-                    ));
+                  if (tracks.isEmpty) {
+                    final List<Track> fallback = await repo.recommendations(limit: 25);
+                    tracks.addAll(fallback);
                   }
-                },
-              ),
-              const SizedBox(width: AppSpacing.md),
-              EchoMixCard(
-                title: 'Flow Chillout',
-                subtitle: 'Downtempo lo-fi and gentle dream pop.',
-                stats: '50 songs',
-                icon: Icons.spa_rounded,
-                gradient: const LinearGradient(
-                  colors: <Color>[Color(0xFFEC4899), Color(0xFF1E1B4B)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                onTap: () async {
-                  final List<Track> tracks = await repo.trending(limit: 50);
                   if (context.mounted) {
                     Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => TrackListScreen(title: 'Flow Chillout', tracks: tracks),
+                      builder: (_) => TrackListScreen(
+                        title: '${library.followedArtists.first.name} & Mix',
+                        tracks: tracks,
+                      ),
                     ));
                   }
                 },

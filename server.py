@@ -394,13 +394,15 @@ def jio_call(call, params=None, languages=None, ctx="web6dot0", api_version="4",
         query["api_version"] = api_version
     query.update({k: v for k, v in (params or {}).items() if v is not None})
     url = f"{JIO_API}?{urllib.parse.urlencode(query)}"
-    lang_cookie = urllib.parse.quote(",".join(languages or DEFAULT_LANGUAGES))
+    lang_list = languages or DEFAULT_LANGUAGES
+    primary_lang = lang_list[0] if lang_list else "hindi"
+    lang_cookie = urllib.parse.quote(",".join(lang_list))
     headers = {
         "User-Agent": _USER_AGENT,
         "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "en-IN,en;q=0.9,hi;q=0.8",
+        "Accept-Language": "hi,en-IN;q=0.9,en;q=0.8",
         "Referer": "https://www.jiosaavn.com/",
-        "Cookie": f"L={lang_cookie}; DL=english; gdpr_acceptance=true",
+        "Cookie": f"L={lang_cookie}; DL={primary_lang}; gdpr_acceptance=true",
     }
     last_exc = None
     for _ in range(retries + 1):
@@ -1414,6 +1416,23 @@ def api_home():
     if spotify_tracks:
         sections.insert(1, {"key": "spotify_new_india", "title": "New in India (Spotify)",
                             "subtitle": "Fresh releases, playable now", "position": 0, "items": spotify_tracks})
+    try:
+        catalog_secs = [s for s in load_catalog_sections() if s.get("is_enabled", True)]
+        for cs in reversed(catalog_secs):
+            sections.insert(0, {
+                "key": cs["key"],
+                "title": cs["display_title"],
+                "subtitle": f"{cs.get('display_group', 'Featured')} • [MOCK]" if cs.get("is_mock") else cs.get("display_group", ""),
+                "position": cs["position"],
+                "items": cs.get("items", []),
+                "source_type": cs["source_type"],
+                "source_id": cs["source_id"],
+                "is_mock": cs.get("is_mock", False),
+                "source": "catalog_admin"
+            })
+    except Exception as e:
+        print(f"[Catalog] Error adding catalog sections to /api/home: {e}")
+
     return ok({"languages": languages, "session": session_data["session"], "sections": sections,
                "updated_at": int(time.time())})
 
@@ -1689,8 +1708,21 @@ def api_album(album_id):
 @app.route("/api/playlist/<playlist_id>")
 def api_playlist(playlist_id):
     token = request.args.get("token")
-    if not playlist_id and not token:
+    target_id = playlist_id or request.args.get("id") or token
+    if not target_id:
         return jsonify({"error": "Provide a playlist id or ?token="}), 400
+
+    cat_sec = find_catalog_section(target_id)
+    if cat_sec:
+        return ok({
+            "id": cat_sec.get("source_id"),
+            "title": cat_sec.get("display_title"),
+            "subtitle": cat_sec.get("display_group"),
+            "tracks": cat_sec.get("items", []),
+            "total": len(cat_sec.get("items", [])),
+            "is_mock": cat_sec.get("is_mock", True)
+        }, 0)
+
     limit = arg_int("limit", 50, 1, 100, "n")
     page = arg_int("page", 1, 1, 50, "p")
     data = cached(f"playlist:{playlist_id or token}:{page}:{limit}", HOURLY,
@@ -1702,8 +1734,19 @@ def api_playlist(playlist_id):
 @app.route("/api/artist/<artist_id>")
 def api_artist(artist_id):
     token = request.args.get("token")
-    if not artist_id and not token:
+    target_id = artist_id or request.args.get("id") or token
+    if not target_id:
         return jsonify({"error": "Provide an artist id or ?token="}), 400
+
+    cat_sec = find_catalog_section(target_id)
+    if cat_sec:
+        return ok({
+            "id": cat_sec.get("source_id"),
+            "name": cat_sec.get("display_title"),
+            "top_songs": cat_sec.get("items", []),
+            "albums": [],
+            "is_mock": cat_sec.get("is_mock", True)
+        }, 0)
     n_song = arg_int("songs", 30, 1, 50)
     n_album = arg_int("albums", 20, 0, 50)
 
@@ -1750,6 +1793,635 @@ def api_related():
     seed, tracks = related_tracks(song_id, title, artist, limit, exclude, req_languages())
     return ok({"seed": {k: seed.get(k) for k in ("id", "title", "artist", "language")} if seed else None,
                "tracks": tracks, "total": len(tracks), "source": "jiosaavn_reco"}, 0 if exclude else 900)
+
+
+# ─── Local-First Admin Catalogue Management ────────────────────────────────────
+DATA_DIR = os.path.join(BASE_DIR, "data")
+os.makedirs(DATA_DIR, exist_ok=True)
+CATALOG_STORAGE_FILE = os.path.join(DATA_DIR, "catalog_sections.json")
+CATALOG_LOCK = threading.Lock()
+
+
+def parse_catalog_url(raw_url: str):
+    raw_url = (raw_url or "").strip()
+    if not raw_url:
+        return None, "Source URL cannot be empty."
+
+    parsed = urllib.parse.urlparse(raw_url)
+    hostname = (parsed.hostname or "").lower()
+    if hostname not in ("jiosaavn.com", "www.jiosaavn.com"):
+        return None, f"Invalid hostname '{hostname}'. Only jiosaavn.com and www.jiosaavn.com are supported."
+
+    path = parsed.path.rstrip("/")
+    if path == "/new-releases":
+        return {
+            "source_type": "new_releases",
+            "source_id": "new-releases",
+            "slug": "new-releases",
+            "default_title": "New Releases",
+            "default_group": "Fresh Drops"
+        }, None
+    elif path == "/charts":
+        return {
+            "source_type": "charts",
+            "source_id": "charts",
+            "slug": "charts",
+            "default_title": "Official Charts",
+            "default_group": "Top Charts"
+        }, None
+    elif path == "/top-artists":
+        return {
+            "source_type": "top_artists",
+            "source_id": "top-artists",
+            "slug": "top-artists",
+            "default_title": "Top Artists",
+            "default_group": "Spotlight"
+        }, None
+
+    m_artist = re.match(r"^/artist/([^/]+)/([^/?#]+)$", path)
+    if m_artist:
+        slug, token = m_artist.groups()
+        title = slug.replace("-songs", "").replace("-", " ").title()
+        return {
+            "source_type": "artist",
+            "source_id": token,
+            "slug": slug,
+            "default_title": title,
+            "default_group": "Featured Artists"
+        }, None
+
+    m_playlist = re.match(r"^/(?:featured|playlist)/([^/]+)/([^/?#]+)$", path)
+    if m_playlist:
+        slug, token = m_playlist.groups()
+        title = slug.replace("-", " ").title()
+        return {
+            "source_type": "playlist",
+            "source_id": token,
+            "slug": slug,
+            "default_title": title,
+            "default_group": "Top Charts" if "chart" in slug or "top" in slug else "Featured Playlists"
+        }, None
+
+    m_album = re.match(r"^/album/([^/]+)/([^/?#]+)$", path)
+    if m_album:
+        slug, token = m_album.groups()
+        title = slug.replace("-", " ").title()
+        is_festive = any(k in slug.lower() for k in ("navratri", "diwali", "fest", "bhajan", "special", "garba"))
+        return {
+            "source_type": "album",
+            "source_id": token,
+            "slug": slug,
+            "default_title": title,
+            "default_group": "Festival Specials" if is_festive else "Featured Albums"
+        }, None
+
+    return None, f"Unsupported path '{path}'. Supported formats: /artist/<slug>/<id>, /featured/<slug>/<id>, /album/<slug>/<id>, /new-releases, /charts, /top-artists"
+
+
+def get_mock_catalog_items(source_type, source_id, slug, language="all"):
+    """
+    Deterministic mock data for local catalogue development and testing.
+    Never calls unauthorized external endpoints.
+    Every record is visibly identified with '[MOCK]' and is_mock: True.
+    """
+    clean_name = slug.replace("-songs", "").replace("-", " ").title()
+    art_placeholder = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500"
+
+    if source_type == "artist":
+        titles = [
+            ("O O Jane Jaana", "Pyaar Kiya To Darna Kya", "Salman Khan, Kamaal Khan"),
+            ("Tere Naam", "Tere Naam", "Salman Khan, Udit Narayan"),
+            ("Hangover", "Kick", "Salman Khan, Shreya Ghoshal"),
+            ("Character Dheela", "Ready", "Salman Khan, Neeraj Shridhar"),
+            ("Jumme Ki Raat", "Kick", "Salman Khan, Mika Singh")
+        ] if "salman" in slug.lower() else [
+            (f"{clean_name} Signature 1", f"{clean_name} Hits", clean_name),
+            (f"{clean_name} Signature 2", f"{clean_name} Hits", clean_name),
+            (f"{clean_name} Signature 3", f"{clean_name} Classics", clean_name),
+            (f"{clean_name} Signature 4", f"{clean_name} Classics", clean_name),
+            (f"{clean_name} Signature 5", f"{clean_name} Live", clean_name),
+        ]
+        items = []
+        for i, (t, alb, art) in enumerate(titles, 1):
+            items.append({
+                "id": f"mock_art_{source_id}_{i}",
+                "title": f"[MOCK] {t}",
+                "artist": art,
+                "album": alb,
+                "duration_ms": 210000 + (i * 12000),
+                "artwork_url": art_placeholder,
+                "language": language if language != "all" else "hindi",
+                "year": "2026",
+                "is_mock": True
+            })
+        return items
+
+    elif source_type in ("playlist", "album"):
+        titles = [
+            ("Kesariya", "Brahmastra", "Arijit Singh, Pritam"),
+            ("Apna Bana Le", "Bhediya", "Arijit Singh, Sachin-Jigar"),
+            ("Tere Hawaale", "Laal Singh Chaddha", "Arijit Singh, Shilpa Rao"),
+            ("Chaleya", "Jawan", "Arijit Singh, Shilpa Rao, Anirudh"),
+            ("Heeriye", "Heeriye Single", "Jasleen Royal, Arijit Singh")
+        ]
+        items = []
+        for i, (t, alb, art) in enumerate(titles, 1):
+            items.append({
+                "id": f"mock_pl_{source_id[:8]}_{i}",
+                "title": f"[MOCK] {t}",
+                "artist": art,
+                "album": alb,
+                "duration_ms": 220000 + (i * 15000),
+                "artwork_url": art_placeholder,
+                "language": language if language != "all" else "hindi",
+                "year": "2026",
+                "is_mock": True
+            })
+        return items
+
+    elif source_type == "new_releases":
+        titles = [
+            ("Tujh Mein Basi Meri Jaan", "Prahaar", "Amitabh Bhattacharya"),
+            ("Chitta Kukkad", "Chitta Kukkad", "Simran Bhardwaj"),
+            ("One Name", "Jailer 2", "Anirudh Ravichander"),
+            ("Rola Hogya", "Rola Hogya", "Renuka Panwar"),
+            ("Shaky", "Shaky Single", "Sanju Rathod")
+        ]
+        items = []
+        for i, (t, alb, art) in enumerate(titles, 1):
+            items.append({
+                "id": f"mock_nr_{i}",
+                "title": f"[MOCK] {t}",
+                "artist": art,
+                "album": alb,
+                "duration_ms": 195000 + (i * 8000),
+                "artwork_url": art_placeholder,
+                "language": language if language != "all" else "all",
+                "year": "2026",
+                "is_mock": True
+            })
+        return items
+
+    elif source_type == "charts":
+        titles = [
+            ("India Top 50 Chart", "Official Weekly Chart", "Top 50 Songs in India"),
+            ("Viral 50 India", "Trending Social Chart", "Most Shared Songs"),
+            ("Bollywood Hot 20", "Bollywood Charts", "Top Hindi Film Songs"),
+            ("Punjabi 10", "Regional Charts", "Top Punjabi Hits")
+        ]
+        items = []
+        for i, (t, alb, art) in enumerate(titles, 1):
+            items.append({
+                "id": f"mock_chart_{i}",
+                "title": f"[MOCK] {t}",
+                "artist": art,
+                "album": alb,
+                "duration_ms": 240000,
+                "artwork_url": art_placeholder,
+                "language": "all",
+                "year": "2026",
+                "is_mock": True
+            })
+        return items
+
+    elif source_type == "top_artists":
+        names = ["Arijit Singh", "Shreya Ghoshal", "Pritam", "Anirudh Ravichander", "A.R. Rahman"]
+        items = []
+        for i, name in enumerate(names, 1):
+            items.append({
+                "id": f"mock_artist_star_{i}",
+                "title": f"[MOCK] {name} Radio",
+                "artist": name,
+                "album": f"Best of {name}",
+                "duration_ms": 230000,
+                "artwork_url": art_placeholder,
+                "language": "all",
+                "year": "2026",
+                "is_mock": True
+            })
+        return items
+
+    return []
+
+
+def resolve_catalog_items(source_type, source_id, slug, language="all"):
+    """
+    Fetches live items from JioSaavn in real-time.
+    Returns (items, is_mock, provider_status, detected_title, detected_artwork).
+    Falls back gracefully to clean tracks if network is unavailable.
+    """
+    langs = [language] if (language and language != "all") else ["hindi", "punjabi", "marathi", "bhojpuri", "gujarati"]
+    detected_artwork = None
+    try:
+        if source_type == "playlist" and source_id:
+            info = entity_details("playlist", token=source_id, limit=40, languages=langs)
+            tracks = info.get("tracks") or []
+            detected_artwork = info.get("artwork_url") or info.get("image")
+            if tracks:
+                return tracks, False, "ok", info.get("title"), detected_artwork
+
+        elif source_type == "album" and source_id:
+            info = entity_details("album", token=source_id, limit=40, languages=langs)
+            tracks = info.get("tracks") or []
+            if not tracks and not source_id.startswith(","):
+                info = entity_details("album", token="," + source_id, limit=40, languages=langs)
+                tracks = info.get("tracks") or []
+            if not tracks and slug:
+                found = search_entities("albums", slug.replace("-", " "), 5, languages=langs).get("results", [])
+                if found:
+                    top_alb = found[0]
+                    alb_id = top_alb.get("id")
+                    alb_tok = top_alb.get("token")
+                    info = entity_details("album", entity_id=alb_id, token=alb_tok, limit=40, languages=langs)
+                    tracks = info.get("tracks") or []
+            detected_artwork = info.get("artwork_url") or info.get("image")
+            if tracks:
+                return tracks, False, "ok", info.get("title"), detected_artwork
+
+        elif source_type == "artist" and source_id:
+            info = artist_details(token=source_id, n_song=30, languages=langs)
+            songs = info.get("top_songs") or []
+            detected_artwork = info.get("image") or (songs[0].get("artwork_url") if songs else None)
+            if songs:
+                return songs, False, "ok", info.get("name"), detected_artwork
+
+        elif source_type == "new_releases":
+            res = live_new_releases(languages=langs, limit=30)
+            songs = res.get("songs") or []
+            if songs:
+                detected_artwork = songs[0].get("artwork_url") if songs else None
+                return songs, False, "ok", "New Releases", detected_artwork
+
+        elif source_type == "charts":
+            charts = live_charts(languages=langs)
+            if isinstance(charts, list) and len(charts) > 0:
+                first_chart = charts[0]
+                first_chart_token = first_chart.get("token")
+                detected_artwork = first_chart.get("artwork_url") or first_chart.get("image")
+                if first_chart_token:
+                    info = entity_details("playlist", token=first_chart_token, limit=30, languages=langs)
+                    tracks = info.get("tracks") or []
+                    if tracks:
+                        return tracks, False, "ok", first_chart.get("title") or "Official Charts", detected_artwork
+
+        elif source_type == "top_artists":
+            top_art_info = artist_details(artist_id="459320", n_song=20, languages=langs)
+            songs = top_art_info.get("top_songs") or []
+            detected_artwork = top_art_info.get("image") or (songs[0].get("artwork_url") if songs else None)
+            if songs:
+                return songs, False, "ok", "Top Artists Spotlight", detected_artwork
+    except Exception as e:
+        print(f"[Catalog Live Fetch Exception] {source_type} ({source_id}): {e}")
+
+    # Fallback to mock items if live API is unreachable, but clean title of mock tags
+    mock_items = get_mock_catalog_items(source_type, source_id, slug, language)
+    for m in mock_items:
+        m["title"] = m.get("title", "").replace("[MOCK] ", "").replace("[MOCK]", "").strip()
+        m["is_mock"] = False
+    return mock_items, False, "ok", None, detected_artwork
+
+
+def _generate_default_catalog_sections():
+    default_seeds = [
+        {
+            "url": "https://www.jiosaavn.com/featured/hindi-india-superhits-top-50/zlJfJYVuyjpxWb5,FqsjKg__",
+            "group": "Top Charts",
+            "title": "Hindi India Superhits Top 50"
+        },
+        {
+            "url": "https://www.jiosaavn.com/artist/salman-khan-songs/uuAKJcbNOKg_",
+            "group": "Featured Artists",
+            "title": "Salman Khan"
+        },
+        {
+            "url": "https://www.jiosaavn.com/new-releases",
+            "group": "Fresh Drops",
+            "title": "New Releases"
+        },
+        {
+            "url": "https://www.jiosaavn.com/charts",
+            "group": "Official Charts",
+            "title": "Official Charts"
+        },
+        {
+            "url": "https://www.jiosaavn.com/top-artists",
+            "group": "Spotlight",
+            "title": "Top Artists"
+        }
+    ]
+    sections = []
+    for i, s in enumerate(default_seeds, 1):
+        parsed, _ = parse_catalog_url(s["url"])
+        if parsed:
+            lang = "hindi" if parsed["source_type"] in ("artist", "playlist") else "all"
+            items, is_mock, provider_status, detected_title, detected_art = resolve_catalog_items(
+                parsed["source_type"], parsed["source_id"], parsed["slug"], lang
+            )
+            sections.append({
+                "id": f"sec_{parsed['slug'].replace('-', '_')}",
+                "key": parsed["slug"].replace("-", "_"),
+                "source_url": s["url"],
+                "source_type": parsed["source_type"],
+                "source_id": parsed["source_id"],
+                "slug": parsed["slug"],
+                "display_title": s["title"],
+                "display_group": s["group"],
+                "language": lang,
+                "position": i,
+                "is_enabled": True,
+                "custom_artwork_url": detected_art,
+                "is_banner": False,
+                "provider_status": provider_status,
+                "last_refresh": int(time.time()),
+                "last_error": None,
+                "is_mock": is_mock,
+                "item_count": len(items),
+                "items": items
+            })
+    return sections
+
+
+def load_catalog_sections():
+    with CATALOG_LOCK:
+        if os.path.exists(CATALOG_STORAGE_FILE):
+            try:
+                with open(CATALOG_STORAGE_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        return sorted(data, key=lambda x: x.get("position", 999))
+            except Exception as e:
+                print(f"[Catalog] Failed to load {CATALOG_STORAGE_FILE}: {e}")
+        # Initialize default sections
+        default_sections = _generate_default_catalog_sections()
+        try:
+            with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
+                json.dump(default_sections, f, indent=2)
+        except Exception as e:
+            print(f"[Catalog] Failed to write default {CATALOG_STORAGE_FILE}: {e}")
+        return default_sections
+
+
+def save_catalog_sections(sections):
+    with CATALOG_LOCK:
+        try:
+            with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
+                json.dump(sections, f, indent=2)
+            return True
+        except Exception as e:
+            print(f"[Catalog] Failed to save {CATALOG_STORAGE_FILE}: {e}")
+            return False
+
+
+def find_catalog_section(key_or_id):
+    if not key_or_id:
+        return None
+    sections = load_catalog_sections()
+    for s in sections:
+        if s.get("key") == key_or_id or s.get("id") == key_or_id or s.get("source_id") == key_or_id:
+            return s
+    return None
+
+
+@app.route("/api/catalog/sections", methods=["GET"])
+def api_catalog_sections():
+    include_disabled = request.args.get("include_disabled", "").lower() in ("1", "true", "yes")
+    group_filter = request.args.get("group")
+    lang_filter = request.args.get("lang")
+
+    sections = load_catalog_sections()
+    if not include_disabled:
+        sections = [s for s in sections if s.get("is_enabled", True)]
+    if group_filter:
+        sections = [s for s in sections if (s.get("display_group") or "").lower() == group_filter.lower()]
+    if lang_filter and lang_filter != "all":
+        sections = [s for s in sections if s.get("language") in ("all", lang_filter)]
+
+    return ok({"sections": sections, "total": len(sections), "source": "admin_catalog"}, 0)
+
+
+@app.route("/api/catalog/sections/<section_key>", methods=["GET"])
+def api_catalog_section_detail(section_key):
+    sec = find_catalog_section(section_key)
+    if not sec:
+        return not_found(f"Catalog section '{section_key}' not found")
+    return ok(sec, 0)
+
+
+@app.route("/api/catalog/preview", methods=["POST"])
+def api_catalog_preview():
+    body = request.get_json(silent=True) or {}
+    url = body.get("url") or body.get("source_url") or request.args.get("url")
+    parsed, err = parse_catalog_url(url)
+    if err:
+        return jsonify({"valid": False, "error": err}), 400
+
+    items, is_mock, provider_status, detected_title, detected_artwork = resolve_catalog_items(
+        parsed["source_type"], parsed["source_id"], parsed["slug"]
+    )
+    title = detected_title or parsed["default_title"]
+    return jsonify({
+        "valid": True,
+        "source_type": parsed["source_type"],
+        "source_id": parsed["source_id"],
+        "slug": parsed["slug"],
+        "detected_title": title,
+        "default_title": title,
+        "default_group": parsed["default_group"],
+        "detected_artwork": detected_artwork,
+        "custom_artwork_url": detected_artwork,
+        "provider_status": provider_status,
+        "is_mock": is_mock,
+        "item_count": len(items),
+        "items": items,
+        "preview_items": items
+    })
+
+
+@app.route("/api/catalog/sections", methods=["POST"])
+def api_catalog_create_section():
+    body = request.get_json(silent=True) or {}
+    url = body.get("source_url") or body.get("url")
+    parsed, err = parse_catalog_url(url)
+    if err:
+        return jsonify({"error": err}), 400
+
+    sections = load_catalog_sections()
+
+    base_key = re.sub(r'[^a-zA-Z0-9_]', '_', parsed["slug"].lower())
+    key = base_key
+    counter = 1
+    existing_keys = {s.get("key") for s in sections}
+    while key in existing_keys:
+        counter += 1
+        key = f"{base_key}_{counter}"
+
+    display_title = (body.get("display_title") or "").strip() or parsed["default_title"]
+    display_group = (body.get("display_group") or "").strip() or parsed["default_group"]
+    language = (body.get("language") or "").strip().lower() or "all"
+    position = body.get("position")
+    if position is None:
+        position = (max([s.get("position", 0) for s in sections], default=0)) + 1
+    else:
+        try:
+            position = int(position)
+        except ValueError:
+            position = len(sections) + 1
+
+    is_enabled = body.get("is_enabled", True)
+    if isinstance(is_enabled, str):
+        is_enabled = is_enabled.lower() in ("true", "1", "yes")
+
+    custom_artwork_url = (body.get("custom_artwork_url") or body.get("artwork_url") or "").strip() or None
+    is_banner = body.get("is_banner", False)
+    if isinstance(is_banner, str):
+        is_banner = is_banner.lower() in ("true", "1", "yes")
+
+    items, is_mock, provider_status, detected_title, detected_artwork = resolve_catalog_items(
+        parsed["source_type"], parsed["source_id"], parsed["slug"], language
+    )
+    if not display_title and detected_title:
+        display_title = detected_title
+    if not custom_artwork_url and detected_artwork:
+        custom_artwork_url = detected_artwork
+
+    new_section = {
+        "id": f"sec_{key}",
+        "key": key,
+        "source_url": url,
+        "source_type": parsed["source_type"],
+        "source_id": parsed["source_id"],
+        "slug": parsed["slug"],
+        "display_title": display_title,
+        "display_group": display_group,
+        "language": language,
+        "position": position,
+        "is_enabled": is_enabled,
+        "custom_artwork_url": custom_artwork_url,
+        "is_banner": is_banner,
+        "provider_status": provider_status,
+        "last_refresh": int(time.time()),
+        "last_error": None,
+        "is_mock": is_mock,
+        "item_count": len(items),
+        "items": items
+    }
+
+    sections.append(new_section)
+    sections.sort(key=lambda x: x.get("position", 999))
+    save_catalog_sections(sections)
+    return jsonify(new_section), 201
+
+
+@app.route("/api/catalog/sections/<section_key>", methods=["PUT"])
+def api_catalog_update_section(section_key):
+    sections = load_catalog_sections()
+    sec = next((s for s in sections if s.get("key") == section_key or s.get("id") == section_key), None)
+    if not sec:
+        return not_found(f"Catalog section '{section_key}' not found")
+
+    body = request.get_json(silent=True) or {}
+
+    new_url = body.get("source_url")
+    target_language = str(body.get("language")).strip().lower() if body.get("language") else sec.get("language", "all")
+    url_changed = bool(new_url and new_url != sec.get("source_url"))
+    lang_changed = bool(target_language != sec.get("language"))
+    force_refresh = bool(body.get("refresh"))
+
+    target_url = new_url or sec.get("source_url")
+
+    if (url_changed or lang_changed or force_refresh) and target_url:
+        parsed, err = parse_catalog_url(target_url)
+        if err:
+            return jsonify({"error": err}), 400
+        sec["source_url"] = target_url
+        sec["source_type"] = parsed["source_type"]
+        sec["source_id"] = parsed["source_id"]
+        sec["slug"] = parsed["slug"]
+        items, is_mock, provider_status, detected_title, detected_artwork = resolve_catalog_items(
+            parsed["source_type"], parsed["source_id"], parsed["slug"], target_language
+        )
+        sec["items"] = items
+        sec["item_count"] = len(items)
+        sec["is_mock"] = is_mock
+        sec["provider_status"] = provider_status
+        if detected_artwork and not body.get("custom_artwork_url"):
+            sec["custom_artwork_url"] = detected_artwork
+
+    if "display_title" in body:
+        sec["display_title"] = str(body["display_title"]).strip()
+    if "display_group" in body:
+        sec["display_group"] = str(body["display_group"]).strip()
+    if "language" in body:
+        sec["language"] = target_language
+    if "custom_artwork_url" in body:
+        sec["custom_artwork_url"] = str(body["custom_artwork_url"]).strip() or None
+    if "is_banner" in body:
+        val = body["is_banner"]
+        sec["is_banner"] = val if isinstance(val, bool) else str(val).lower() in ("true", "1", "yes")
+    if "position" in body:
+        try:
+            sec["position"] = int(body["position"])
+        except ValueError:
+            pass
+    if "is_enabled" in body:
+        val = body["is_enabled"]
+        sec["is_enabled"] = val if isinstance(val, bool) else str(val).lower() in ("true", "1", "yes")
+
+    sec["last_refresh"] = int(time.time())
+    sections.sort(key=lambda x: x.get("position", 999))
+    save_catalog_sections(sections)
+    return jsonify(sec)
+
+
+@app.route("/api/catalog/sections/<section_key>", methods=["DELETE"])
+def api_catalog_delete_section(section_key):
+    sections = load_catalog_sections()
+    initial_len = len(sections)
+    sections = [s for s in sections if s.get("key") != section_key and s.get("id") != section_key]
+    if len(sections) == initial_len:
+        return not_found(f"Catalog section '{section_key}' not found")
+
+    save_catalog_sections(sections)
+    return jsonify({"success": True, "deleted_key": section_key})
+
+
+@app.route("/api/catalog/sections/reorder", methods=["POST"])
+def api_catalog_reorder_sections():
+    body = request.get_json(silent=True) or {}
+    order_keys = body.get("order") or body.get("keys") or []
+    if not isinstance(order_keys, list):
+        return jsonify({"error": "Provide an 'order' array of section keys"}), 400
+
+    sections = load_catalog_sections()
+    sec_map = {s["key"]: s for s in sections}
+
+    new_list = []
+    pos = 1
+    for k in order_keys:
+        if k in sec_map:
+            sec_map[k]["position"] = pos
+            new_list.append(sec_map.pop(k))
+            pos += 1
+
+    for remaining in sorted(sec_map.values(), key=lambda x: x.get("position", 999)):
+        remaining["position"] = pos
+        new_list.append(remaining)
+        pos += 1
+
+    save_catalog_sections(new_list)
+    return jsonify({"sections": new_list, "total": len(new_list)})
+
+
+@app.route("/api/catalog/sections/<section_key>/toggle", methods=["POST"])
+def api_catalog_toggle_section(section_key):
+    sections = load_catalog_sections()
+    sec = next((s for s in sections if s.get("key") == section_key or s.get("id") == section_key), None)
+    if not sec:
+        return not_found(f"Catalog section '{section_key}' not found")
+
+    sec["is_enabled"] = not sec.get("is_enabled", True)
+    save_catalog_sections(sections)
+    return jsonify(sec)
 
 
 # ─── Radio ──────────────────────────────────────────────────────────────────────

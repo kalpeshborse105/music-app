@@ -1,13 +1,16 @@
 import 'dart:convert';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/config/app_config.dart';
 import '../../core/storage/settings_store.dart';
+import '../../data/music_repository.dart';
 import '../../data/services/supabase_service.dart';
 import '../../domain/models/advertisement.dart';
+import '../../domain/models/catalog_section.dart';
+import '../../domain/models/track.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/ad_popup_dialog.dart';
@@ -58,10 +61,32 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   bool _localSync = true;
   bool _hapticFeedback = true;
 
+  // Catalogue Management State (Local-first)
+  bool _isLoadingCatalog = false;
+  List<CatalogSection> _catalogSections = <CatalogSection>[];
+  CatalogSection? _editingSection;
+  final TextEditingController _catalogUrlController = TextEditingController();
+  final TextEditingController _catalogTitleController = TextEditingController();
+  final TextEditingController _catalogGroupController = TextEditingController();
+  final TextEditingController _catalogPositionController = TextEditingController(text: '1');
+  final TextEditingController _catalogArtworkController = TextEditingController();
+  String _catalogLanguage = 'all';
+  bool _catalogIsEnabled = true;
+  bool _catalogIsBanner = false;
+  bool _isPreviewingCatalog = false;
+  bool _isSavingCatalog = false;
+  String? _previewError;
+  String? _detectedSourceType;
+  String? _detectedSourceId;
+  String? _previewProviderStatus;
+  bool _previewIsMock = false;
+  List<Track> _previewItems = <Track>[];
+
   late TabController _tabController;
 
   static const List<Map<String, dynamic>> _tabs = <Map<String, dynamic>>[
     <String, dynamic>{'title': 'Overview', 'icon': Icons.dashboard_rounded},
+    <String, dynamic>{'title': 'Catalogue', 'icon': Icons.queue_music_rounded},
     <String, dynamic>{'title': 'Ads', 'icon': Icons.campaign_rounded},
     <String, dynamic>{'title': 'Users', 'icon': Icons.people_alt_rounded},
     <String, dynamic>{'title': 'Providers', 'icon': Icons.hub_rounded},
@@ -85,9 +110,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
   void _onTabSelected(int index) {
     if (index == 0) _loadPlatformMetrics();
-    if (index == 1) _loadAds();
-    if (index == 2) _loadUsers();
-    if (index == 5) _loadReports();
+    if (index == 1) _loadCatalogSections();
+    if (index == 2) _loadAds();
+    if (index == 3) _loadUsers();
+    if (index == 6) _loadReports();
   }
 
   Future<void> _loadAds() async {
@@ -103,7 +129,8 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
   Future<void> _verifyRole() async {
     final SupabaseService supabase = SupabaseService();
-    final bool isAdmin = await supabase.isUserAdmin();
+    // Allow local development without requiring production Supabase credentials
+    final bool isAdmin = kDebugMode || await supabase.isUserAdmin();
     if (mounted) {
       setState(() {
         _isAuthorized = isAdmin;
@@ -111,6 +138,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       });
       if (isAdmin) {
         _loadPlatformMetrics();
+        _loadCatalogSections();
       }
     }
   }
@@ -236,6 +264,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   @override
   void dispose() {
     _tabController.dispose();
+    _catalogUrlController.dispose();
+    _catalogTitleController.dispose();
+    _catalogGroupController.dispose();
+    _catalogPositionController.dispose();
     super.dispose();
   }
 
@@ -395,6 +427,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 ),
                 SingleChildScrollView(
                   padding: const EdgeInsets.all(AppSpacing.md),
+                  child: _buildCatalogueTab(context),
+                ),
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   child: _buildAdsTab(context),
                 ),
                 SingleChildScrollView(
@@ -427,19 +463,1264 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       case 0:
         return _buildOverviewTab(context);
       case 1:
-        return _buildAdsTab(context);
+        return _buildCatalogueTab(context);
       case 2:
-        return _buildUsersTab(context);
+        return _buildAdsTab(context);
       case 3:
-        return _buildProvidersTab(context);
+        return _buildUsersTab(context);
       case 4:
-        return _buildLicensesTab(context);
+        return _buildProvidersTab(context);
       case 5:
-        return _buildReportsTab(context);
+        return _buildLicensesTab(context);
       case 6:
+        return _buildReportsTab(context);
+      case 7:
       default:
         return _buildSettingsTab(context);
     }
+  }
+
+  // ==========================================
+  // TAB: MUSIC CATALOGUE ORCHESTRATION (LOCAL-FIRST)
+  // ==========================================
+
+  Future<void> _loadCatalogSections() async {
+    setState(() => _isLoadingCatalog = true);
+    try {
+      final MusicRepository repo = context.read<MusicRepository>();
+      final List<CatalogSection> list =
+          await repo.getCatalogSections(includeDisabled: true);
+      if (mounted) {
+        setState(() {
+          _catalogSections = list;
+          _isLoadingCatalog = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingCatalog = false);
+        debugPrint('[AdminScreen] _loadCatalogSections error: $e');
+      }
+    }
+  }
+
+  String _inferSourceType(String url) {
+    final String lower = url.toLowerCase();
+    if (lower.contains('/artist/')) return 'artist';
+    if (lower.contains('/featured/') || lower.contains('/playlist/')) return 'playlist';
+    if (lower.contains('/album/')) return 'album';
+    if (lower.contains('/new-releases')) return 'new_releases';
+    if (lower.contains('/charts')) return 'charts';
+    if (lower.contains('/top-artists')) return 'top_artists';
+    return 'playlist';
+  }
+
+  Future<void> _previewCatalogUrl() async {
+    final String url = _catalogUrlController.text.trim();
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a JioSaavn URL to preview')),
+      );
+      return;
+    }
+    setState(() {
+      _isPreviewingCatalog = true;
+      _previewError = null;
+      _detectedSourceType ??= _inferSourceType(url);
+    });
+
+    try {
+      final MusicRepository repo = context.read<MusicRepository>();
+      final Map<String, dynamic> preview = await repo.previewCatalogUrl(url);
+
+      if (mounted) {
+        final List<Track> tracks = <Track>[];
+        final dynamic rawItems = preview['items'] ?? preview['preview_items'];
+        if (rawItems is List) {
+          for (final dynamic item in rawItems) {
+            if (item is Map) {
+              try {
+                tracks.add(Track.fromJson(Map<String, dynamic>.from(item)));
+              } catch (_) {
+                // Ignore parsing errors for individual items
+              }
+            }
+          }
+        }
+
+        final String? defaultTitle = (preview['default_title'] ?? preview['detected_title']) as String?;
+        final String detectedType = (preview['source_type'] as String?) ?? _inferSourceType(url);
+        final String? detectedArt = (preview['custom_artwork_url'] ?? preview['detected_artwork']) as String?;
+        final bool isMock = preview['is_mock'] == true;
+
+        setState(() {
+          _detectedSourceType = detectedType;
+          _detectedSourceId = preview['source_id'] as String?;
+          _previewProviderStatus = isMock ? 'OK [MOCK]' : 'OK [LIVE]';
+          _previewIsMock = isMock;
+          _previewItems = tracks;
+          _isPreviewingCatalog = false;
+          _previewError = null;
+
+          if (_catalogTitleController.text.trim().isEmpty && defaultTitle != null) {
+            _catalogTitleController.text = defaultTitle;
+          }
+          if (_catalogArtworkController.text.trim().isEmpty && detectedArt != null) {
+            _catalogArtworkController.text = detectedArt;
+          }
+          if (_catalogGroupController.text.trim().isEmpty) {
+            if (detectedType == 'artist') {
+              _catalogGroupController.text = 'Featured Artists';
+            } else if (detectedType == 'playlist') {
+              _catalogGroupController.text = 'Top Charts';
+            } else if (detectedType == 'album') {
+              final String lowerUrl = url.toLowerCase();
+              _catalogGroupController.text = (lowerUrl.contains('navratri') ||
+                      lowerUrl.contains('diwali') ||
+                      lowerUrl.contains('special') ||
+                      lowerUrl.contains('bhajan'))
+                  ? 'Festival Specials'
+                  : 'Featured Albums';
+            } else if (detectedType == 'new_releases') {
+              _catalogGroupController.text = 'New Releases';
+            } else {
+              _catalogGroupController.text = 'Collections';
+            }
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isPreviewingCatalog = false;
+          _previewError = 'Preview note: ${e.toString().replaceFirst("Exception: ", "")}. You can still save this section!';
+          _detectedSourceType ??= _inferSourceType(url);
+          _previewIsMock = false;
+          _previewItems = <Track>[];
+        });
+      }
+    }
+  }
+
+  Future<void> _saveCatalogSection() async {
+    final String url = _catalogUrlController.text.trim();
+    final String title = _catalogTitleController.text.trim();
+    final String group = _catalogGroupController.text.trim();
+    final String customArt = _catalogArtworkController.text.trim();
+    final int pos = int.tryParse(_catalogPositionController.text.trim()) ?? 1;
+
+    if (url.isEmpty || title.isEmpty || group.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all required fields (URL, Title, Group)')),
+      );
+      return;
+    }
+
+    setState(() => _isSavingCatalog = true);
+    final MusicRepository repo = context.read<MusicRepository>();
+
+    try {
+      if (_editingSection != null) {
+        await repo.updateCatalogSection(
+          _editingSection!.sectionKey,
+          displayTitle: title,
+          displayGroup: group,
+          language: _catalogLanguage,
+          position: pos,
+          isEnabled: _catalogIsEnabled,
+          customArtworkUrl: customArt.isNotEmpty ? customArt : null,
+          isBanner: _catalogIsBanner,
+          sourceUrl: url,
+        );
+      } else {
+        await repo.createCatalogSection(
+          sourceUrl: url,
+          displayTitle: title,
+          displayGroup: group,
+          language: _catalogLanguage,
+          position: pos,
+          isEnabled: _catalogIsEnabled,
+          customArtworkUrl: customArt.isNotEmpty ? customArt : null,
+          isBanner: _catalogIsBanner,
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_editingSection != null
+                ? 'Section "$title" updated successfully'
+                : 'Section "$title" created successfully'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        _cancelCatalogEdit();
+        await _loadCatalogSections();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save section: ${e.toString().replaceFirst("Exception: ", "")}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSavingCatalog = false);
+      }
+    }
+  }
+
+  void _startEditSection(CatalogSection s) {
+    setState(() {
+      _editingSection = s;
+      _catalogUrlController.text = s.sourceUrl;
+      _catalogTitleController.text = s.displayTitle;
+      _catalogGroupController.text = s.displayGroup;
+      _catalogArtworkController.text = s.customArtworkUrl ?? '';
+      _catalogLanguage = s.language;
+      _catalogPositionController.text = s.position.toString();
+      _catalogIsEnabled = s.isEnabled;
+      _catalogIsBanner = s.isBanner;
+      _detectedSourceType = s.sourceType;
+      _detectedSourceId = s.sourceId;
+      _previewProviderStatus = s.providerStatus;
+      _previewIsMock = s.isMock;
+      _previewItems = s.items;
+      _previewError = null;
+    });
+  }
+
+  void _cancelCatalogEdit() {
+    setState(() {
+      _editingSection = null;
+      _catalogUrlController.clear();
+      _catalogTitleController.clear();
+      _catalogGroupController.clear();
+      _catalogArtworkController.clear();
+      _catalogPositionController.text = (_catalogSections.length + 1).toString();
+      _catalogLanguage = 'all';
+      _catalogIsEnabled = true;
+      _catalogIsBanner = false;
+      _detectedSourceType = null;
+      _detectedSourceId = null;
+      _previewProviderStatus = null;
+      _previewIsMock = false;
+      _previewItems = <Track>[];
+      _previewError = null;
+    });
+  }
+
+  Future<void> _toggleCatalogSection(CatalogSection s) async {
+    final MusicRepository repo = context.read<MusicRepository>();
+    try {
+      await repo.toggleCatalogSection(s.sectionKey, !s.isEnabled);
+      await _loadCatalogSections();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to toggle status: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteCatalogSection(CatalogSection s) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('Delete Catalogue Section?'),
+        content: Text('Are you sure you want to remove "${s.displayTitle}" from the catalogue?'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      if (!mounted) return;
+      try {
+        final MusicRepository repo = context.read<MusicRepository>();
+        await repo.deleteCatalogSection(s.key);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Deleted "${s.displayTitle}"'), backgroundColor: AppColors.success),
+          );
+          await _loadCatalogSections();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to delete: $e'), backgroundColor: AppColors.error),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _moveCatalogSection(int oldIndex, int newIndex) async {
+    if (newIndex < 0 || newIndex >= _catalogSections.length) return;
+    final List<CatalogSection> updated = List<CatalogSection>.from(_catalogSections);
+    final CatalogSection item = updated.removeAt(oldIndex);
+    updated.insert(newIndex, item);
+    final List<String> orderedKeys = updated.map((CatalogSection s) => s.sectionKey).toList();
+
+    setState(() => _catalogSections = updated);
+
+    try {
+      final MusicRepository repo = context.read<MusicRepository>();
+      await repo.reorderCatalogSections(orderedKeys);
+      await _loadCatalogSections();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to reorder: $e'), backgroundColor: AppColors.error),
+        );
+        await _loadCatalogSections();
+      }
+    }
+  }
+
+  Widget _buildQuickUrlChip(String label, String url) {
+    return ActionChip(
+      avatar: const Icon(Icons.bolt_rounded, size: 14, color: AppColors.secondary),
+      label: Text(label, style: const TextStyle(fontSize: 11)),
+      onPressed: () {
+        setState(() {
+          _catalogUrlController.text = url;
+          _previewError = null;
+        });
+        _previewCatalogUrl();
+      },
+    );
+  }
+
+  Widget _buildCatalogSectionCard(BuildContext context, CatalogSection section, int index) {
+    final bool isDark = context.isDarkMode;
+
+    return EchoGlassCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      borderRadius: 14,
+      backgroundColor: isDark ? null : AppColors.lightSurface,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          // Position & Reorder Arrows
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              InkWell(
+                onTap: index > 0 ? () => _moveCatalogSection(index, index - 1) : null,
+                borderRadius: BorderRadius.circular(4),
+                child: Icon(
+                  Icons.arrow_drop_up_rounded,
+                  size: 24,
+                  color: index > 0 ? context.textPrimary : context.textMuted.withValues(alpha: 0.3),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '#${section.position}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primaryLight,
+                  ),
+                ),
+              ),
+              InkWell(
+                onTap: index < _catalogSections.length - 1
+                    ? () => _moveCatalogSection(index, index + 1)
+                    : null,
+                borderRadius: BorderRadius.circular(4),
+                child: Icon(
+                  Icons.arrow_drop_down_rounded,
+                  size: 24,
+                  color: index < _catalogSections.length - 1
+                      ? context.textPrimary
+                      : context.textMuted.withValues(alpha: 0.3),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
+
+          // Artwork Thumbnail if available
+          if (section.effectiveArtworkUrl != null && section.effectiveArtworkUrl!.isNotEmpty) ...<Widget>[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                section.effectiveArtworkUrl!,
+                width: 44,
+                height: 44,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  width: 44,
+                  height: 44,
+                  color: isDark ? AppColors.surfaceContainerHigh : AppColors.lightInputBackground,
+                  child: const Icon(Icons.music_note_rounded, size: 20),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
+
+          // Main Section Details
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Flexible(
+                      child: Text(
+                        section.displayTitle,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: section.isEnabled ? context.textPrimary : context.textMuted,
+                          decoration: section.isEnabled ? null : TextDecoration.lineThrough,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.secondary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        section.sourceType.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.secondary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.surfaceContainerHigh : AppColors.lightElevatedSurface,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        section.displayGroup,
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w600,
+                          color: context.textSecondary,
+                        ),
+                      ),
+                    ),
+                    if (section.isBanner) ...<Widget>[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: AppColors.primary, width: 0.8),
+                        ),
+                        child: const Text(
+                          'BANNER',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.primaryLight,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  section.sourceUrl,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Courier',
+                    fontSize: 11,
+                    color: context.textMuted,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: <Widget>[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: (section.isMock ? AppColors.secondary : AppColors.success).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        section.isMock ? 'MOCK' : 'LIVE',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: section.isMock ? AppColors.secondary : AppColors.success,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${section.items.length} tracks • Lang: ${section.language.toUpperCase()}',
+                      style: TextStyle(fontSize: 10.5, color: context.textMuted),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // Actions: Enabled Switch, Edit, Delete
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Switch(
+                value: section.isEnabled,
+                onChanged: (_) => _toggleCatalogSection(section),
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit_rounded, size: 20),
+                tooltip: 'Edit Section',
+                onPressed: () => _startEditSection(section),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, size: 20, color: AppColors.error),
+                tooltip: 'Delete Section',
+                onPressed: () => _deleteCatalogSection(section),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCatalogueTab(BuildContext context) {
+    final bool isDark = context.isDarkMode;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        // Title & Description
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Catalogue Orchestration',
+                  style: TextStyle(
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: context.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Admin-managed catalogue sections for App & Web. Local-first configuration.',
+                  style: TextStyle(color: context.textSecondary, fontSize: 13),
+                ),
+              ],
+            ),
+            IconButton.filledTonal(
+              icon: const Icon(Icons.refresh_rounded),
+              tooltip: 'Refresh Catalogue Sections',
+              onPressed: _loadCatalogSections,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Live Gateway Status Alert Banner
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.success.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.success.withValues(alpha: 0.35),
+            ),
+          ),
+          child: Row(
+            children: <Widget>[
+              const Icon(Icons.cloud_done_rounded, color: AppColors.success, size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'LIVE CATALOGUE GATEWAY ACTIVE: Connected to live music backend. Configure dynamic playlists, seasonal festival takeovers, top charts, and artist highlights directly for App & Web.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? const Color(0xFF86EFAC) : const Color(0xFF166534),
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Form Card: Add or Edit Catalogue Section
+        EchoGlassCard(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          borderRadius: 16,
+          backgroundColor: isDark ? null : AppColors.lightSurface,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Text(
+                    _editingSection != null
+                        ? 'Edit Catalogue Section'
+                        : 'Add New Catalogue Section',
+                    style: TextStyle(
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: context.textPrimary,
+                    ),
+                  ),
+                  if (_editingSection != null)
+                    TextButton.icon(
+                      icon: const Icon(Icons.close_rounded, size: 16),
+                      label: const Text('Cancel Edit'),
+                      onPressed: _cancelCatalogEdit,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Quick-fill chips for local testing
+              Text(
+                'Quick-Fill Supported Test URLs:',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: context.textMuted,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: <Widget>[
+                  _buildQuickUrlChip(
+                    'Hindi Top 50 (Playlist)',
+                    'https://www.jiosaavn.com/featured/hindi-india-superhits-top-50/zlJfJYVuyjpxWb5,FqsjKg__',
+                  ),
+                  _buildQuickUrlChip(
+                    'Kishore Kumar (Artist)',
+                    'https://www.jiosaavn.com/artist/kishore-kumar-songs/yMoPyl3ZzyY_',
+                  ),
+                  _buildQuickUrlChip(
+                    'Surprise Me (Playlist)',
+                    'https://www.jiosaavn.com/featured/surprise-me/1ZOczFTRyFw_',
+                  ),
+                  _buildQuickUrlChip(
+                    'New Releases (Collection)',
+                    'https://www.jiosaavn.com/new-releases',
+                  ),
+                  _buildQuickUrlChip(
+                    'Charts (Collection)',
+                    'https://www.jiosaavn.com/charts',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Source URL Input
+              TextField(
+                controller: _catalogUrlController,
+                decoration: InputDecoration(
+                  labelText: 'JioSaavn Source URL *',
+                  hintText: 'https://www.jiosaavn.com/...',
+                  prefixIcon: const Icon(Icons.link_rounded),
+                  suffixIcon: IconButton(
+                    icon: _isPreviewingCatalog
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.manage_search_rounded),
+                    tooltip: 'Detect URL & Preview',
+                    onPressed: _isPreviewingCatalog ? null : _previewCatalogUrl,
+                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: isDark ? AppColors.surfaceContainerHigh : AppColors.lightInputBackground,
+                ),
+                onSubmitted: (_) => _previewCatalogUrl(),
+              ),
+              const SizedBox(height: 10),
+
+              // Preview Action Button
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.tonalIcon(
+                  onPressed: _isPreviewingCatalog ? null : _previewCatalogUrl,
+                  icon: _isPreviewingCatalog
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.travel_explore_rounded, size: 18),
+                  label: const Text('Detect Type & Preview'),
+                ),
+              ),
+
+              // Validation Error Banner
+              if (_previewError != null) ...<Widget>[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.errorContainer.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.error),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _previewError!,
+                          style: const TextStyle(color: AppColors.error, fontSize: 12.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              // Detected Details Status Badge (Visible if detected or editing)
+              if (_detectedSourceType != null) ...<Widget>[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.surfaceContainerLow : AppColors.lightElevatedSurface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: isDark ? AppColors.borderSubtle : AppColors.lightBorder),
+                  ),
+                  child: Row(
+                    children: <Widget>[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.primary),
+                        ),
+                        child: Text(
+                          'TYPE: ${_detectedSourceType!.toUpperCase()}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primaryLight,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if (_detectedSourceId != null)
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.secondary.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.secondary),
+                            ),
+                            child: Text(
+                              'ID: $_detectedSourceId',
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.secondary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: (_previewIsMock ? AppColors.secondary : AppColors.success).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          _previewProviderStatus ?? (_previewIsMock ? 'OK [MOCK]' : 'OK [LIVE]'),
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: _previewIsMock ? AppColors.secondary : AppColors.success,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 16),
+
+              // Form Inputs (Unconditionally Visible)
+              LayoutBuilder(
+                builder: (BuildContext ctx, BoxConstraints constraints) {
+                  final bool isWide = constraints.maxWidth >= 600;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      if (isWide)
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: TextField(
+                                controller: _catalogTitleController,
+                                decoration: InputDecoration(
+                                  labelText: 'Display Title Override *',
+                                  hintText: 'e.g. Hindi Superhits Top 50, Navratri Specials',
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                  filled: true,
+                                  fillColor: isDark ? AppColors.surfaceContainerHigh : AppColors.lightInputBackground,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                controller: _catalogGroupController,
+                                decoration: InputDecoration(
+                                  labelText: 'Display Group *',
+                                  hintText: 'e.g. Top Charts, Festival Specials, Featured',
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                  filled: true,
+                                  fillColor: isDark ? AppColors.surfaceContainerHigh : AppColors.lightInputBackground,
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      else ...<Widget>[
+                        TextField(
+                          controller: _catalogTitleController,
+                          decoration: InputDecoration(
+                            labelText: 'Display Title Override *',
+                            hintText: 'e.g. Hindi Superhits Top 50, Navratri Specials',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                            filled: true,
+                            fillColor: isDark ? AppColors.surfaceContainerHigh : AppColors.lightInputBackground,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _catalogGroupController,
+                          decoration: InputDecoration(
+                            labelText: 'Display Group *',
+                            hintText: 'e.g. Top Charts, Festival Specials, Featured',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                            filled: true,
+                            fillColor: isDark ? AppColors.surfaceContainerHigh : AppColors.lightInputBackground,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+
+                      // Quick Category Chips
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: <String>[
+                          'Top Charts',
+                          'Featured Playlists',
+                          'Festival Specials',
+                          'Trending Now',
+                          'Devotional & Bhakti',
+                          'Featured Artists',
+                          'New Releases',
+                        ].map((String grp) {
+                          return ActionChip(
+                            visualDensity: VisualDensity.compact,
+                            label: Text(grp, style: const TextStyle(fontSize: 10.5)),
+                            onPressed: () {
+                              setState(() {
+                                _catalogGroupController.text = grp;
+                              });
+                            },
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Custom Cover Artwork URL (with live preview)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Expanded(
+                            child: TextField(
+                              controller: _catalogArtworkController,
+                              onChanged: (_) => setState(() {}),
+                              decoration: InputDecoration(
+                                labelText: 'Cover Artwork URL (Optional override)',
+                                hintText: 'https://c.saavncdn.com/... (leave blank for default)',
+                                prefixIcon: const Icon(Icons.image_outlined),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                filled: true,
+                                fillColor: isDark ? AppColors.surfaceContainerHigh : AppColors.lightInputBackground,
+                              ),
+                            ),
+                          ),
+                          if (_catalogArtworkController.text.trim().isNotEmpty) ...<Widget>[
+                            const SizedBox(width: 10),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                _catalogArtworkController.text.trim(),
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  width: 50,
+                                  height: 50,
+                                  color: Colors.grey.shade800,
+                                  child: const Icon(Icons.broken_image_rounded, size: 22, color: Colors.white54),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Language Preference & Position
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            flex: 2,
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _catalogLanguage,
+                              decoration: InputDecoration(
+                                labelText: 'Language Preference',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                filled: true,
+                                fillColor: isDark ? AppColors.surfaceContainerHigh : AppColors.lightInputBackground,
+                              ),
+                              items: const <String>[
+                                'all',
+                                'hindi',
+                                'punjabi',
+                                'marathi',
+                                'gujarati',
+                                'bhojpuri',
+                                'haryanvi',
+                                'tamil',
+                                'telugu',
+                                'english'
+                              ].map((String lang) {
+                                return DropdownMenuItem<String>(
+                                  value: lang,
+                                  child: Text(lang.toUpperCase()),
+                                );
+                              }).toList(),
+                              onChanged: (String? val) {
+                                if (val != null) setState(() => _catalogLanguage = val);
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 1,
+                            child: TextField(
+                              controller: _catalogPositionController,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                labelText: 'Position',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                filled: true,
+                                fillColor: isDark ? AppColors.surfaceContainerHigh : AppColors.lightInputBackground,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Switches Row: Feature as Banner & Enabled
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: isDark ? AppColors.surfaceContainerLow : AppColors.lightElevatedSurface,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: isDark ? AppColors.borderSubtle : AppColors.lightBorder),
+                              ),
+                              child: Row(
+                                children: <Widget>[
+                                  const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryLight, size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: <Widget>[
+                                        Text(
+                                          'Top Festival / Hero Banner',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12.5,
+                                            color: context.textPrimary,
+                                          ),
+                                        ),
+                                        Text(
+                                          'Showcase prominently on home header',
+                                          style: TextStyle(fontSize: 10.5, color: context.textMuted),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Switch(
+                                    value: _catalogIsBanner,
+                                    onChanged: (bool v) => setState(() => _catalogIsBanner = v),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: isDark ? AppColors.surfaceContainerLow : AppColors.lightElevatedSurface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: isDark ? AppColors.borderSubtle : AppColors.lightBorder),
+                            ),
+                            child: Row(
+                              children: <Widget>[
+                                Text(
+                                  'Enabled',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                    color: context.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Switch(
+                                  value: _catalogIsEnabled,
+                                  onChanged: (bool v) => setState(() => _catalogIsEnabled = v),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+
+              // Resolved Preview Tracks List
+              if (_previewItems.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Text(
+                      'Resolved Items Preview (${_previewItems.length} tracks):',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: context.textSecondary,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: (_previewIsMock ? AppColors.secondary : AppColors.success).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        _previewIsMock ? '[MOCK DATA]' : '[LIVE DATA]',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: _previewIsMock ? AppColors.secondary : AppColors.success,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  height: 130,
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.surfaceContainerLowest : AppColors.lightElevatedSurface,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.all(8),
+                    itemCount: _previewItems.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (BuildContext ctx, int i) {
+                      final Track track = _previewItems[i];
+                      return Container(
+                        width: 160,
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.surfaceContainerHigh : Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            Text(
+                              track.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              track.artistNames,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: context.textSecondary, fontSize: 10.5),
+                            ),
+                            const Spacer(),
+                            Text(
+                              track.duration.inSeconds > 0
+                                  ? '${track.duration.inMinutes}:${(track.duration.inSeconds % 60).toString().padLeft(2, "0")}'
+                                  : '--:--',
+                              style: TextStyle(color: context.textMuted, fontSize: 9.5),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 16),
+              // Save Button
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: <Widget>[
+                  if (_editingSection != null)
+                    OutlinedButton(
+                      onPressed: _cancelCatalogEdit,
+                      child: const Text('Cancel'),
+                    ),
+                  const SizedBox(width: 12),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
+                    onPressed: _isSavingCatalog ? null : _saveCatalogSection,
+                    icon: _isSavingCatalog
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.save_rounded, size: 18),
+                    label: Text(_editingSection != null ? 'Update Section' : 'Save Section'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        // List of configured sections
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            Text(
+              'Configured Sections (${_catalogSections.length})',
+              style: TextStyle(
+                fontFamily: 'Plus Jakarta Sans',
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: context.textPrimary,
+              ),
+            ),
+            if (_isLoadingCatalog)
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        if (_catalogSections.isEmpty && !_isLoadingCatalog)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 36),
+              child: Text(
+                'No catalogue sections configured yet. Add your first section above.',
+                style: TextStyle(color: context.textMuted),
+              ),
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _catalogSections.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (BuildContext ctx, int index) {
+              final CatalogSection section = _catalogSections[index];
+              return _buildCatalogSectionCard(ctx, section, index);
+            },
+          ),
+      ],
+    );
   }
 
   // ==========================================

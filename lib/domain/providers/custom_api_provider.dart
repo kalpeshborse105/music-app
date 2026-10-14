@@ -328,17 +328,190 @@ class CustomApiProvider extends BaseMusicProvider {
 
   @override
   Future<Album> getAlbum(String albumId) async {
-    throw ProviderException(id, message: 'Albums handled at track level.');
+    final String cleanId = albumId.replaceFirst('custom_api:album:', '');
+    if (_baseUrl.isEmpty) {
+      throw ProviderException(id, message: 'Custom API base URL is not configured.');
+    }
+    try {
+      final Uri uri = Uri.parse('$_baseUrl/api/album/$cleanId');
+      final http.Response res = await http.get(uri).timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        final Map<String, dynamic> body = jsonDecode(res.body) as Map<String, dynamic>;
+        final List<dynamic> rawTracks = (body['tracks'] as List<dynamic>?) ?? <dynamic>[];
+        final List<Track> tracks = rawTracks
+            .whereType<Map<String, dynamic>>()
+            .map((Map<String, dynamic> m) => _mapTrack(m))
+            .toList();
+        return Album(
+          id: 'custom_api:album:$cleanId',
+          providerId: id,
+          providerAlbumId: cleanId,
+          title: body['title'] as String? ?? 'Album',
+          artists: <Artist>[
+            Artist(
+              id: 'custom_api:artist:${body['primary_artist'] ?? body['artist'] ?? ''}',
+              providerId: id,
+              providerArtistId: body['primary_artist'] as String? ?? '',
+              name: body['primary_artist'] as String? ?? body['artist'] as String? ?? 'Various Artists',
+            ),
+          ],
+          artworkUrl: body['artwork_url'] as String? ?? body['image'] as String?,
+          year: int.tryParse('${body['year']}'),
+          trackCount: tracks.length,
+        );
+      }
+    } catch (e) {
+      debugPrint('[CustomApiProvider] getAlbum error: $e');
+    }
+    throw ProviderException(id, message: 'Album not found or provider unavailable.');
   }
 
   @override
   Future<Artist> getArtist(String artistId) async {
-    throw ProviderException(id, message: 'Artists handled at track level.');
+    final String cleanId = artistId.replaceFirst('custom_api:artist:', '');
+    if (_baseUrl.isEmpty) {
+      throw ProviderException(id, message: 'Custom API base URL is not configured.');
+    }
+    try {
+      final Uri uri = Uri.parse('$_baseUrl/api/artist/$cleanId');
+      final http.Response res = await http.get(uri).timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        final Map<String, dynamic> body = jsonDecode(res.body) as Map<String, dynamic>;
+        return Artist(
+          id: 'custom_api:artist:$cleanId',
+          providerId: id,
+          providerArtistId: cleanId,
+          name: body['name'] as String? ?? cleanId,
+          imageUrl: body['image'] as String? ?? body['artwork_url'] as String?,
+        );
+      }
+    } catch (e) {
+      debugPrint('[CustomApiProvider] getArtist error: $e');
+    }
+    throw ProviderException(id, message: 'Artist not found or provider unavailable.');
   }
 
   @override
   Future<Playlist> getPlaylist(String playlistId) async {
-    throw ProviderException(id, message: 'Playlists handled at client level.');
+    final String cleanId = playlistId.replaceFirst('custom_api:playlist:', '');
+    if (_baseUrl.isEmpty) {
+      throw ProviderException(id, message: 'Custom API base URL is not configured.');
+    }
+    try {
+      final Uri uri = Uri.parse('$_baseUrl/api/playlist/$cleanId');
+      final http.Response res = await http.get(uri).timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        final Map<String, dynamic> body = jsonDecode(res.body) as Map<String, dynamic>;
+        final List<dynamic> rawTracks = (body['tracks'] as List<dynamic>?) ?? <dynamic>[];
+        final List<Track> tracks = rawTracks
+            .whereType<Map<String, dynamic>>()
+            .map((Map<String, dynamic> m) => _mapTrack(m))
+            .toList();
+        return Playlist(
+          id: 'custom_api:playlist:$cleanId',
+          title: body['title'] as String? ?? 'Playlist',
+          description: body['subtitle'] as String? ?? body['description'] as String?,
+          artworkUrl: body['artwork_url'] as String? ?? body['image'] as String?,
+          source: PlaylistSource.provider,
+          providerId: id,
+          tracks: tracks,
+          trackCount: tracks.length,
+        );
+      }
+    } catch (e) {
+      debugPrint('[CustomApiProvider] getPlaylist error: $e');
+    }
+    throw ProviderException(id, message: 'Playlist not found or provider unavailable.');
+  }
+
+  // ─── Catalogue Management API ──────────────────────────────────────────────
+  Future<List<Map<String, dynamic>>> getCatalogSections({
+    bool includeDisabled = false,
+    String? lang,
+    String? group,
+  }) async {
+    if (_baseUrl.isEmpty) return <Map<String, dynamic>>[];
+    try {
+      final Map<String, String> queryParams = <String, String>{};
+      if (includeDisabled) queryParams['include_disabled'] = 'true';
+      if (lang != null && lang.isNotEmpty && lang.toLowerCase() != 'all') {
+        queryParams['lang'] = lang;
+      }
+      if (group != null && group.isNotEmpty) queryParams['group'] = group;
+
+      final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections').replace(
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      );
+      final http.Response res = await http.get(uri).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final dynamic data = jsonDecode(res.body);
+        if (data is Map && data['sections'] is List) {
+          return List<Map<String, dynamic>>.from(
+            (data['sections'] as List<dynamic>).whereType<Map<String, dynamic>>(),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[CustomApiProvider] getCatalogSections error: $e');
+    }
+    return <Map<String, dynamic>>[];
+  }
+
+  Future<Map<String, dynamic>> previewCatalogUrl(String url) async {
+    if (_baseUrl.isEmpty) return <String, dynamic>{'valid': false, 'error': 'Base URL not configured'};
+    try {
+      final Uri uri = Uri.parse('$_baseUrl/api/catalog/preview');
+      final http.Response res = await http.post(
+        uri,
+        headers: <String, String>{'Content-Type': 'application/json'},
+        body: jsonEncode(<String, dynamic>{'url': url}),
+      ).timeout(const Duration(seconds: 10));
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (e) {
+      return <String, dynamic>{'valid': false, 'error': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> createCatalogSection(Map<String, dynamic> data) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections');
+    final http.Response res = await http.post(
+      uri,
+      headers: <String, String>{'Content-Type': 'application/json'},
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 10));
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateCatalogSection(String key, Map<String, dynamic> data) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/$key');
+    final http.Response res = await http.put(
+      uri,
+      headers: <String, String>{'Content-Type': 'application/json'},
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 10));
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<bool> deleteCatalogSection(String key) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/$key');
+    final http.Response res = await http.delete(uri).timeout(const Duration(seconds: 10));
+    return res.statusCode == 200;
+  }
+
+  Future<bool> reorderCatalogSections(List<String> keys) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/reorder');
+    final http.Response res = await http.post(
+      uri,
+      headers: <String, String>{'Content-Type': 'application/json'},
+      body: jsonEncode(<String, dynamic>{'order': keys}),
+    ).timeout(const Duration(seconds: 10));
+    return res.statusCode == 200;
+  }
+
+  Future<Map<String, dynamic>> toggleCatalogSection(String key) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/$key/toggle');
+    final http.Response res = await http.post(uri).timeout(const Duration(seconds: 10));
+    return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
   @override
