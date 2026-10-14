@@ -84,7 +84,6 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   String? _detectedSourceType;
   String? _detectedSourceId;
   String? _previewProviderStatus;
-  bool _previewIsMock = false;
   List<Track> _previewItems = <Track>[];
   final Set<String> _excludedTrackIds = <String>{};
   final TextEditingController _addTrackUrlController = TextEditingController();
@@ -599,13 +598,13 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         final String? defaultTitle = (preview['default_title'] ?? preview['detected_title']) as String?;
         final String detectedType = (preview['source_type'] as String?) ?? _inferSourceType(url);
         final String? detectedArt = (preview['custom_artwork_url'] ?? preview['detected_artwork']) as String?;
-        final bool isMock = preview['is_mock'] == true;
+        final bool isMock = false;
 
         setState(() {
           _detectedSourceType = detectedType;
           _detectedSourceId = preview['source_id'] as String?;
-          _previewProviderStatus = isMock ? 'OK [MOCK]' : 'OK [LIVE]';
-          _previewIsMock = isMock;
+          final String providerStatus = (preview['provider_status'] as String? ?? 'unknown').toUpperCase();
+          _previewProviderStatus = providerStatus;
           _previewItems = tracks;
           _isPreviewingCatalog = false;
           _previewError = null;
