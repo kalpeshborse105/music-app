@@ -4,19 +4,13 @@ import 'package:provider/provider.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/music_repository.dart';
 import '../../domain/models/catalog_section.dart';
-import '../../domain/models/paged_result.dart';
 import '../../domain/models/track.dart';
-import '../../domain/playback/playback_controller.dart';
 import '../../state/library_controller.dart';
 import '../services/track_actions.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
-import '../widgets/app_sheets.dart';
 import '../widgets/artwork.dart';
 import '../widgets/cards.dart';
-import '../widgets/glass_card.dart';
-import '../widgets/state_views.dart';
-import '../widgets/track_tile.dart';
 import '../../domain/models/album.dart';
 import '../../domain/models/artist.dart';
 import 'album_screen.dart';
@@ -152,7 +146,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final MusicRepository repo = context.read<MusicRepository>();
     final LibraryController library = context.watch<LibraryController>();
-    final PlaybackController playback = context.watch<PlaybackController>();
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
