@@ -131,37 +131,23 @@ class Artwork extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      decoration: const BoxDecoration(
-        gradient: AppColors.heroGradient,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerHigh.withValues(alpha: 0.6),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Color(0xFF2A2A3E),
+            Color(0xFF141420),
+          ],
+        ),
       ),
       alignment: Alignment.center,
-      child: size >= 100
-          ? Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Icon(
-                  Icons.graphic_eq_rounded,
-                  color: Colors.white.withValues(alpha: 0.95),
-                  size: size * 0.35,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Kalpkrut Beats',
-                  style: TextStyle(
-                    fontFamily: 'Plus Jakarta Sans',
-                    fontWeight: FontWeight.w700,
-                    fontSize: (size * 0.08).clamp(10.0, 15.0),
-                    letterSpacing: 0.6,
-                    color: Colors.white.withValues(alpha: 0.9),
-                  ),
-                ),
-              ],
-            )
-          : Icon(
-              Icons.graphic_eq_rounded,
-              color: Colors.white.withValues(alpha: 0.95),
-              size: size * 0.44,
-            ),
+      child: Icon(
+        fallbackIcon,
+        color: Colors.white.withValues(alpha: 0.75),
+        size: (size * 0.42).clamp(16.0, 72.0),
+      ),
     );
   }
 }

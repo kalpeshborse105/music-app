@@ -94,12 +94,23 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
             theme: AppTheme.light(),
             darkTheme: AppTheme.dark(),
             themeMode: settings.themeMode,
-            home: const SplashScreen(),
+            locale: const Locale('en', 'US'),
+            supportedLocales: const <Locale>[
+              Locale('en', 'US'),
+              Locale('en'),
+            ],
+            home: const AuthGate(),
             onGenerateRoute: (RouteSettings routeSettings) {
               final String name = routeSettings.name ?? '';
               final Uri? parsedUri = Uri.tryParse(name);
               final String path = parsedUri?.path ?? name;
 
+              if (path == '/splash') {
+                return MaterialPageRoute<void>(
+                  settings: routeSettings,
+                  builder: (BuildContext context) => const SplashScreen(),
+                );
+              }
               if (path == '/reset-password' || path.startsWith('/reset-password') || name.contains('reset-password')) {
                 return MaterialPageRoute<void>(
                   settings: routeSettings,

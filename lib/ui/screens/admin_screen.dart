@@ -649,6 +649,16 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       return;
     }
 
+    if (_campaignStart != null && _campaignEnd != null && _campaignEnd!.isBefore(_campaignStart!)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Campaign end time cannot be earlier than start time.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSavingCatalog = true);
     final MusicRepository repo = context.read<MusicRepository>();
 
@@ -857,97 +867,85 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   Widget _buildCatalogSectionCard(BuildContext context, CatalogSection section, int index) {
     final bool isDark = context.isDarkMode;
 
-    return EchoGlassCard(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      borderRadius: 14,
-      backgroundColor: isDark ? null : AppColors.lightSurface,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: <Widget>[
-          // Position & Reorder Arrows
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              InkWell(
-                onTap: index > 0 ? () => _moveCatalogSection(index, index - 1) : null,
-                borderRadius: BorderRadius.circular(4),
-                child: Icon(
-                  Icons.arrow_drop_up_rounded,
-                  size: 24,
-                  color: index > 0 ? context.textPrimary : context.textMuted.withValues(alpha: 0.3),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  '#${section.position}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.primaryLight,
-                  ),
-                ),
-              ),
-              InkWell(
-                onTap: index < _catalogSections.length - 1
-                    ? () => _moveCatalogSection(index, index + 1)
-                    : null,
-                borderRadius: BorderRadius.circular(4),
-                child: Icon(
-                  Icons.arrow_drop_down_rounded,
-                  size: 24,
-                  color: index < _catalogSections.length - 1
-                      ? context.textPrimary
-                      : context.textMuted.withValues(alpha: 0.3),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 12),
+    return LayoutBuilder(
+      builder: (BuildContext ctx, BoxConstraints constraints) {
+        final bool isNarrow = constraints.maxWidth < 640;
 
-          // Artwork Thumbnail if available
-          if (section.effectiveArtworkUrl != null && section.effectiveArtworkUrl!.isNotEmpty) ...<Widget>[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                section.effectiveArtworkUrl!,
-                width: 44,
-                height: 44,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 44,
-                  height: 44,
-                  color: isDark ? AppColors.surfaceContainerHigh : AppColors.lightInputBackground,
-                  child: const Icon(Icons.music_note_rounded, size: 20),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-          ],
-
-          // Main Section Details
-          Expanded(
+        if (isNarrow) {
+          // Phone stacked layout
+          return EchoGlassCard(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            borderRadius: 14,
+            backgroundColor: isDark ? null : AppColors.lightSurface,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
+                // Top row: artwork, title and enabled switch
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Flexible(
-                      child: Text(
-                        section.displayTitle,
-                        style: TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w700,
-                          color: section.isEnabled ? context.textPrimary : context.textMuted,
-                          decoration: section.isEnabled ? null : TextDecoration.lineThrough,
+                    if (section.effectiveArtworkUrl != null && section.effectiveArtworkUrl!.isNotEmpty) ...<Widget>[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          section.effectiveArtworkUrl!,
+                          width: 44,
+                          height: 44,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 44,
+                            height: 44,
+                            color: isDark ? AppColors.surfaceContainerHigh : AppColors.lightInputBackground,
+                            child: const Icon(Icons.music_note_rounded, size: 20),
+                          ),
                         ),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            section.displayTitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w700,
+                              color: section.isEnabled ? context.textPrimary : context.textMuted,
+                              decoration: section.isEnabled ? null : TextDecoration.lineThrough,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            section.sourceUrl,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Courier',
+                              fontSize: 11,
+                              color: context.textMuted,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 8),
+                    Switch(
+                      value: section.isEnabled,
+                      onChanged: (_) => _toggleCatalogSection(section),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                // Second row: Badges using Wrap
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: <Widget>[
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
@@ -963,7 +961,6 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                         ),
                       ),
                     ),
-                    const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
@@ -979,8 +976,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                         ),
                       ),
                     ),
-                    if (section.isBanner) ...<Widget>[
-                      const SizedBox(width: 6),
+                    if (section.isBanner)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
@@ -997,23 +993,6 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                           ),
                         ),
                       ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  section.sourceUrl,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Courier',
-                    fontSize: 11,
-                    color: context.textMuted,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: <Widget>[
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
@@ -1029,8 +1008,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                         ),
                       ),
                     ),
-                    if (section.campaignStart != null || section.campaignEnd != null) ...<Widget>[
-                      const SizedBox(width: 6),
+                    if (section.campaignStart != null || section.campaignEnd != null)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
@@ -1046,41 +1024,296 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                           ),
                         ),
                       ),
-                    ],
-                    const SizedBox(width: 8),
-                    Text(
-                      '${section.items.length} tracks • Lang: ${section.language.toUpperCase()}',
-                      style: TextStyle(fontSize: 10.5, color: context.textMuted),
+                  ],
+                ),
+                const SizedBox(height: 6),
+
+                // Metadata row
+                Text(
+                  '${section.items.length} tracks • Lang: ${section.language.toUpperCase()}',
+                  style: TextStyle(fontSize: 10.5, color: context.textMuted),
+                ),
+                const SizedBox(height: 10),
+                const Divider(height: 1),
+                const SizedBox(height: 6),
+
+                // Bottom row: Reorder controls & action buttons with readable touch targets
+                Row(
+                  children: <Widget>[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '#${section.position}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primaryLight,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_upward_rounded, size: 18),
+                      tooltip: 'Move Up',
+                      onPressed: index > 0 ? () => _moveCatalogSection(index, index - 1) : null,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+                      tooltip: 'Move Down',
+                      onPressed: index < _catalogSections.length - 1
+                          ? () => _moveCatalogSection(index, index + 1)
+                          : null,
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      icon: const Icon(Icons.edit_rounded, size: 18),
+                      label: const Text('Edit'),
+                      onPressed: () => _startEditSection(section),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, size: 20, color: AppColors.error),
+                      tooltip: 'Delete Section',
+                      onPressed: () => _deleteCatalogSection(section),
                     ),
                   ],
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 8),
+          );
+        }
 
-          // Actions: Enabled Switch, Edit, Delete
-          Row(
-            mainAxisSize: MainAxisSize.min,
+        // Desktop / Tablet horizontal layout (>= 640px)
+        return EchoGlassCard(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          borderRadius: 14,
+          backgroundColor: isDark ? null : AppColors.lightSurface,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
-              Switch(
-                value: section.isEnabled,
-                onChanged: (_) => _toggleCatalogSection(section),
+              // Position & Reorder Arrows
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  InkWell(
+                    onTap: index > 0 ? () => _moveCatalogSection(index, index - 1) : null,
+                    borderRadius: BorderRadius.circular(4),
+                    child: Icon(
+                      Icons.arrow_drop_up_rounded,
+                      size: 24,
+                      color: index > 0 ? context.textPrimary : context.textMuted.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '#${section.position}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.primaryLight,
+                      ),
+                    ),
+                  ),
+                  InkWell(
+                    onTap: index < _catalogSections.length - 1
+                        ? () => _moveCatalogSection(index, index + 1)
+                        : null,
+                    borderRadius: BorderRadius.circular(4),
+                    child: Icon(
+                      Icons.arrow_drop_down_rounded,
+                      size: 24,
+                      color: index < _catalogSections.length - 1
+                          ? context.textPrimary
+                          : context.textMuted.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ],
               ),
-              IconButton(
-                icon: const Icon(Icons.edit_rounded, size: 20),
-                tooltip: 'Edit Section',
-                onPressed: () => _startEditSection(section),
+              const SizedBox(width: 12),
+
+              // Artwork Thumbnail if available
+              if (section.effectiveArtworkUrl != null && section.effectiveArtworkUrl!.isNotEmpty) ...<Widget>[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    section.effectiveArtworkUrl!,
+                    width: 44,
+                    height: 44,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 44,
+                      height: 44,
+                      color: isDark ? AppColors.surfaceContainerHigh : AppColors.lightInputBackground,
+                      child: const Icon(Icons.music_note_rounded, size: 20),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
+
+              // Main Section Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Flexible(
+                          child: Text(
+                            section.displayTitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w700,
+                              color: section.isEnabled ? context.textPrimary : context.textMuted,
+                              decoration: section.isEnabled ? null : TextDecoration.lineThrough,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.secondary.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            section.sourceType.toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.secondary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.surfaceContainerHigh : AppColors.lightElevatedSurface,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            section.displayGroup,
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w600,
+                              color: context.textSecondary,
+                            ),
+                          ),
+                        ),
+                        if (section.isBanner) ...<Widget>[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: AppColors.primary, width: 0.8),
+                            ),
+                            child: const Text(
+                              'BANNER',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.primaryLight,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      section.sourceUrl,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Courier',
+                        fontSize: 11,
+                        color: context.textMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: <Widget>[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: (section.isMock ? AppColors.secondary : AppColors.success).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            section.isMock ? 'MOCK' : 'LIVE',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: section.isMock ? AppColors.secondary : AppColors.success,
+                            ),
+                          ),
+                        ),
+                        if (section.campaignStart != null || section.campaignEnd != null) ...<Widget>[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: (section.isCampaignActive ? AppColors.success : AppColors.error).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              section.isCampaignActive ? 'CAMPAIGN ACTIVE' : 'CAMPAIGN INACTIVE',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: section.isCampaignActive ? AppColors.success : AppColors.error,
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(width: 8),
+                        Text(
+                          '${section.items.length} tracks • Lang: ${section.language.toUpperCase()}',
+                          style: TextStyle(fontSize: 10.5, color: context.textMuted),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, size: 20, color: AppColors.error),
-                tooltip: 'Delete Section',
-                onPressed: () => _deleteCatalogSection(section),
+              const SizedBox(width: 8),
+
+              // Actions: Enabled Switch, Edit, Delete
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Switch(
+                    value: section.isEnabled,
+                    onChanged: (_) => _toggleCatalogSection(section),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit_rounded, size: 20),
+                    tooltip: 'Edit Section',
+                    onPressed: () => _startEditSection(section),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline_rounded, size: 20, color: AppColors.error),
+                    tooltip: 'Delete Section',
+                    onPressed: () => _deleteCatalogSection(section),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1477,6 +1710,17 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                                 labelText: 'Cover Artwork URL (Optional override)',
                                 hintText: 'https://c.saavncdn.com/... (leave blank for default)',
                                 prefixIcon: const Icon(Icons.image_outlined),
+                                suffixIcon: _catalogArtworkController.text.trim().isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.clear_rounded, size: 20),
+                                        tooltip: 'Clear override (use source artwork)',
+                                        onPressed: () {
+                                          setState(() {
+                                            _catalogArtworkController.clear();
+                                          });
+                                        },
+                                      )
+                                    : null,
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                                 filled: true,
                                 fillColor: isDark ? AppColors.surfaceContainerHigh : AppColors.lightInputBackground,

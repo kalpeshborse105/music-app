@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../../core/config/app_config.dart';
 import '../../core/errors/app_exception.dart';
+import '../../data/services/supabase_service.dart';
 import '../models/album.dart';
 import '../models/artist.dart';
 import '../models/audio_quality.dart';
@@ -472,46 +473,111 @@ class CustomApiProvider extends BaseMusicProvider {
     }
   }
 
+  Map<String, String> _buildHeaders() {
+    final Map<String, String> headers = <String, String>{
+      'Content-Type': 'application/json',
+    };
+    try {
+      final String? token = SupabaseService().currentSession?.accessToken;
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+    } catch (_) {}
+    return headers;
+  }
+
   Future<Map<String, dynamic>> createCatalogSection(Map<String, dynamic> data) async {
     final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections');
     final http.Response res = await http.post(
       uri,
-      headers: <String, String>{'Content-Type': 'application/json'},
+      headers: _buildHeaders(),
       body: jsonEncode(data),
-    ).timeout(const Duration(seconds: 10));
-    return jsonDecode(res.body) as Map<String, dynamic>;
+    ).timeout(const Duration(seconds: 12));
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      String msg = 'Failed to create section (${res.statusCode})';
+      try {
+        final dynamic b = jsonDecode(res.body);
+        if (b is Map && b['error'] != null) msg = b['error'].toString();
+      } catch (_) {}
+      throw ProviderException('custom_api', message: msg);
+    }
+    final dynamic body = jsonDecode(res.body);
+    if (body is Map<String, dynamic>) return body;
+    throw const ProviderException('custom_api', message: 'Invalid response format from catalogue server');
   }
 
   Future<Map<String, dynamic>> updateCatalogSection(String key, Map<String, dynamic> data) async {
     final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/$key');
     final http.Response res = await http.put(
       uri,
-      headers: <String, String>{'Content-Type': 'application/json'},
+      headers: _buildHeaders(),
       body: jsonEncode(data),
-    ).timeout(const Duration(seconds: 10));
-    return jsonDecode(res.body) as Map<String, dynamic>;
+    ).timeout(const Duration(seconds: 12));
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      String msg = 'Failed to update section (${res.statusCode})';
+      try {
+        final dynamic b = jsonDecode(res.body);
+        if (b is Map && b['error'] != null) msg = b['error'].toString();
+      } catch (_) {}
+      throw ProviderException('custom_api', message: msg);
+    }
+    final dynamic body = jsonDecode(res.body);
+    if (body is Map<String, dynamic>) return body;
+    throw const ProviderException('custom_api', message: 'Invalid response format from catalogue server');
   }
 
   Future<bool> deleteCatalogSection(String key) async {
     final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/$key');
-    final http.Response res = await http.delete(uri).timeout(const Duration(seconds: 10));
-    return res.statusCode == 200;
+    final http.Response res = await http.delete(
+      uri,
+      headers: _buildHeaders(),
+    ).timeout(const Duration(seconds: 12));
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      String msg = 'Failed to delete section (${res.statusCode})';
+      try {
+        final dynamic b = jsonDecode(res.body);
+        if (b is Map && b['error'] != null) msg = b['error'].toString();
+      } catch (_) {}
+      throw ProviderException('custom_api', message: msg);
+    }
+    return true;
   }
 
   Future<bool> reorderCatalogSections(List<String> keys) async {
     final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/reorder');
     final http.Response res = await http.post(
       uri,
-      headers: <String, String>{'Content-Type': 'application/json'},
+      headers: _buildHeaders(),
       body: jsonEncode(<String, dynamic>{'order': keys}),
-    ).timeout(const Duration(seconds: 10));
-    return res.statusCode == 200;
+    ).timeout(const Duration(seconds: 12));
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      String msg = 'Failed to reorder sections (${res.statusCode})';
+      try {
+        final dynamic b = jsonDecode(res.body);
+        if (b is Map && b['error'] != null) msg = b['error'].toString();
+      } catch (_) {}
+      throw ProviderException('custom_api', message: msg);
+    }
+    return true;
   }
 
   Future<Map<String, dynamic>> toggleCatalogSection(String key) async {
     final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/$key/toggle');
-    final http.Response res = await http.post(uri).timeout(const Duration(seconds: 10));
-    return jsonDecode(res.body) as Map<String, dynamic>;
+    final http.Response res = await http.post(
+      uri,
+      headers: _buildHeaders(),
+    ).timeout(const Duration(seconds: 12));
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      String msg = 'Failed to toggle section (${res.statusCode})';
+      try {
+        final dynamic b = jsonDecode(res.body);
+        if (b is Map && b['error'] != null) msg = b['error'].toString();
+      } catch (_) {}
+      throw ProviderException('custom_api', message: msg);
+    }
+    final dynamic body = jsonDecode(res.body);
+    if (body is Map<String, dynamic>) return body;
+    throw const ProviderException('custom_api', message: 'Invalid response format from catalogue server');
   }
 
   @override

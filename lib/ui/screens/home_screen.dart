@@ -1293,8 +1293,19 @@ class _HomeScreenState extends State<HomeScreen> {
         }
 
         final List<CatalogSection> banners = sections
-            .where((CatalogSection s) => s.isBanner && s.isCampaignActive && s.items.isNotEmpty)
+            .where((CatalogSection s) => s.isBanner && s.isCampaignActive && s.isEnabled)
             .toList();
+
+        // Regular non-banner sections (Phase 4)
+        final List<CatalogSection> regularSections = sections
+            .where((CatalogSection s) => (!s.isBanner || !s.isCampaignActive) && s.isEnabled)
+            .toList();
+
+        // Group regular sections by displayGroup
+        final Map<String, List<CatalogSection>> grouped = <String, List<CatalogSection>>{};
+        for (final CatalogSection sec in regularSections) {
+          grouped.putIfAbsent(sec.displayGroup, () => <CatalogSection>[]).add(sec);
+        }
 
         void openSection(CatalogSection section) {
           if (section.sourceType == 'artist') {
@@ -1345,63 +1356,115 @@ class _HomeScreenState extends State<HomeScreen> {
             for (final CatalogSection banner in banners)
               _buildFestivalHeroBanner(context, banner),
 
-            // Regular / Dynamic Sections
-            for (final CatalogSection section in sections)
-              if (section.items.isNotEmpty) ...<Widget>[
-                SectionHeader(
-                  title: section.displayTitle,
-                  subtitle: '${section.displayGroup} • ${section.language.toUpperCase()}',
-                  topPadding: AppSpacing.sm,
-                  actionLabel: 'See all (${section.items.length})',
-                  onAction: () => openSection(section),
-                ),
-                SizedBox(
-                  height: 200,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                    itemCount: section.items.length + 1,
-                    separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
-                    itemBuilder: (BuildContext cardCtx, int i) {
-                      // First Card: JioSaavn-Style Collection/Playlist/Album Card
-                      if (i == 0) {
-                        return MediaCard(
-                          title: section.displayTitle,
-                          subtitle: '${section.items.length} songs',
-                          imageUrl: section.effectiveArtworkUrl ??
-                              (section.items.isNotEmpty ? section.items.first.artworkUrl : null),
-                          fallbackIcon: section.sourceType == 'artist'
-                              ? Icons.person_rounded
-                              : (section.sourceType == 'album'
-                                  ? Icons.album_rounded
-                                  : Icons.queue_music_rounded),
-                          circle: section.sourceType == 'artist',
-                          badgeText: section.isBanner
-                              ? 'SPECIAL'
-                              : (section.sourceType == 'artist'
-                                  ? 'ARTIST'
-                                  : (section.sourceType == 'album' ? 'ALBUM' : 'PLAYLIST')),
-                          badgeColor: section.isBanner ? AppColors.primaryLight : AppColors.secondary,
-                          width: 144,
-                          onTap: () => openSection(section),
-                          onPlay: section.items.isNotEmpty
-                              ? () => TrackActions.play(context, section.items.first, queue: section.items)
-                              : null,
-                        );
-                      }
+            // Regular / Dynamic Sections grouped by category (Phase 4)
+            for (final MapEntry<String, List<CatalogSection>> entry in grouped.entries) ...<Widget>[
+              Builder(
+                builder: (BuildContext ctx) {
+                  final String groupTitle = entry.key;
+                  final List<CatalogSection> groupSections = entry.value;
 
-                      // Subsequent Cards: Individual tracks from the playlist/section (without mock badges)
-                      final Track track = section.items[i - 1];
-                      return MediaCard.forTrack(
-                        track: track,
-                        onTap: () => TrackActions.play(context, track, queue: section.items),
-                        onPlay: () => TrackActions.play(context, track, queue: section.items),
-                        width: 136,
-                      );
-                    },
-                  ),
-                ),
-              ],
+                  // Check if this is a genuine track-only shelf (e.g. New Releases)
+                  final bool isTrackFeed = groupSections.length == 1 &&
+                      (groupSections.first.sourceType == 'new_releases' ||
+                          groupSections.first.sourceType == 'tracks');
+
+                  if (isTrackFeed) {
+                    final CatalogSection sec = groupSections.first;
+                    if (sec.items.isEmpty) return const SizedBox.shrink();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        SectionHeader(
+                          title: sec.displayTitle,
+                          subtitle: '${sec.displayGroup} • ${sec.language.toUpperCase()}',
+                          topPadding: AppSpacing.sm,
+                          actionLabel: 'See all (${sec.items.length})',
+                          onAction: () => openSection(sec),
+                        ),
+                        SizedBox(
+                          height: 200,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                            itemCount: sec.items.length,
+                            separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+                            itemBuilder: (BuildContext cardCtx, int i) {
+                              final Track track = sec.items[i];
+                              return MediaCard.forTrack(
+                                track: track,
+                                onTap: () => TrackActions.play(context, track, queue: sec.items),
+                                onPlay: () => TrackActions.play(context, track, queue: sec.items),
+                                width: 136,
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
+                  // Entity Shelves (Playlists, Albums, Artists, Charts):
+                  // Renders genuine entity cards without appending tracks into the shelf.
+                  final bool isArtistGroup =
+                      groupSections.every((CatalogSection s) => s.sourceType == 'artist');
+                  final double shelfHeight = isArtistGroup ? 185 : 215;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      SectionHeader(
+                        title: groupTitle,
+                        subtitle: groupSections.length > 1
+                            ? '${groupSections.length} ${isArtistGroup ? "artists" : "collections"}'
+                            : (groupSections.first.subtitle ??
+                                '${groupSections.first.sourceType.toUpperCase()} • ${groupSections.first.language.toUpperCase()}'),
+                        topPadding: AppSpacing.sm,
+                        actionLabel: groupSections.length > 2 ? 'See all' : null,
+                      ),
+                      SizedBox(
+                        height: shelfHeight,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                          itemCount: groupSections.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+                          itemBuilder: (BuildContext cardCtx, int i) {
+                            final CatalogSection sec = groupSections[i];
+                            final int count = sec.itemCount > 0 ? sec.itemCount : sec.items.length;
+                            return MediaCard(
+                              title: sec.displayTitle,
+                              subtitle: sec.subtitle ??
+                                  (sec.sourceType == 'artist' ? 'Artist' : '$count songs'),
+                              imageUrl: sec.effectiveArtworkUrl ??
+                                  (sec.items.isNotEmpty ? sec.items.first.artworkUrl : null),
+                              fallbackIcon: sec.sourceType == 'artist'
+                                  ? Icons.person_rounded
+                                  : (sec.sourceType == 'album'
+                                      ? Icons.album_rounded
+                                      : Icons.queue_music_rounded),
+                              circle: sec.sourceType == 'artist',
+                              badgeText: sec.isBanner
+                                  ? 'SPECIAL'
+                                  : (sec.sourceType == 'artist'
+                                      ? 'ARTIST'
+                                      : (sec.sourceType == 'album' ? 'ALBUM' : 'PLAYLIST')),
+                              badgeColor:
+                                  sec.isBanner ? AppColors.primaryLight : AppColors.secondary,
+                              width: sec.sourceType == 'artist' ? 130 : 148,
+                              onTap: () => openSection(sec),
+                              onPlay: sec.items.isNotEmpty
+                                  ? () => TrackActions.play(context, sec.items.first,
+                                      queue: sec.items)
+                                  : null,
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
           ],
         );
       },

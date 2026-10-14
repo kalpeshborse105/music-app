@@ -45,6 +45,7 @@ class ProviderRegistry {
   final SettingsStore? _settings;
   late final List<MusicProvider> _providers;
   final Set<String> _unavailable = <String>{};
+  final Map<String, DateTime> _lastHealthCheck = <String, DateTime>{};
   bool _initialized = false;
 
   List<MusicProvider> get all => List<MusicProvider>.unmodifiable(_providers);
@@ -67,8 +68,13 @@ class ProviderRegistry {
     for (final MusicProvider p in _providers) {
       try {
         await p.initialize();
+        _lastHealthCheck[p.id] = DateTime.now();
         final bool ok = await p.isAvailable();
-        if (!ok) _unavailable.add(p.id);
+        if (!ok) {
+          _unavailable.add(p.id);
+        } else {
+          _unavailable.remove(p.id);
+        }
       } catch (e) {
         Logger.warn('Provider ${p.id} unavailable', error: e);
         _unavailable.add(p.id);
@@ -79,10 +85,33 @@ class ProviderRegistry {
     );
   }
 
+  /// Bounded throttled recovery for unavailable providers (spec §29, Phase 8).
+  /// Re-checks transiently unavailable providers without flooding health checks.
+  Future<void> retryUnavailableProviders({bool force = false}) async {
+    final DateTime now = DateTime.now();
+    for (final String id in List<String>.from(_unavailable)) {
+      final MusicProvider? p = byId(id);
+      if (p == null) continue;
+      final DateTime? last = _lastHealthCheck[id];
+      if (!force && last != null && now.difference(last).inSeconds < 25) {
+        continue; // Throttled: do not check on every rapid event
+      }
+      _lastHealthCheck[id] = now;
+      try {
+        final bool ok = await p.isAvailable();
+        if (ok) {
+          _unavailable.remove(id);
+          Logger.info('Provider $id recovered and is now active.');
+        }
+      } catch (_) {}
+    }
+  }
+
   /// Re-checks a provider (used after a user configures credentials).
   Future<void> refresh(String providerId) async {
     final MusicProvider? p = byId(providerId);
     if (p == null) return;
+    _lastHealthCheck[providerId] = DateTime.now();
     try {
       final bool ok = await p.isAvailable();
       if (ok) {

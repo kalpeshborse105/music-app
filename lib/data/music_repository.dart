@@ -104,14 +104,22 @@ class MusicRepository {
     final String q = query.trim();
     if (q.isEmpty) return SearchResult.empty;
 
-    // Search merges active streaming providers (Jamendo, Audius) + Local device music
-    final List<MusicProvider> providers = <MusicProvider>[
+    List<MusicProvider> providers = <MusicProvider>[
       ..._discoveryProviders,
       if (_registry.localProvider != null && _registry.isAvailable('local'))
         _registry.localProvider!,
     ];
     if (providers.isEmpty) {
-      throw const ProviderException('none', message: 'No music service is available.');
+      // Bounded retry/recovery before throwing error (Phase 8)
+      await _registry.retryUnavailableProviders(force: true);
+      providers = <MusicProvider>[
+        ..._discoveryProviders,
+        if (_registry.localProvider != null && _registry.isAvailable('local'))
+          _registry.localProvider!,
+      ];
+      if (providers.isEmpty) {
+        throw const ProviderException('none', message: 'No music service is available.');
+      }
     }
 
     // Cache only the first page (the common case); later pages are paginated.
@@ -137,9 +145,18 @@ class MusicRepository {
     for (final SearchResult r in results) {
       merged = merged.merge(r);
     }
+
+    final List<Track> deduped = _dedupeTracks(merged.tracks);
+    // Rank tracks by search relevance to the actual query (Phase 8)
+    deduped.sort((Track a, Track b) {
+      final int scoreB = _scoreTrackRelevance(b, query);
+      final int scoreA = _scoreTrackRelevance(a, query);
+      return scoreB.compareTo(scoreA);
+    });
+
     final SearchResult out = SearchResult(
       query: query,
-      tracks: _dedupeTracks(merged.tracks),
+      tracks: deduped,
       artists: _dedupeBy(merged.artists, (Artist a) => a.id),
       albums: _dedupeBy(merged.albums, (Album a) => a.id),
       playlists: _dedupeBy(merged.playlists, (Playlist p) => p.id),
@@ -564,6 +581,34 @@ class MusicRepository {
     return deduped.length > limit ? deduped.sublist(0, limit) : deduped;
   }
 
+  int _scoreTrackRelevance(Track t, String query) {
+    final String q = query.toLowerCase().trim();
+    if (q.isEmpty) return 10;
+    final String title = t.title.toLowerCase().trim();
+    final String artists = t.artistNames.toLowerCase().trim();
+    final String album = (t.album?.title ?? '').toLowerCase().trim();
+
+    if (title == q) return 100;
+    if (artists == q) return 95;
+    if (title.startsWith(q)) return 85;
+    if (artists.startsWith(q)) return 80;
+    if (title.contains(q)) return 70;
+    if (artists.contains(q)) return 65;
+    if (album.contains(q)) return 50;
+
+    final List<String> tokens = q.split(RegExp(r'\s+')).where((String s) => s.length > 1).toList();
+    if (tokens.isNotEmpty) {
+      int tokenHits = 0;
+      for (final String tok in tokens) {
+        if (title.contains(tok) || artists.contains(tok) || album.contains(tok)) {
+          tokenHits++;
+        }
+      }
+      if (tokenHits > 0) return 30 + (tokenHits * 10);
+    }
+    return 10;
+  }
+
   // ─── Catalogue Management ──────────────────────────────────────────────────
   CustomApiProvider? get _customApiProvider => _registry.byId('custom_api') as CustomApiProvider?;
 
@@ -602,7 +647,9 @@ class MusicRepository {
     int? campaignEnd,
   }) async {
     final CustomApiProvider? provider = _customApiProvider;
-    if (provider == null) return null;
+    if (provider == null) {
+      throw const ProviderException('custom_api', message: 'Custom API provider unavailable.');
+    }
     final Map<String, dynamic> res = await provider.createCatalogSection(<String, dynamic>{
       'source_url': sourceUrl,
       'display_title': displayTitle,
@@ -616,7 +663,15 @@ class MusicRepository {
       if (campaignStart != null) 'campaign_start': campaignStart,
       if (campaignEnd != null) 'campaign_end': campaignEnd,
     });
-    return CatalogSection.fromJson(res);
+    final CatalogSection section = CatalogSection.fromJson(res);
+
+    // Verify persistence with read-back from source of truth (Phase 2 & 6)
+    final List<CatalogSection> readBack = await getCatalogSections(includeDisabled: true);
+    final bool exists = readBack.any((CatalogSection s) => s.key == section.key || s.id == section.id);
+    if (!exists) {
+      throw ProviderException('custom_api', message: 'Persistence verification failed: section "${section.displayTitle}" was not saved.');
+    }
+    return section;
   }
 
   Future<CatalogSection?> updateCatalogSection(
@@ -634,7 +689,9 @@ class MusicRepository {
     int? campaignEnd,
   }) async {
     final CustomApiProvider? provider = _customApiProvider;
-    if (provider == null) return null;
+    if (provider == null) {
+      throw const ProviderException('custom_api', message: 'Custom API provider unavailable.');
+    }
     final Map<String, dynamic> data = <String, dynamic>{
       if (sourceUrl != null) 'source_url': sourceUrl,
       if (displayTitle != null) 'display_title': displayTitle,
@@ -649,7 +706,15 @@ class MusicRepository {
       if (campaignEnd != null) 'campaign_end': campaignEnd,
     };
     final Map<String, dynamic> res = await provider.updateCatalogSection(key, data);
-    return CatalogSection.fromJson(res);
+    final CatalogSection section = CatalogSection.fromJson(res);
+
+    // Verify persistence with read-back from source of truth (Phase 2 & 6)
+    final List<CatalogSection> readBack = await getCatalogSections(includeDisabled: true);
+    final bool exists = readBack.any((CatalogSection s) => s.key == key || s.id == section.id);
+    if (!exists) {
+      throw ProviderException('custom_api', message: 'Persistence verification failed: updated section "$key" could not be verified.');
+    }
+    return section;
   }
 
   Future<bool> deleteCatalogSection(String key) async {

@@ -59,20 +59,13 @@ class _SplashScreen extends StatelessWidget {
       home: Scaffold(
         backgroundColor: AppColors.darkBg,
         body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              _Logo(),
-              SizedBox(height: 24),
-              SizedBox(
-                width: 26,
-                height: 26,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.4,
-                  color: AppColors.primary,
-                ),
-              ),
-            ],
+          child: SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.4,
+              color: AppColors.primary,
+            ),
           ),
         ),
       ),
@@ -80,51 +73,6 @@ class _SplashScreen extends StatelessWidget {
   }
 }
 
-class _Logo extends StatelessWidget {
-  const _Logo();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        ClipRRect(
-          borderRadius: const BorderRadius.all(Radius.circular(20)),
-          child: Image.asset(
-            'assets/icon/app_icon.png',
-            width: 84,
-            height: 84,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-              width: 84,
-              height: 84,
-              decoration: const BoxDecoration(
-                gradient: AppColors.heroGradient,
-                borderRadius: BorderRadius.all(Radius.circular(20)),
-              ),
-              child: const Icon(Icons.graphic_eq_rounded, color: Colors.white, size: 44),
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        const Text(
-          'Kalpkrut Beats',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 26,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          'Developed by Kalpkrut Infotech',
-          style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 13),
-        ),
-      ],
-    );
-  }
-}
 
 class _BootstrapError extends StatelessWidget {
   const _BootstrapError({required this.error});
