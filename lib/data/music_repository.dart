@@ -735,14 +735,15 @@ class MusicRepository {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) return null;
     final Map<String, dynamic> res = await provider.resolveTrack(urlOrId);
-    if (res['valid'] == true && res['track'] != null) {
+    if (res['valid'] == true && res['is_mock'] != true && res['track'] != null) {
       final Map<String, dynamic> item = res['track'] as Map<String, dynamic>;
       final String trackId = item['id'] as String? ?? '';
       final String title = item['title'] as String? ?? 'Untitled';
       final String artist = item['artist'] as String? ?? 'Unknown Artist';
       final String? artworkUrl = item['artwork_url'] as String?;
-      final int durationMs = (item['duration_ms'] as num?)?.toInt() ?? 210000;
-      final bool isMock = item['is_mock'] == true;
+      if (item['is_mock'] == true) return null;
+      final int durationMs = (item['duration_ms'] as num?)?.toInt() ?? 0;
+      const bool isMock = false;
       return Track(
         id: 'custom_api:track:$trackId',
         providerId: 'custom_api',
