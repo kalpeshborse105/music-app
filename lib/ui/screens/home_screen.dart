@@ -72,18 +72,8 @@ class _HomeScreenState extends State<HomeScreen> {
     'Bengali',
   ];
 
-  /// Mood / genre chips — these map to the `lang=` backend parameter which
-  /// the backend routes through MOOD_QUERIES (not a language filter).
-  /// They are kept separate from _languages so a language like 'Telugu'
-  /// is never confused with a mood like 'Romantic'.
-  static const List<String> _moodFilters = <String>[
-    'Devotional',
-    'Romantic',
-    'Chill',
-  ];
-
-  /// Combined display list: languages first, then moods.
-  static List<String> get _moods => <String>[..._languages, ..._moodFilters];
+  /// These chips change the catalogue language filter, not a mood search query.
+  static List<String> get _moods => _languages;
 
   late Future<List<CatalogSection>> _catalogSectionsFuture;
   bool _initialized = false;
@@ -91,9 +81,6 @@ class _HomeScreenState extends State<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
   /// Returns the lang= parameter value for the currently selected chip.
   /// Language chips (Hindi, Telugu, etc.) map to their lowercase name.
-  /// Mood chips (Devotional, Romantic, Chill) also send their lowercase name;
-  /// the backend routes them through MOOD_QUERIES when the value matches a
-  /// known mood key, so language filtering and mood filtering never conflict.
   String? get _activeLang {
     if (_selectedMood == 'All') return 'all';
     return _selectedMood.toLowerCase();
