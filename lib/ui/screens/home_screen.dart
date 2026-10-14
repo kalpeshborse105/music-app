@@ -45,12 +45,12 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String _selectedMood = 'All';
+  String _selectedMood = 'Hindi';
 
   void _resetToDefault() {
-    if (_selectedMood != 'All') {
+    if (_selectedMood != 'Hindi') {
       setState(() {
-        _selectedMood = 'All';
+        _selectedMood = 'Hindi';
       });
       _refreshData();
     }
@@ -58,14 +58,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Language preference chips — these map to the `lang=` backend parameter.
-  /// A `null` language means 'all'.
+  /// Hindi is the primary default, followed by All and regional languages.
   static const List<String> _languages = <String>[
-    'All',
     'Hindi',
+    'All',
+    'Marathi',
     'Punjabi',
     'Bhojpuri',
     'Haryanvi',
-    'Marathi',
     'Gujarati',
     'Tamil',
     'Telugu',
@@ -102,9 +102,8 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Mood chips (Devotional, Romantic, Chill) also send their lowercase name;
   /// the backend routes them through MOOD_QUERIES when the value matches a
   /// known mood key, so language filtering and mood filtering never conflict.
-
   String? get _activeLang {
-    if (_selectedMood == 'All') return null;
+    if (_selectedMood == 'All') return 'all';
     return _selectedMood.toLowerCase();
   }
 
@@ -113,6 +112,14 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     HomeScreen._activeState = this;
     _scrollController.addListener(_onScroll);
+    final String? userLang = context.read<LibraryController>().preferredLanguage;
+    if (userLang != null && userLang.trim().isNotEmpty) {
+      final String trimmed = userLang.trim();
+      final String formatted = trimmed[0].toUpperCase() + trimmed.substring(1).toLowerCase();
+      if (_moods.contains(formatted)) {
+        _selectedMood = formatted;
+      }
+    }
   }
 
   void _onScroll() {

@@ -53,6 +53,28 @@ IS_VERCEL = bool(os.environ.get("VERCEL"))
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
+def _load_env_file():
+    """Dynamically loads .env into os.environ if present, without overwriting existing environment vars."""
+    env_file = os.path.join(BASE_DIR, ".env")
+    if os.path.exists(env_file):
+        try:
+            with open(env_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, val = line.split("=", 1)
+                    key = key.strip()
+                    val = val.strip().strip('"').strip("'")
+                    if key and key not in os.environ:
+                        os.environ[key] = val
+        except Exception:
+            pass
+
+
+_load_env_file()
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # DES decryption (JioSaavn encrypted_media_url)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -235,10 +257,13 @@ INDIAN_LANGUAGES = [
     "kannada", "malayalam", "bhojpuri", "haryanvi", "rajasthani", "odia", "assamese", "urdu",
 ]
 SUPPORTED_LANGUAGES = INDIAN_LANGUAGES + ["english", "sanskrit"]
-DEFAULT_LANGUAGES = ["hindi", "punjabi", "tamil", "telugu", "marathi", "gujarati", "bengali", "bhojpuri", "haryanvi"]
+DEFAULT_LANGUAGES = ["hindi"]
 LANGUAGE_GROUPS = {
-    "all": DEFAULT_LANGUAGES,
-    "india": DEFAULT_LANGUAGES,
+    "hindi": ["hindi"],
+    "marathi": ["marathi"],
+    "punjabi": ["punjabi"],
+    "all": ["hindi", "punjabi", "marathi", "gujarati", "bhojpuri", "bengali", "tamil", "telugu"],
+    "india": ["hindi", "punjabi", "marathi", "gujarati", "bhojpuri", "bengali", "tamil", "telugu"],
     "south": ["tamil", "telugu", "kannada", "malayalam"],
     "north": ["hindi", "punjabi", "haryanvi", "bhojpuri", "rajasthani"],
 }
@@ -328,8 +353,8 @@ RADIO_STATIONS = [
 
 
 def parse_languages(raw):
-    """'all' | 'south' | 'hindi' | 'hindi,punjabi' -> ordered list of JioSaavn languages."""
-    value = (raw or "all").lower().strip()
+    """'hindi' | 'marathi' | 'all' | 'south' | 'hindi,punjabi' -> ordered list of JioSaavn languages."""
+    value = (raw or "hindi").lower().strip()
     if value in LANGUAGE_GROUPS:
         return list(LANGUAGE_GROUPS[value])
     langs = [l.strip() for l in value.split(",") if l.strip() in SUPPORTED_LANGUAGES]
@@ -776,9 +801,9 @@ def live_trending(languages):
         if is_single_region:
             regional = [s for s in songs if (s.get("language") or "").lower() == primary]
             if len(regional) < 15:
-                more = search_songs(f"Trending {primary} songs", 30, 1, languages)
+                more = search_songs(f"Trending {primary} songs", 30, 1, [primary])
                 regional.extend([s for s in more if (s.get("language") or "").lower() == primary])
-            return dedupe(regional) if regional else prioritize_indian(dedupe(songs), languages)
+            return dedupe(regional) if regional else [s for s in prioritize_indian(dedupe(songs), [primary]) if (s.get("language") or "").lower() == primary]
 
         if len(songs) < 10:
             songs.extend(search_songs(f"Trending {primary} songs", 30, 1, languages))
@@ -877,6 +902,9 @@ def live_new_releases(languages, page=1, limit=30):
                     songs.extend(launch_songs)
             except Exception as exc:
                 print(f"[live_new_releases] launchData error: {exc}")
+
+        if is_single_region:
+            albums = [a for a in albums if (a.get("language") or "").lower() == primary]
 
         songs = _sort_by_release_date(dedupe(songs))
         elapsed = round(time.time() - t_start, 2)
@@ -987,11 +1015,9 @@ def trending_pool(languages):
         if is_single_region:
             lang_pool = [t for t in pool if (t.get("language") or "").lower() == primary]
             if len(lang_pool) < 20:
-                more = search_songs(f"Top {primary} Songs", 30, 1, languages)
+                more = search_songs(f"Top {primary} Songs", 30, 1, [primary])
                 lang_pool.extend([t for t in more if (t.get("language") or "").lower() == primary])
-            if lang_pool:
-                return dedupe(lang_pool)
-            return dedupe(pool)
+            return dedupe(lang_pool)
 
         return interleave_languages(dedupe(pool), languages)
     return cached(f"pool:v2:{_lang_key(languages)}", HOURLY, produce) or []
@@ -1226,7 +1252,7 @@ def refresh_catalog():
         with _CACHE_LOCK:
             for key in [k for k in list(_CACHE.keys()) if k.split(":")[0] in prefixes]:
                 _CACHE.pop(key, None)
-        groups = [DEFAULT_LANGUAGES, ["hindi"], ["punjabi"], LANGUAGE_GROUPS["south"]]
+        groups = [DEFAULT_LANGUAGES, ["hindi"], ["marathi"], ["punjabi"], LANGUAGE_GROUPS["south"]]
         for langs in groups:
             try:
                 live_home(langs)
@@ -1808,12 +1834,9 @@ os.makedirs(DATA_DIR, exist_ok=True)
 CATALOG_STORAGE_FILE = os.path.join(DATA_DIR, "catalog_sections.json")
 CATALOG_LOCK = threading.Lock()
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://rotvxnnblkxbqhfcbynt.supabase.co")
-SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvdHZ4bm5ibGt4YnFoZmNieW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEwNDQ4MDEsImV4cCI6MjEwNjYyMDgwMX0.F7oTJbsxXifFHU0GKlGvJSA65RSSqB0o0RuwLq26r4Y")
-SUPABASE_SERVICE_ROLE_KEY = os.environ.get(
-    "SUPABASE_SERVICE_ROLE_KEY",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvdHZ4bm5ibGt4YnFoZmNieW50Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTA0NDgwMSwiZXhwIjoyMTA2NjIwODAxfQ.8jO-42nSry7u0WSBW0sa4tuFJtENKS6o6MarM77EUWo"
-)
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
 
 def is_admin_request(req):
