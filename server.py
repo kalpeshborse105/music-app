@@ -2236,8 +2236,8 @@ def resolve_catalog_items(source_type, source_id, slug, language="all"):
                 return songs, False, "ok", f"New Releases ({title_lang})", detected_artwork
 
         elif source_type == "radio":
-            res = live_trending(languages=langs or ["hindi"], limit=30)
-            songs = res.get("songs") or []
+            res = live_trending(languages=langs or ["hindi"])
+            songs = res if isinstance(res, list) else (res.get("songs") or [])
             if songs:
                 detected_artwork = songs[0].get("artwork_url") if songs else None
                 return songs, False, "ok", "Live Radio & Non-Stop Hits", detected_artwork
