@@ -115,7 +115,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onScroll() {
     if (_scrollController.hasClients &&
-        _scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 400) {
+        _scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 400) {
       _loadMore();
     }
   }
@@ -192,7 +193,9 @@ class _HomeScreenState extends State<HomeScreen> {
             _hasMore = false;
           } else {
             _currentOffset += paged.items.length;
-            final Set<String> existingIds = _infiniteTracks.map((Track t) => t.id).toSet();
+            final Set<String> existingIds = _infiniteTracks
+                .map((Track t) => t.id)
+                .toSet();
             for (final Track t in paged.items) {
               if (existingIds.add(t.id)) {
                 _infiniteTracks.add(t);
@@ -282,91 +285,105 @@ class _HomeScreenState extends State<HomeScreen> {
           SafeArea(
             bottom: false,
             child: RefreshIndicator(
-              color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
-              backgroundColor: isDark ? AppColors.surfaceContainerHigh : Colors.white,
+              color: isDark
+                  ? AppColors.secondary
+                  : AppColors.lightSecondaryAccent,
+              backgroundColor: isDark
+                  ? AppColors.surfaceContainerHigh
+                  : Colors.white,
               onRefresh: _refreshData,
               child: CustomScrollView(
                 controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
                 slivers: <Widget>[
-                // 1. Header with Brand Mark and Actions
-                SliverToBoxAdapter(
-                  child: _buildHeader(context),
-                ),
+                  // 1. Header with Brand Mark and Actions
+                  SliverToBoxAdapter(child: _buildHeader(context)),
 
-                // Global Search Redirect Bar
-                SliverToBoxAdapter(
-                  child: _buildSearchBar(context),
-                ),
+                  // Global Search Redirect Bar
+                  SliverToBoxAdapter(child: _buildSearchBar(context)),
 
-                // Akashvani Live Radio Banner
-                SliverToBoxAdapter(
-                  child: _buildLiveRadioBanner(context),
-                ),
+                  // Akashvani Live Radio Banner
+                  SliverToBoxAdapter(child: _buildLiveRadioBanner(context)),
 
-                // Top Festival / Special Hero Banner (if active)
-                SliverToBoxAdapter(
-                  child: _buildTopFestivalPosterHero(context),
-                ),
-
-                // 2. Greeting & Mood Filter Carousel
-                SliverToBoxAdapter(
-                  child: _buildGreetingAndMoods(context, repo),
-                ),
-
-                // Dynamic Category View or Standard Discovery Soundscape
-                if (_selectedMood != 'All') ...<Widget>[
+                  // Top Festival / Special Hero Banner (if active)
                   SliverToBoxAdapter(
-                    child: _buildCategoryView(context, repo, playback),
-                  ),
-                ] else ...<Widget>[
-                  // 3. Recently Played (if history exists) or Trending Right Now (no dead space!)
-                  SliverToBoxAdapter(
-                    child: _buildRecentlyPlayedOrTrending(context, library, repo),
+                    child: _buildTopFestivalPosterHero(context),
                   ),
 
-                  // Dynamic Admin-Managed Catalogue Sections (All from DB catalogue)
+                  // 2. Greeting & Mood Filter Carousel
                   SliverToBoxAdapter(
-                    child: _buildAdminCatalogSections(context, repo),
+                    child: _buildGreetingAndMoods(context, repo),
                   ),
 
-                  // Followed Artists Quick Shelf (auto-suggestions from followed artists)
-                  if (library.followedArtists.isNotEmpty)
+                  // Dynamic Mood Category View or Standard Discovery Soundscape
+                  if (_moodFilters.contains(_selectedMood)) ...<Widget>[
                     SliverToBoxAdapter(
-                      child: _buildFollowedArtistsBar(context, library, repo),
+                      child: _buildCategoryView(context, repo, playback),
                     ),
-                ],
+                  ] else ...<Widget>[
+                    // 3. Recently Played (if history exists) or Trending Right Now (no dead space!)
+                    SliverToBoxAdapter(
+                      child: _buildRecentlyPlayedOrTrending(
+                        context,
+                        library,
+                        repo,
+                      ),
+                    ),
 
-                // Clean subtle branding footer
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 20, bottom: 28),
-                    child: Center(
-                      child: Text(
-                        'Kalpkrut Infotech',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: context.textMuted.withValues(alpha: 0.7),
-                          letterSpacing: 0.4,
+                    // Dynamic Admin-Managed Catalogue Sections (All from DB catalogue)
+                    SliverToBoxAdapter(
+                      child: _buildAdminCatalogSections(context, repo),
+                    ),
+
+                    // Followed Artists Quick Shelf (auto-suggestions from followed artists)
+                    if (library.followedArtists.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: _buildFollowedArtistsBar(context, library, repo),
+                      ),
+
+                    // 4. Continuous Blast of Trending & Fresh Releases (Mixture Auto Suggestion)
+                    SliverToBoxAdapter(
+                      child: _buildBottomTrendingBlast(context, playback),
+                    ),
+                  ],
+
+                  // Clean subtle branding footer
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 20, bottom: 28),
+                      child: Center(
+                        child: Text(
+                          'Kalpkrut Infotech',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: context.textMuted.withValues(alpha: 0.7),
+                            letterSpacing: 0.4,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
   Widget _buildHeader(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.xs),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        AppSpacing.xs,
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: <Widget>[
@@ -386,7 +403,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       gradient: AppColors.heroGradient,
                       borderRadius: BorderRadius.all(Radius.circular(8)),
                     ),
-                    child: const Icon(Icons.graphic_eq_rounded, color: Colors.white, size: 20),
+                    child: const Icon(
+                      Icons.graphic_eq_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
                 ),
               ),
@@ -438,7 +459,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSearchBar(BuildContext context) {
     final bool isDark = context.isDarkMode;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xs, AppSpacing.lg, AppSpacing.sm),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.xs,
+        AppSpacing.lg,
+        AppSpacing.sm,
+      ),
       child: InkWell(
         borderRadius: BorderRadius.circular(24),
         onTap: () => AppShell.selectTab(context, 1),
@@ -459,14 +485,18 @@ class _HomeScreenState extends State<HomeScreen> {
               Icon(
                 Icons.search_rounded,
                 size: 20,
-                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
               ),
               const SizedBox(width: 10),
               Text(
                 'Search songs, artists, albums...',
                 style: TextStyle(
                   fontSize: 13.5,
-                  color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
                 ),
               ),
             ],
@@ -478,7 +508,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildLiveRadioBanner(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        0,
+        AppSpacing.lg,
+        AppSpacing.sm,
+      ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () {
@@ -517,7 +552,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.radio_rounded, color: Colors.white, size: 18),
+                child: const Icon(
+                  Icons.radio_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -536,7 +575,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         SizedBox(width: 6),
-                        Icon(Icons.fiber_manual_record_rounded, color: Colors.redAccent, size: 8),
+                        Icon(
+                          Icons.fiber_manual_record_rounded,
+                          color: Colors.redAccent,
+                          size: 8,
+                        ),
                         SizedBox(width: 3),
                         Text(
                           'LIVE',
@@ -574,9 +617,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final bool isDark = context.isDarkMode;
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: isDark ? AppColors.surfaceContainerHigh : AppColors.lightSurface,
+      backgroundColor: isDark
+          ? AppColors.surfaceContainerHigh
+          : AppColors.lightSurface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.radiusXl)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppSpacing.radiusXl),
+        ),
       ),
       builder: (BuildContext ctx) {
         return SafeArea(
@@ -597,8 +644,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             color: AppColors.secondary.withValues(alpha: 0.15),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.notifications_active_rounded,
-                              color: AppColors.secondary, size: 20),
+                          child: const Icon(
+                            Icons.notifications_active_rounded,
+                            color: AppColors.secondary,
+                            size: 20,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Text(
@@ -622,7 +672,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildNotificationTile(
                   context,
                   title: 'Welcome to Kalpkrut Beats',
-                  message: 'Stream millions of tracks in crystal-clear studio sound anytime, anywhere.',
+                  message:
+                      'Stream millions of tracks in crystal-clear studio sound anytime, anywhere.',
                   timestamp: 'Just now',
                   icon: Icons.graphic_eq_rounded,
                   color: AppColors.secondary,
@@ -631,7 +682,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildNotificationTile(
                   context,
                   title: 'Your Daily Mix is Ready',
-                  message: 'Personalized recommendations and trending hits curated for your mood.',
+                  message:
+                      'Personalized recommendations and trending hits curated for your mood.',
                   timestamp: '1h ago',
                   icon: Icons.auto_awesome_rounded,
                   color: AppColors.primary,
@@ -640,7 +692,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildNotificationTile(
                   context,
                   title: 'Offline Music Ready',
-                  message: 'Download your favorite songs and playlists to listen seamlessly without internet.',
+                  message:
+                      'Download your favorite songs and playlists to listen seamlessly without internet.',
                   timestamp: 'Today',
                   icon: Icons.download_done_rounded,
                   color: AppColors.success,
@@ -692,7 +745,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: <Widget>[
                     Text(
                       title,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
                     ),
                     Text(
                       timestamp,
@@ -703,7 +759,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 3),
                 Text(
                   message,
-                  style: TextStyle(color: context.textSecondary, fontSize: 11.5, height: 1.3),
+                  style: TextStyle(
+                    color: context.textSecondary,
+                    fontSize: 11.5,
+                    height: 1.3,
+                  ),
                 ),
               ],
             ),
@@ -717,7 +777,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final bool isDark = context.isDarkMode;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xs, AppSpacing.lg, AppSpacing.xs),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.xs,
+        AppSpacing.lg,
+        AppSpacing.xs,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -728,7 +793,9 @@ class _HomeScreenState extends State<HomeScreen> {
               fontSize: 10.5,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.2,
-              color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
+              color: isDark
+                  ? AppColors.secondary
+                  : AppColors.lightSecondaryAccent,
             ),
           ),
           const SizedBox(height: 2),
@@ -756,13 +823,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 final Color inactiveBg = isDark
                     ? AppColors.surfaceContainerHigh.withValues(alpha: 0.65)
                     : AppColors.lightElevatedSurface;
-                final Color inactiveBorder = isDark ? AppColors.borderSubtle : AppColors.lightBorder;
+                final Color inactiveBorder = isDark
+                    ? AppColors.borderSubtle
+                    : AppColors.lightBorder;
 
                 return InkWell(
                   onTap: () => _onMoodSelected(mood, repo),
                   borderRadius: BorderRadius.circular(20),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       gradient: active ? AppColors.brandGradient : null,
                       color: active ? null : inactiveBg,
@@ -773,7 +845,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       boxShadow: active
                           ? <BoxShadow>[
                               BoxShadow(
-                                color: AppColors.primaryContainer.withValues(alpha: 0.4),
+                                color: AppColors.primaryContainer.withValues(
+                                  alpha: 0.4,
+                                ),
                                 blurRadius: 12,
                                 spreadRadius: 1,
                               ),
@@ -786,7 +860,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: TextStyle(
                           fontFamily: 'Inter',
                           fontSize: 12,
-                          fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                          fontWeight: active
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                           color: active ? Colors.white : context.textSecondary,
                         ),
                       ),
@@ -809,8 +885,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final bool hasHistory = library.history.isNotEmpty;
 
     if (hasHistory) {
-      final List<Track> historyTracks =
-          library.history.map((h) => h.track).toList();
+      final List<Track> historyTracks = library.history
+          .map((h) => h.track)
+          .toList();
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -820,12 +897,14 @@ class _HomeScreenState extends State<HomeScreen> {
             topPadding: AppSpacing.sm,
             actionLabel: 'See all',
             onAction: () {
-              Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (_) => TrackListScreen(
-                  title: 'Recently Played',
-                  tracks: historyTracks,
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => TrackListScreen(
+                    title: 'Recently Played',
+                    tracks: historyTracks,
+                  ),
                 ),
-              ));
+              );
             },
           ),
           SizedBox(
@@ -839,8 +918,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 final Track track = historyTracks[i];
                 return MediaCard.forTrack(
                   track: track,
-                  onTap: () => TrackActions.play(context, track, queue: historyTracks),
-                  onPlay: () => TrackActions.play(context, track, queue: historyTracks),
+                  onTap: () =>
+                      TrackActions.play(context, track, queue: historyTracks),
+                  onPlay: () =>
+                      TrackActions.play(context, track, queue: historyTracks),
                   width: 136,
                 );
               },
@@ -855,7 +936,8 @@ class _HomeScreenState extends State<HomeScreen> {
       future: _trendingFuture,
       builder: (BuildContext context, AsyncSnapshot<List<Track>> snapshot) {
         final List<Track> tracks = snapshot.data ?? <Track>[];
-        if (tracks.isEmpty && snapshot.connectionState != ConnectionState.waiting) {
+        if (tracks.isEmpty &&
+            snapshot.connectionState != ConnectionState.waiting) {
           return const SizedBox.shrink();
         }
 
@@ -870,9 +952,14 @@ class _HomeScreenState extends State<HomeScreen> {
               onAction: () async {
                 final List<Track> all = await repo.trending(limit: 30);
                 if (context.mounted) {
-                  Navigator.of(context).push(MaterialPageRoute<void>(
-                    builder: (_) => TrackListScreen(title: 'Trending Charts', tracks: all),
-                  ));
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => TrackListScreen(
+                        title: 'Trending Charts',
+                        tracks: all,
+                      ),
+                    ),
+                  );
                 }
               },
             ),
@@ -881,24 +968,32 @@ class _HomeScreenState extends State<HomeScreen> {
               child: snapshot.connectionState == ConnectionState.waiting
                   ? ListView.separated(
                       scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.lg,
+                      ),
                       itemCount: 4,
-                      separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(width: AppSpacing.md),
                       itemBuilder: (_, __) => _buildTrackSkeletonCard(context),
                     )
                   : ListView.separated(
                       scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.lg,
+                      ),
                       itemCount: tracks.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(width: AppSpacing.md),
                       itemBuilder: (BuildContext ctx, int i) {
                         final Track track = tracks[i];
                         return MediaCard.forTrack(
                           track: track,
                           badgeText: '#${i + 1}',
                           badgeColor: i < 3 ? AppColors.secondary : null,
-                          onTap: () => TrackActions.play(context, track, queue: tracks),
-                          onPlay: () => TrackActions.play(context, track, queue: tracks),
+                          onTap: () =>
+                              TrackActions.play(context, track, queue: tracks),
+                          onPlay: () =>
+                              TrackActions.play(context, track, queue: tracks),
                           width: 136,
                         );
                       },
@@ -946,7 +1041,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(12),
@@ -966,12 +1064,22 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: FilledButton.styleFrom(
                           backgroundColor: Colors.white,
                           foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 6,
+                          ),
                           visualDensity: VisualDensity.compact,
                         ),
-                        onPressed: () => TrackActions.play(context, tracks.first, queue: tracks),
+                        onPressed: () => TrackActions.play(
+                          context,
+                          tracks.first,
+                          queue: tracks,
+                        ),
                         icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                        label: const Text('Play All', style: TextStyle(fontWeight: FontWeight.w700)),
+                        label: const Text(
+                          'Play All',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
                       ),
                   ],
                 ),
@@ -1012,7 +1120,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     height: 56,
                     decoration: BoxDecoration(
                       color: context.isDarkMode
-                          ? AppColors.surfaceContainerHigh.withValues(alpha: 0.5)
+                          ? AppColors.surfaceContainerHigh.withValues(
+                              alpha: 0.5,
+                            )
                           : AppColors.lightElevatedSurface,
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -1023,9 +1133,7 @@ class _HomeScreenState extends State<HomeScreen> {
           else if (tracks.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(
-                child: Text('No tracks found in this category'),
-              ),
+              child: Center(child: Text('No tracks found in this category')),
             )
           else
             Column(
@@ -1035,8 +1143,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     index: i,
                     track: tracks[i],
                     dense: false,
-                    isPlaying: playback.currentTrack?.id == tracks[i].id && playback.isPlaying,
-                    onTap: () => TrackActions.play(context, tracks[i], queue: tracks),
+                    isPlaying:
+                        playback.currentTrack?.id == tracks[i].id &&
+                        playback.isPlaying,
+                    onTap: () =>
+                        TrackActions.play(context, tracks[i], queue: tracks),
                     onMenu: () => showTrackActionsSheet(context, tracks[i]),
                   ),
                   if (i < tracks.length - 1)
@@ -1057,7 +1168,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     child: Center(
-                      child: Text('You\'ve reached the end', style: TextStyle(color: context.textMuted, fontSize: 12)),
+                      child: Text(
+                        'You\'ve reached the end',
+                        style: TextStyle(
+                          color: context.textMuted,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
                   ),
               ],
@@ -1070,32 +1187,47 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildTopFestivalPosterHero(BuildContext context) {
     return FutureBuilder<List<CatalogSection>>(
       future: _catalogSectionsFuture,
-      builder: (BuildContext context, AsyncSnapshot<List<CatalogSection>> snapshot) {
-        final List<CatalogSection> sections = snapshot.data ?? <CatalogSection>[];
-        final CatalogSection? festival = sections.cast<CatalogSection?>().firstWhere(
-          (CatalogSection? s) => s != null && s.isBanner && s.isCampaignActive && s.isEnabled,
-          orElse: () => null,
-        );
-        if (festival == null) return const SizedBox.shrink();
+      builder:
+          (BuildContext context, AsyncSnapshot<List<CatalogSection>> snapshot) {
+            final List<CatalogSection> sections =
+                snapshot.data ?? <CatalogSection>[];
+            final CatalogSection? festival = sections
+                .cast<CatalogSection?>()
+                .firstWhere(
+                  (CatalogSection? s) =>
+                      s != null &&
+                      s.isBanner &&
+                      s.isCampaignActive &&
+                      s.isEnabled,
+                  orElse: () => null,
+                );
+            if (festival == null) return const SizedBox.shrink();
 
-        return _buildFestivalHeroBanner(context, festival);
-      },
+            return _buildFestivalHeroBanner(context, festival);
+          },
     );
   }
 
   Widget _buildFestivalHeroBanner(BuildContext context, CatalogSection banner) {
     final bool isDark = context.isDarkMode;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.md),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        AppSpacing.md,
+      ),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () {
-          Navigator.of(context).push(MaterialPageRoute<void>(
-            builder: (_) => TrackListScreen(
-              title: banner.displayTitle,
-              tracks: banner.items,
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => TrackListScreen(
+                title: banner.displayTitle,
+                tracks: banner.items,
+              ),
             ),
-          ));
+          );
         },
         child: Container(
           padding: const EdgeInsets.all(AppSpacing.md),
@@ -1131,7 +1263,9 @@ class _HomeScreenState extends State<HomeScreen> {
               // Artwork
               ClipRRect(
                 borderRadius: BorderRadius.circular(14),
-                child: banner.effectiveArtworkUrl != null && banner.effectiveArtworkUrl!.isNotEmpty
+                child:
+                    banner.effectiveArtworkUrl != null &&
+                        banner.effectiveArtworkUrl!.isNotEmpty
                     ? Image.network(
                         banner.effectiveArtworkUrl!,
                         width: 80,
@@ -1141,14 +1275,22 @@ class _HomeScreenState extends State<HomeScreen> {
                           width: 80,
                           height: 80,
                           color: AppColors.primary.withValues(alpha: 0.2),
-                          child: const Icon(Icons.celebration_rounded, color: AppColors.primaryLight, size: 36),
+                          child: const Icon(
+                            Icons.celebration_rounded,
+                            color: AppColors.primaryLight,
+                            size: 36,
+                          ),
                         ),
                       )
                     : Container(
                         width: 80,
                         height: 80,
                         color: AppColors.primary.withValues(alpha: 0.2),
-                        child: const Icon(Icons.celebration_rounded, color: AppColors.primaryLight, size: 36),
+                        child: const Icon(
+                          Icons.celebration_rounded,
+                          color: AppColors.primaryLight,
+                          size: 36,
+                        ),
                       ),
               ),
               const SizedBox(width: 16),
@@ -1160,18 +1302,25 @@ class _HomeScreenState extends State<HomeScreen> {
                     Row(
                       children: <Widget>[
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.primary.withValues(alpha: 0.25),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppColors.primary, width: 0.8),
+                            border: Border.all(
+                              color: AppColors.primary,
+                              width: 0.8,
+                            ),
                           ),
                           child: Text(
-                            (banner.subtitle != null && banner.subtitle!.isNotEmpty)
+                            (banner.subtitle != null &&
+                                    banner.subtitle!.isNotEmpty)
                                 ? banner.subtitle!.toUpperCase()
                                 : (banner.displayGroup.isNotEmpty
-                                    ? banner.displayGroup.toUpperCase()
-                                    : 'FEATURED SPOTLIGHT'),
+                                      ? banner.displayGroup.toUpperCase()
+                                      : 'FEATURED SPOTLIGHT'),
                             style: const TextStyle(
                               fontSize: 9.5,
                               fontWeight: FontWeight.w800,
@@ -1197,7 +1346,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 3),
                     Text(
                       '${banner.items.length} songs • ${banner.language.toUpperCase()} • Curated for you',
-                      style: TextStyle(fontSize: 11.5, color: context.textSecondary),
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: context.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -1212,7 +1364,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 onPressed: () {
                   if (banner.items.isNotEmpty) {
-                    TrackActions.play(context, banner.items.first, queue: banner.items);
+                    TrackActions.play(
+                      context,
+                      banner.items.first,
+                      queue: banner.items,
+                    );
                   }
                 },
                 child: const Icon(Icons.play_arrow_rounded, size: 24),
@@ -1224,65 +1380,95 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildAdminCatalogSections(BuildContext context, MusicRepository repo) {
+  Widget _buildAdminCatalogSections(
+    BuildContext context,
+    MusicRepository repo,
+  ) {
     return FutureBuilder<List<CatalogSection>>(
       future: _catalogSectionsFuture,
       builder: (BuildContext context, AsyncSnapshot<List<CatalogSection>> snapshot) {
-        final List<CatalogSection> sections = snapshot.data ?? <CatalogSection>[];
+        final List<CatalogSection> sections =
+            snapshot.data ?? <CatalogSection>[];
         if (sections.isEmpty) {
           return const SizedBox.shrink();
         }
 
         // Regular non-banner sections (Phase 4)
         final List<CatalogSection> regularSections = sections
-            .where((CatalogSection s) => (!s.isBanner || !s.isCampaignActive) && s.isEnabled)
+            .where(
+              (CatalogSection s) =>
+                  (!s.isBanner || !s.isCampaignActive) && s.isEnabled,
+            )
             .toList();
 
         // Group regular sections by displayGroup
-        final Map<String, List<CatalogSection>> grouped = <String, List<CatalogSection>>{};
+        final Map<String, List<CatalogSection>> grouped =
+            <String, List<CatalogSection>>{};
         for (final CatalogSection sec in regularSections) {
-          grouped.putIfAbsent(sec.displayGroup, () => <CatalogSection>[]).add(sec);
+          grouped
+              .putIfAbsent(sec.displayGroup, () => <CatalogSection>[])
+              .add(sec);
         }
 
         void openSection(CatalogSection section) {
           if (section.sourceType == 'artist') {
-            Navigator.of(context).push(MaterialPageRoute<void>(
-              builder: (_) => ArtistScreen(
-                artist: Artist(
-                  id: 'custom_api:artist:${section.sourceId.isNotEmpty ? section.sourceId : section.key}',
-                  providerId: 'custom_api',
-                  providerArtistId: section.sourceId.isNotEmpty ? section.sourceId : section.key,
-                  name: section.displayTitle,
-                  imageUrl: section.effectiveArtworkUrl ??
-                      (section.items.isNotEmpty ? section.items.first.artworkUrl : null),
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ArtistScreen(
+                  artist: Artist(
+                    id: 'custom_api:artist:${section.sourceId.isNotEmpty ? section.sourceId : section.key}',
+                    providerId: 'custom_api',
+                    providerArtistId: section.sourceId.isNotEmpty
+                        ? section.sourceId
+                        : section.key,
+                    name: section.displayTitle,
+                    imageUrl:
+                        section.effectiveArtworkUrl ??
+                        (section.items.isNotEmpty
+                            ? section.items.first.artworkUrl
+                            : null),
+                  ),
                 ),
               ),
-            ));
+            );
           } else if (section.sourceType == 'album') {
-            Navigator.of(context).push(MaterialPageRoute<void>(
-              builder: (_) => AlbumScreen(
-                album: Album(
-                  id: 'custom_api:album:${section.sourceId.isNotEmpty ? section.sourceId : section.key}',
-                  providerId: 'custom_api',
-                  providerAlbumId: section.sourceId.isNotEmpty ? section.sourceId : section.key,
-                  title: section.displayTitle,
-                  artists: section.items.isNotEmpty ? section.items.first.artists : const <Artist>[],
-                  artworkUrl: section.effectiveArtworkUrl ??
-                      (section.items.isNotEmpty ? section.items.first.artworkUrl : null),
-                  year: section.items.isNotEmpty
-                      ? int.tryParse(section.items.first.extra['year']?.toString() ?? '')
-                      : null,
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => AlbumScreen(
+                  album: Album(
+                    id: 'custom_api:album:${section.sourceId.isNotEmpty ? section.sourceId : section.key}',
+                    providerId: 'custom_api',
+                    providerAlbumId: section.sourceId.isNotEmpty
+                        ? section.sourceId
+                        : section.key,
+                    title: section.displayTitle,
+                    artists: section.items.isNotEmpty
+                        ? section.items.first.artists
+                        : const <Artist>[],
+                    artworkUrl:
+                        section.effectiveArtworkUrl ??
+                        (section.items.isNotEmpty
+                            ? section.items.first.artworkUrl
+                            : null),
+                    year: section.items.isNotEmpty
+                        ? int.tryParse(
+                            section.items.first.extra['year']?.toString() ?? '',
+                          )
+                        : null,
+                  ),
+                  initialTracks: section.items,
                 ),
-                initialTracks: section.items,
               ),
-            ));
+            );
           } else {
-            Navigator.of(context).push(MaterialPageRoute<void>(
-              builder: (_) => TrackListScreen(
-                title: section.displayTitle,
-                tracks: section.items,
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => TrackListScreen(
+                  title: section.displayTitle,
+                  tracks: section.items,
+                ),
               ),
-            ));
+            );
           }
         }
 
@@ -1290,14 +1476,16 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             // Dynamic Sections grouped by category (Phase 4)
-            for (final MapEntry<String, List<CatalogSection>> entry in grouped.entries) ...<Widget>[
+            for (final MapEntry<String, List<CatalogSection>> entry
+                in grouped.entries) ...<Widget>[
               Builder(
                 builder: (BuildContext ctx) {
                   final String groupTitle = entry.key;
                   final List<CatalogSection> groupSections = entry.value;
 
                   // Check if this is a genuine track-only shelf (e.g. New Releases)
-                  final bool isTrackFeed = groupSections.length == 1 &&
+                  final bool isTrackFeed =
+                      groupSections.length == 1 &&
                       (groupSections.first.sourceType == 'new_releases' ||
                           groupSections.first.sourceType == 'tracks');
 
@@ -1309,7 +1497,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: <Widget>[
                         SectionHeader(
                           title: sec.displayTitle,
-                          subtitle: '${sec.displayGroup} • ${sec.language.toUpperCase()}',
+                          subtitle:
+                              '${sec.displayGroup} • ${sec.language.toUpperCase()}',
                           topPadding: AppSpacing.sm,
                           actionLabel: 'See all (${sec.items.length})',
                           onAction: () => openSection(sec),
@@ -1318,15 +1507,26 @@ class _HomeScreenState extends State<HomeScreen> {
                           height: 200,
                           child: ListView.separated(
                             scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.lg,
+                            ),
                             itemCount: sec.items.length,
-                            separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: AppSpacing.md),
                             itemBuilder: (BuildContext cardCtx, int i) {
                               final Track track = sec.items[i];
                               return MediaCard.forTrack(
                                 track: track,
-                                onTap: () => TrackActions.play(context, track, queue: sec.items),
-                                onPlay: () => TrackActions.play(context, track, queue: sec.items),
+                                onTap: () => TrackActions.play(
+                                  context,
+                                  track,
+                                  queue: sec.items,
+                                ),
+                                onPlay: () => TrackActions.play(
+                                  context,
+                                  track,
+                                  queue: sec.items,
+                                ),
                                 width: 136,
                               );
                             },
@@ -1338,8 +1538,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
                   // Entity Shelves (Playlists, Albums, Artists, Charts):
                   // Renders genuine entity cards without appending tracks into the shelf.
-                  final bool isArtistGroup =
-                      groupSections.every((CatalogSection s) => s.sourceType == 'artist');
+                  final bool isArtistGroup = groupSections.every(
+                    (CatalogSection s) => s.sourceType == 'artist',
+                  );
                   final double shelfHeight = isArtistGroup ? 185 : 215;
 
                   return Column(
@@ -1350,44 +1551,63 @@ class _HomeScreenState extends State<HomeScreen> {
                         subtitle: groupSections.length > 1
                             ? '${groupSections.length} ${isArtistGroup ? "artists" : "collections"}'
                             : (groupSections.first.subtitle ??
-                                '${groupSections.first.sourceType.toUpperCase()} • ${groupSections.first.language.toUpperCase()}'),
+                                  '${groupSections.first.sourceType.toUpperCase()} • ${groupSections.first.language.toUpperCase()}'),
                         topPadding: AppSpacing.sm,
-                        actionLabel: groupSections.length > 2 ? 'See all' : null,
+                        actionLabel: groupSections.length > 2
+                            ? 'See all'
+                            : null,
                       ),
                       SizedBox(
                         height: shelfHeight,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.lg,
+                          ),
                           itemCount: groupSections.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: AppSpacing.md),
                           itemBuilder: (BuildContext cardCtx, int i) {
                             final CatalogSection sec = groupSections[i];
-                            final int count = sec.itemCount > 0 ? sec.itemCount : sec.items.length;
+                            final int count = sec.itemCount > 0
+                                ? sec.itemCount
+                                : sec.items.length;
                             return MediaCard(
                               title: sec.displayTitle,
-                              subtitle: sec.subtitle ??
-                                  (sec.sourceType == 'artist' ? 'Artist' : '$count songs'),
-                              imageUrl: sec.effectiveArtworkUrl ??
-                                  (sec.items.isNotEmpty ? sec.items.first.artworkUrl : null),
+                              subtitle:
+                                  sec.subtitle ??
+                                  (sec.sourceType == 'artist'
+                                      ? 'Artist'
+                                      : '$count songs'),
+                              imageUrl:
+                                  sec.effectiveArtworkUrl ??
+                                  (sec.items.isNotEmpty
+                                      ? sec.items.first.artworkUrl
+                                      : null),
                               fallbackIcon: sec.sourceType == 'artist'
                                   ? Icons.person_rounded
                                   : (sec.sourceType == 'album'
-                                      ? Icons.album_rounded
-                                      : Icons.queue_music_rounded),
+                                        ? Icons.album_rounded
+                                        : Icons.queue_music_rounded),
                               circle: sec.sourceType == 'artist',
                               badgeText: sec.isBanner
                                   ? 'SPECIAL'
                                   : (sec.sourceType == 'artist'
-                                      ? 'ARTIST'
-                                      : (sec.sourceType == 'album' ? 'ALBUM' : 'PLAYLIST')),
-                              badgeColor:
-                                  sec.isBanner ? AppColors.primaryLight : AppColors.secondary,
+                                        ? 'ARTIST'
+                                        : (sec.sourceType == 'album'
+                                              ? 'ALBUM'
+                                              : 'PLAYLIST')),
+                              badgeColor: sec.isBanner
+                                  ? AppColors.primaryLight
+                                  : AppColors.secondary,
                               width: sec.sourceType == 'artist' ? 130 : 148,
                               onTap: () => openSection(sec),
                               onPlay: sec.items.isNotEmpty
-                                  ? () => TrackActions.play(context, sec.items.first,
-                                      queue: sec.items)
+                                  ? () => TrackActions.play(
+                                      context,
+                                      sec.items.first,
+                                      queue: sec.items,
+                                    )
                                   : null,
                             );
                           },
@@ -1470,7 +1690,10 @@ class _HomeScreenState extends State<HomeScreen> {
           subtitle: 'Auto-suggestions and top picks from your favorites',
           trailing: TextButton(
             onPressed: () => AppShell.selectTab(context, 2),
-            child: const Text('View All', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            child: const Text(
+              'View All',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
           ),
         ),
         SizedBox(
@@ -1510,7 +1733,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ],
                         ),
-                        child: artist.imageUrl != null && artist.imageUrl!.isNotEmpty
+                        child:
+                            artist.imageUrl != null &&
+                                artist.imageUrl!.isNotEmpty
                             ? ClipOval(
                                 child: Image.network(
                                   artist.imageUrl!,
@@ -1519,7 +1744,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, __, ___) => Center(
                                     child: Text(
-                                      artist.name.isNotEmpty ? artist.name[0].toUpperCase() : 'A',
+                                      artist.name.isNotEmpty
+                                          ? artist.name[0].toUpperCase()
+                                          : 'A',
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.w800,
@@ -1531,7 +1758,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               )
                             : Center(
                                 child: Text(
-                                  artist.name.isNotEmpty ? artist.name[0].toUpperCase() : 'A',
+                                  artist.name.isNotEmpty
+                                      ? artist.name[0].toUpperCase()
+                                      : 'A',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,
@@ -1559,6 +1788,98 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildBottomTrendingBlast(BuildContext context, PlaybackController playback) {
+    final bool isDark = context.isDarkMode;
+    final List<Track> tracks = _infiniteTracks;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const SizedBox(height: AppSpacing.md),
+          SectionHeader(
+            title: 'Trending & Fresh Releases',
+            subtitle: 'Auto-suggested mixture of viral hits, top charts & fresh drops',
+            topPadding: AppSpacing.sm,
+            actionLabel: tracks.isNotEmpty ? 'Play All (${tracks.length})' : null,
+            onAction: tracks.isNotEmpty
+                ? () => TrackActions.play(context, tracks.first, queue: tracks)
+                : null,
+          ),
+          const SizedBox(height: 6),
+
+          if (_isLoadingInitial && tracks.isEmpty)
+            Column(
+              children: List<Widget>.generate(
+                4,
+                (_) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Container(
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? AppColors.surfaceContainerHigh.withValues(alpha: 0.5)
+                          : AppColors.lightElevatedSurface,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          else if (tracks.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text(
+                  'No tracks available right now',
+                  style: TextStyle(color: context.textMuted, fontSize: 13),
+                ),
+              ),
+            )
+          else
+            Column(
+              children: <Widget>[
+                for (int i = 0; i < tracks.length; i++) ...<Widget>[
+                  TrackTile(
+                    index: i,
+                    track: tracks[i],
+                    dense: false,
+                    isPlaying: playback.currentTrack?.id == tracks[i].id && playback.isPlaying,
+                    onTap: () => TrackActions.play(context, tracks[i], queue: tracks),
+                    onMenu: () => showTrackActionsSheet(context, tracks[i]),
+                  ),
+                  if (i < tracks.length - 1)
+                    const Divider(height: 1, indent: 64),
+                ],
+                if (_isLoadingMore)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2.2),
+                      ),
+                    ),
+                  )
+                else if (!_hasMore && tracks.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: Text(
+                        'You\'ve reached the end of the mix',
+                        style: TextStyle(color: context.textMuted, fontSize: 12),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+        ],
+      ),
     );
   }
 }

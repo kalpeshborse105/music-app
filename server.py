@@ -1870,36 +1870,98 @@ def parse_catalog_url(raw_url: str):
 
     parsed = urllib.parse.urlparse(raw_url)
     hostname = (parsed.hostname or "").lower()
-    if hostname not in ("jiosaavn.com", "www.jiosaavn.com"):
+    if hostname not in ("jiosaavn.com", "www.jiosaavn.com", "saavn.com"):
         return None, f"Invalid hostname '{hostname}'. Only jiosaavn.com and www.jiosaavn.com are supported."
 
     path = parsed.path.rstrip("/")
-    if path == "/new-releases":
+    qs = urllib.parse.parse_qs(parsed.query)
+
+    # 1. Direct JioSaavn API URL (e.g. from Browser Network Tab: api.php?__call=...&pid=...)
+    if path == "/api.php":
+        pid = qs.get("pid", [""])[0] or qs.get("pids", [""])[0]
+        token = qs.get("token", [""])[0]
+        call_name = qs.get("__call", [""])[0]
+        call_type = qs.get("type", [""])[0]
+
+        if pid:
+            return {
+                "source_type": "song",
+                "source_id": pid,
+                "slug": f"song-{pid}",
+                "default_title": "JioSaavn Track",
+                "default_group": "Special Releases"
+            }, None
+        elif token:
+            st = call_type if call_type in ("playlist", "album", "artist", "song") else "playlist"
+            return {
+                "source_type": st,
+                "source_id": token,
+                "slug": f"{st}-{token}",
+                "default_title": f"JioSaavn {st.title()}",
+                "default_group": "Top Charts" if st == "playlist" else ("Featured Artists" if st == "artist" else "Featured Albums")
+            }, None
+        elif call_name:
+            return {
+                "source_type": "new_releases",
+                "source_id": "new-releases-hindi",
+                "slug": "new-releases-hindi",
+                "default_title": "JioSaavn Releases",
+                "default_group": "Trending Now",
+                "language": "hindi"
+            }, None
+
+    # 2. New Releases: /new-releases, /new-releases/, /new-releases/<language> (e.g. /new-releases/hindi)
+    m_new_rel = re.match(r"^/(?:s/)?new-releases(?:/([a-zA-Z0-9_-]+))?/?$", path)
+    if m_new_rel or path in ("/new-releases", "/new-releases/"):
+        lang = m_new_rel.group(1) if m_new_rel else None
+        source_id = f"new-releases-{lang}" if lang else "new-releases"
         return {
             "source_type": "new_releases",
-            "source_id": "new-releases",
-            "slug": "new-releases",
-            "default_title": "New Releases",
-            "default_group": "Fresh Drops"
+            "source_id": source_id,
+            "slug": source_id,
+            "default_title": f"New Releases ({lang.title()})" if lang else "New Releases",
+            "default_group": "Trending Now",
+            "language": lang or "all"
         }, None
-    elif path == "/charts":
+
+    # 3. Radio: /radio, /radio/, /radio/<station>
+    m_radio = re.match(r"^/(?:s/)?radio(?:/([a-zA-Z0-9_-]+))?/?$", path)
+    if m_radio or path in ("/radio", "/radio/"):
+        station = (m_radio.group(1) if m_radio else None) or "hindi-radio"
         return {
-            "source_type": "charts",
-            "source_id": "charts",
-            "slug": "charts",
-            "default_title": "Official Charts",
+            "source_type": "radio",
+            "source_id": station,
+            "slug": f"radio-{station}",
+            "default_title": f"Live Radio ({station.replace('-', ' ').title()})",
+            "default_group": "Live Radio",
+            "language": "hindi"
+        }, None
+
+    # 4. Charts: /charts or /charts/...
+    m_charts = re.match(r"^/(?:s/)?charts(?:/([a-zA-Z0-9_-]+)(?:/([a-zA-Z0-9_, -]+))?)?/?$", path)
+    if m_charts or path == "/charts":
+        chart_slug = (m_charts.group(1) if m_charts else None) or "charts"
+        chart_token = (m_charts.group(2) if m_charts else None) or chart_slug
+        return {
+            "source_type": "charts" if chart_slug == "charts" else "playlist",
+            "source_id": chart_token,
+            "slug": chart_slug,
+            "default_title": chart_slug.replace("-", " ").title() if chart_slug != "charts" else "Official Charts",
             "default_group": "Top Charts"
         }, None
-    elif path == "/top-artists":
+
+    # 5. Top Artists: /top-artists or /top-artists/...
+    if path.startswith("/top-artists"):
         return {
             "source_type": "top_artists",
             "source_id": "top-artists",
             "slug": "top-artists",
-            "default_title": "Top Artists",
-            "default_group": "Spotlight"
+            "default_title": "Top Artists Spotlight",
+            "default_group": "Featured Artists"
         }, None
 
-    m_artist = re.match(r"^/artist/([^/]+)/([^/?#]+)$", path)
+    # 6. Artist: /artist/<slug>/<token> or /s/artist/...
+    m_artist = re.match(r"^/(?:s/)?artist/([^/]+)/([^/?#]+)$", path)
     if m_artist:
         slug, token = m_artist.groups()
         title = slug.replace("-songs", "").replace("-", " ").title()
@@ -1911,19 +1973,22 @@ def parse_catalog_url(raw_url: str):
             "default_group": "Featured Artists"
         }, None
 
-    m_playlist = re.match(r"^/(?:featured|playlist)/([^/]+)/([^/?#]+)$", path)
+    # 7. Playlist or Featured: /featured/<slug>/<token> or /playlist/<slug>/<token> or /s/playlist/...
+    m_playlist = re.match(r"^/(?:s/)?(?:featured|playlist)/([^/]+)/([^/?#]+)$", path)
     if m_playlist:
         slug, token = m_playlist.groups()
         title = slug.replace("-", " ").title()
+        is_top = any(k in slug.lower() for k in ("chart", "top", "hits", "trending"))
         return {
             "source_type": "playlist",
             "source_id": token,
             "slug": slug,
             "default_title": title,
-            "default_group": "Top Charts" if "chart" in slug or "top" in slug else "Featured Playlists"
+            "default_group": "Top Charts" if is_top else "Featured Playlists"
         }, None
 
-    m_album = re.match(r"^/album/([^/]+)/([^/?#]+)$", path)
+    # 8. Album: /album/<slug>/<token> or /s/album/...
+    m_album = re.match(r"^/(?:s/)?album/([^/]+)/([^/?#]+)$", path)
     if m_album:
         slug, token = m_album.groups()
         title = slug.replace("-", " ").title()
@@ -1936,7 +2001,8 @@ def parse_catalog_url(raw_url: str):
             "default_group": "Festival Specials" if is_festive else "Featured Albums"
         }, None
 
-    m_song = re.match(r"^/song/([^/]+)/([^/?#]+)$", path)
+    # 9. Song: /song/<slug>/<token> or /s/song/...
+    m_song = re.match(r"^/(?:s/)?song/([^/]+)/([^/?#]+)$", path)
     if m_song:
         slug, token = m_song.groups()
         title = slug.replace("-", " ").title()
@@ -1949,7 +2015,20 @@ def parse_catalog_url(raw_url: str):
             "default_group": "Devotional & Bhakti" if is_bhakti else "Special Releases"
         }, None
 
-    return None, f"Unsupported path '{path}'. Supported formats: /artist/<slug>/<id>, /featured/<slug>/<id>, /album/<slug>/<id>, /song/<slug>/<id>, /new-releases, /charts, /top-artists"
+    # 10. General fallback for any other JioSaavn category (e.g. /s/<kind>/<slug>/<token>)
+    m_generic = re.match(r"^/(?:s/)?([^/]+)/([^/]+)/([^/?#]+)$", path)
+    if m_generic:
+        kind, slug, token = m_generic.groups()
+        st = "playlist" if kind in ("featured", "playlist", "channel") else ("artist" if kind == "artist" else ("album" if kind == "album" else "song"))
+        return {
+            "source_type": st,
+            "source_id": token,
+            "slug": slug,
+            "default_title": slug.replace("-", " ").title(),
+            "default_group": "Top Charts" if st == "playlist" else ("Featured Artists" if st == "artist" else "Featured Albums")
+        }, None
+
+    return None, f"Unsupported path: '{path}'. Supported formats: /new-releases/<language>, /radio, /artist/<slug>/<id>, /featured/<slug>/<id>, /album/<slug>/<id>, /song/<slug>/<id>, /charts, /top-artists or Network API URLs"
 
 
 def get_mock_catalog_items(source_type, source_id, slug, language="all"):
@@ -2148,11 +2227,20 @@ def resolve_catalog_items(source_type, source_id, slug, language="all"):
                 return songs, False, "ok", info.get("name"), detected_artwork
 
         elif source_type == "new_releases":
-            res = live_new_releases(languages=langs, limit=30)
+            req_lang = [slug.replace("new-releases-", "")] if "new-releases-" in slug else (langs or ["hindi"])
+            res = live_new_releases(languages=req_lang, limit=30)
             songs = res.get("songs") or []
             if songs:
                 detected_artwork = songs[0].get("artwork_url") if songs else None
-                return songs, False, "ok", "New Releases", detected_artwork
+                title_lang = req_lang[0].title() if req_lang else "Hindi"
+                return songs, False, "ok", f"New Releases ({title_lang})", detected_artwork
+
+        elif source_type == "radio":
+            res = live_trending(languages=langs or ["hindi"], limit=30)
+            songs = res.get("songs") or []
+            if songs:
+                detected_artwork = songs[0].get("artwork_url") if songs else None
+                return songs, False, "ok", "Live Radio & Non-Stop Hits", detected_artwork
 
         elif source_type == "charts":
             charts = live_charts(languages=langs)

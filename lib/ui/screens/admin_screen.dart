@@ -557,6 +557,8 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     if (lower.contains('/new-releases')) return 'new_releases';
     if (lower.contains('/charts')) return 'charts';
     if (lower.contains('/top-artists')) return 'top_artists';
+    if (lower.contains('/radio')) return 'radio';
+    if (lower.contains('api.php') || lower.contains('pid=') || lower.contains('/song/')) return 'song';
     return 'playlist';
   }
 
@@ -628,6 +630,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                   : 'Featured Albums';
             } else if (detectedType == 'new_releases') {
               _catalogGroupController.text = 'New Releases';
+            } else if (detectedType == 'radio') {
+              _catalogGroupController.text = 'Live Radio';
+            } else if (detectedType == 'song') {
+              _catalogGroupController.text = 'Spotlight Tracks';
             } else {
               _catalogGroupController.text = 'Collections';
             }
@@ -1524,24 +1530,28 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 runSpacing: 6,
                 children: <Widget>[
                   _buildQuickUrlChip(
-                    'Hindi Top 50 (Playlist)',
+                    'Hindi Releases',
+                    'https://www.jiosaavn.com/new-releases/hindi',
+                  ),
+                  _buildQuickUrlChip(
+                    'All New Releases',
+                    'http://jiosaavn.com/new-releases/',
+                  ),
+                  _buildQuickUrlChip(
+                    'Live Radio',
+                    'https://www.jiosaavn.com/radio',
+                  ),
+                  _buildQuickUrlChip(
+                    'Network Song PID',
+                    'https://www.jiosaavn.com/api.php?__call=song.generateAuthToken&pid=w6i2r54Z',
+                  ),
+                  _buildQuickUrlChip(
+                    'Hindi Top 50',
                     'https://www.jiosaavn.com/featured/hindi-india-superhits-top-50/zlJfJYVuyjpxWb5,FqsjKg__',
                   ),
                   _buildQuickUrlChip(
-                    'Kishore Kumar (Artist)',
+                    'Kishore Kumar',
                     'https://www.jiosaavn.com/artist/kishore-kumar-songs/yMoPyl3ZzyY_',
-                  ),
-                  _buildQuickUrlChip(
-                    'Surprise Me (Playlist)',
-                    'https://www.jiosaavn.com/featured/surprise-me/1ZOczFTRyFw_',
-                  ),
-                  _buildQuickUrlChip(
-                    'New Releases (Collection)',
-                    'https://www.jiosaavn.com/new-releases',
-                  ),
-                  _buildQuickUrlChip(
-                    'Charts (Collection)',
-                    'https://www.jiosaavn.com/charts',
                   ),
                 ],
               ),
