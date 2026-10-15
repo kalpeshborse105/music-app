@@ -9,6 +9,7 @@ import '../theme/app_spacing.dart';
 import '../widgets/app_sheets.dart';
 import '../widgets/cards.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/mini_player.dart';
 import '../widgets/state_views.dart';
 import '../widgets/track_tile.dart';
 import 'list_screen.dart';
@@ -83,6 +84,10 @@ class _SearchScreenState extends State<SearchScreen> {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      bottomNavigationBar: const SafeArea(
+        top: false,
+        child: MiniPlayer(),
+      ),
       body: Stack(
         children: <Widget>[
           if (isDark) ...<Widget>[

@@ -12,7 +12,6 @@ import '../services/track_actions.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/app_sheets.dart';
-import '../widgets/artwork.dart';
 import '../widgets/cards.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/state_views.dart';
@@ -86,7 +85,6 @@ class _HomeScreenState extends State<HomeScreen> {
   static List<String> get _moods => <String>[..._languages, ..._moodFilters];
 
   late Future<List<Track>> _trendingFuture;
-  late Future<List<Track>> _spotlightFuture;
   late Future<List<CatalogSection>> _catalogSectionsFuture;
   bool _initialized = false;
 
@@ -128,7 +126,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final String? lang = _activeLang;
     setState(() {
       _trendingFuture = repo.trending(limit: 20, language: lang);
-      _spotlightFuture = repo.trending(limit: 1, language: lang);
       _catalogSectionsFuture = repo.getCatalogSections(lang: lang);
     });
     await Future.wait(<Future<dynamic>>[
@@ -232,7 +229,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedMood = 'All';
       final String? lang = _activeLang;
       _trendingFuture = repo.trending(limit: 20, language: lang);
-      _spotlightFuture = repo.trending(limit: 1, language: lang);
       _catalogSectionsFuture = repo.getCatalogSections(lang: lang);
       _loadInitialTracks();
     }
@@ -244,7 +240,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedMood = mood;
       final String? lang = _activeLang;
       _trendingFuture = repo.trending(limit: 20, language: lang);
-      _spotlightFuture = repo.trending(limit: 1, language: lang);
       _catalogSectionsFuture = repo.getCatalogSections(lang: lang);
     });
     _loadInitialTracks();
@@ -330,14 +325,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _buildRecentlyPlayedOrTrending(context, library, repo),
                   ),
 
-                  // Dynamic Admin-Managed Catalogue Sections (Top Charts, New Releases, Featured Artists)
+                  // Dynamic Admin-Managed Catalogue Sections (All from DB catalogue)
                   SliverToBoxAdapter(
                     child: _buildAdminCatalogSections(context, repo),
-                  ),
-
-                  // 4. Featured Release Spotlight Banner
-                  SliverToBoxAdapter(
-                    child: _buildFeaturedSpotlight(context),
                   ),
 
                   // Followed Artists Quick Shelf (auto-suggestions from followed artists)
@@ -345,11 +335,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     SliverToBoxAdapter(
                       child: _buildFollowedArtistsBar(context, library, repo),
                     ),
-
-                  // 5. Trending Now & Fresh Picks (Infinite scroll)
-                  SliverToBoxAdapter(
-                    child: _buildTrendingRankedSection(context, playback),
-                  ),
                 ],
 
                 // Clean subtle branding footer
@@ -1469,183 +1454,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFeaturedSpotlight(BuildContext context) {
-    final bool isDark = context.isDarkMode;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xs),
-      child: FutureBuilder<List<Track>>(
-        future: _spotlightFuture,
-        builder: (BuildContext context, AsyncSnapshot<List<Track>> snapshot) {
-          final Track? track = snapshot.data?.isNotEmpty == true ? snapshot.data!.first : null;
-          return EchoGlassCard(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            borderRadius: AppSpacing.radiusXl,
-            backgroundColor: isDark
-                ? null
-                : AppColors.lightSurface,
-            gradient: isDark
-                ? LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: <Color>[
-                      AppColors.surfaceContainerHigh.withValues(alpha: 0.9),
-                      AppColors.surfaceContainer.withValues(alpha: 0.8),
-                      AppColors.primary.withValues(alpha: 0.15),
-                    ],
-                  )
-                : null,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'FEATURED SPOTLIGHT',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.1,
-                            color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.surfaceContainerLowest.withValues(alpha: 0.6)
-                            : AppColors.lightElevatedSurface,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'Verified',
-                        style: TextStyle(fontSize: 10, color: context.textSecondary),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: <Widget>[
-                    Artwork(
-                      url: track?.artworkUrl,
-                      size: 68,
-                      radius: AppSpacing.radiusMd,
-                      showGlow: isDark,
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            track?.title ?? 'Overdrive Horizon',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontFamily: 'Plus Jakarta Sans',
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: context.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            track?.artistNames ?? 'Hyperion Drive • Featured Stream',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: context.textSecondary,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: <Widget>[
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: isDark ? AppColors.surfaceContainerHighest : AppColors.lightElevatedSurface,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  'Spatial Audio',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Studio Master',
-                                style: TextStyle(fontSize: 11, color: context.textMuted),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Icon(
-                          Icons.graphic_eq_rounded,
-                          size: 16,
-                          color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Premium Audio',
-                          style: TextStyle(fontSize: 11.5, color: context.textSecondary),
-                        ),
-                      ],
-                    ),
-                    FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: isDark ? AppColors.primary : AppColors.lightPrimaryAccent,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      ),
-                      onPressed: () {
-                        if (track != null) {
-                          TrackActions.play(context, track);
-                        }
-                      },
-                      icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                      label: const Text('Listen Now', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   Widget _buildFollowedArtistsBar(
     BuildContext context,
     LibraryController library,
@@ -1749,105 +1557,6 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTrendingRankedSection(
-    BuildContext context,
-    PlaybackController pc,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        SectionHeader(
-          title: 'Trending Now & Fresh Picks',
-          subtitle: 'Global top streams this week',
-          trailing: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: context.isDarkMode ? AppColors.surfaceContainerHigh : AppColors.lightElevatedSurface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: context.isDarkMode ? AppColors.borderSubtle : AppColors.lightBorder,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Icon(
-                  Icons.trending_up_rounded,
-                  size: 14,
-                  color: context.isDarkMode ? AppColors.secondary : AppColors.lightSecondaryAccent,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'Live Chart',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: context.isDarkMode ? AppColors.secondary : AppColors.lightSecondaryAccent,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        FutureBuilder<List<Track>>(
-          future: _trendingFuture,
-          builder: (BuildContext context, AsyncSnapshot<List<Track>> snapshot) {
-            if (snapshot.hasData && _infiniteTracks.isEmpty) {
-              _infiniteTracks.addAll(snapshot.data ?? <Track>[]);
-            }
-            final List<Track> tracks = _infiniteTracks.isNotEmpty
-                ? _infiniteTracks
-                : (snapshot.data ?? <Track>[]);
-            if (tracks.isEmpty && snapshot.connectionState == ConnectionState.waiting) {
-              return const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2.2),
-                  ),
-                ),
-              );
-            }
-            if (tracks.isEmpty) {
-              return const SizedBox.shrink();
-            }
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              child: Column(
-                children: <Widget>[
-                  for (int i = 0; i < tracks.length; i++) ...<Widget>[
-                    TrackTile(
-                      index: i,
-                      track: tracks[i],
-                      isCurrent: pc.currentTrack?.id == tracks[i].id,
-                      isPlaying: pc.isPlaying && pc.currentTrack?.id == tracks[i].id,
-                      onTap: () => TrackActions.play(context, tracks[i], queue: tracks),
-                      onMenu: () => showTrackActionsSheet(context, tracks[i]),
-                    ),
-                    if (i < tracks.length - 1) const SizedBox(height: 4),
-                  ],
-                  if (_isLoadingMore)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 20),
-                      child: Center(
-                        child: SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            );
-          },
         ),
       ],
     );

@@ -9,6 +9,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/app_sheets.dart';
 import '../widgets/artwork.dart';
+import '../widgets/mini_player.dart';
 import '../widgets/state_views.dart';
 import '../widgets/track_tile.dart';
 
@@ -62,6 +63,10 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         const <Color>[Color(0xFF6366F1), Color(0xFF8B5CF6)];
 
     return Scaffold(
+      bottomNavigationBar: const SafeArea(
+        top: false,
+        child: MiniPlayer(),
+      ),
       body: FutureBuilder<List<Track>>(
         future: _tracksFuture,
         builder: (BuildContext ctx, AsyncSnapshot<List<Track>> snapshot) {

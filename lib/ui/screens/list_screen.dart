@@ -7,6 +7,7 @@ import '../../state/library_controller.dart';
 import '../services/track_actions.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/app_sheets.dart';
+import '../widgets/mini_player.dart';
 import '../widgets/sheet_scaffolds.dart';
 import '../widgets/state_views.dart';
 import '../widgets/track_tile.dart';
@@ -28,6 +29,10 @@ class TrackListScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
+      bottomNavigationBar: const SafeArea(
+        top: false,
+        child: MiniPlayer(),
+      ),
       body: tracks.isEmpty
           ? const MessageView(
               icon: Icons.music_off_rounded,

@@ -24,6 +24,7 @@ import '../domain/models/catalog_section.dart';
 import '../domain/providers/custom_api_provider.dart';
 import '../domain/providers/music_provider.dart';
 import 'provider_registry.dart';
+import 'services/supabase_service.dart';
 
 /// A genre together with the provider that owns it.
 class GenreRef {
@@ -619,13 +620,56 @@ class MusicRepository {
     String? group,
   }) async {
     final CustomApiProvider? provider = _customApiProvider;
-    if (provider == null) return <CatalogSection>[];
-    final List<Map<String, dynamic>> raw = await provider.getCatalogSections(
-      includeDisabled: includeDisabled,
-      lang: lang,
-      group: group,
-    );
-    return raw.map((Map<String, dynamic> m) => CatalogSection.fromJson(m)).toList();
+    if (provider != null) {
+      try {
+        final List<Map<String, dynamic>> raw = await provider.getCatalogSections(
+          includeDisabled: includeDisabled,
+          lang: lang,
+          group: group,
+        );
+        if (raw.isNotEmpty) {
+          return raw.map((Map<String, dynamic> m) => CatalogSection.fromJson(m)).toList();
+        }
+      } catch (e) {
+        debugPrint('[MusicRepository] getCatalogSections error: $e');
+      }
+    }
+    if (SupabaseService().isInitialized) {
+      return _getCatalogSectionsFromSupabase(
+        includeDisabled: includeDisabled,
+        lang: lang,
+        group: group,
+      );
+    }
+    return <CatalogSection>[];
+  }
+
+  Future<List<CatalogSection>> _getCatalogSectionsFromSupabase({
+    bool includeDisabled = false,
+    String? lang,
+    String? group,
+  }) async {
+    try {
+      final dynamic client = SupabaseService().client;
+      dynamic query = client.from('catalog_sections').select('*');
+      if (!includeDisabled) {
+        query = query.eq('is_enabled', true);
+      }
+      if (group != null && group.isNotEmpty) {
+        query = query.eq('display_group', group);
+      }
+      if (lang != null && lang.isNotEmpty && lang.toLowerCase() != 'all') {
+        query = query.inFilter('language', <String>['all', lang]);
+      }
+      final List<dynamic> rows = await query.order('position', ascending: true);
+      final List<Map<String, dynamic>> mapList = List<Map<String, dynamic>>.from(
+        rows.whereType<Map<String, dynamic>>(),
+      );
+      return mapList.map((Map<String, dynamic> m) => CatalogSection.fromJson(m)).toList();
+    } catch (e) {
+      debugPrint('[MusicRepository] Supabase direct fallback failed: $e');
+      return <CatalogSection>[];
+    }
   }
 
   Future<Map<String, dynamic>> previewCatalogUrl(String url) async {

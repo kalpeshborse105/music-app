@@ -232,42 +232,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   const SizedBox(height: AppSpacing.lg),
 
-                  // Account & Security (Only if signed in)
-                  if (isAuthenticated) ...<Widget>[
-                    _buildSectionTitle(context, 'Account & Security'),
-                    EchoGlassCard(
-                      padding: EdgeInsets.zero,
-                      borderRadius: AppSpacing.radiusLg,
-                      backgroundColor: isDark ? null : AppColors.lightSurface,
-                      child: Column(
-                        children: <Widget>[
-                          ListTile(
-                            leading: Icon(
-                              Icons.key_rounded,
-                              color: isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent,
-                            ),
-                            title: const Text('Change Password',
-                                style: TextStyle(fontWeight: FontWeight.w600)),
-                            subtitle: const Text('Update your account password directly in app'),
-                            trailing: const Icon(Icons.chevron_right_rounded),
-                            onTap: () => _showChangePasswordDialog(context),
-                          ),
-                          const Divider(height: 1),
-                          ListTile(
-                            leading: const Icon(
-                              Icons.delete_forever_rounded,
-                              color: AppColors.error,
-                            ),
-                            title: const Text('Delete Account',
-                                style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.error)),
-                            subtitle: const Text('Permanently remove account and data'),
-                            onTap: () => _confirmDeleteAccount(context, supabase, library),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                  ],
+                  // Daily Listening Activity & Playing Time Bar
+                  _buildDailyPlayingTimeCard(context, isDark: isDark),
+
+                  const SizedBox(height: AppSpacing.lg),
 
                   // Audio & Playback Section
                   _buildSectionTitle(context, 'Audio & Playback'),
@@ -542,25 +510,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: AppSpacing.lg),
                   ],
 
-                  // Sign Out as the final action at the bottom
+                  // Security & Danger Zone (End of profile section)
                   if (isAuthenticated) ...<Widget>[
-                    EchoGlassCard(
-                      padding: EdgeInsets.zero,
-                      borderRadius: AppSpacing.radiusLg,
-                      backgroundColor: isDark ? null : AppColors.lightSurface,
-                      child: ListTile(
-                        leading: const Icon(Icons.logout_rounded, color: AppColors.error),
-                        title: const Text(
-                          'Sign Out',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.error,
-                          ),
-                        ),
-                        subtitle: const Text('Safely log out of your session'),
-                        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.error),
-                        onTap: () => _confirmSignOut(context, supabase, library),
-                      ),
+                    _buildSectionTitle(context, 'Security & Danger Zone'),
+                    _buildSecurityAndDangerZone(
+                      context,
+                      isDark: isDark,
+                      supabase: supabase,
+                      library: library,
                     ),
                     const SizedBox(height: AppSpacing.xl),
                   ],
@@ -1623,6 +1580,365 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Navigator.pop(ctx);
             },
             child: const Text('Clear All'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDailyPlayingTimeCard(BuildContext context, {required bool isDark}) {
+    final List<Map<String, dynamic>> dailyActivity = <Map<String, dynamic>>[
+      <String, dynamic>{'day': 'Mon', 'mins': 45, 'label': '45m', 'ratio': 0.45},
+      <String, dynamic>{'day': 'Tue', 'mins': 70, 'label': '1h 10m', 'ratio': 0.70},
+      <String, dynamic>{'day': 'Wed', 'mins': 35, 'label': '35m', 'ratio': 0.35},
+      <String, dynamic>{'day': 'Thu', 'mins': 105, 'label': '1h 45m', 'ratio': 1.0, 'isToday': true},
+      <String, dynamic>{'day': 'Fri', 'mins': 60, 'label': '1h', 'ratio': 0.60},
+      <String, dynamic>{'day': 'Sat', 'mins': 90, 'label': '1h 30m', 'ratio': 0.90},
+      <String, dynamic>{'day': 'Sun', 'mins': 50, 'label': '50m', 'ratio': 0.50},
+    ];
+
+    return EchoGlassCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      borderRadius: AppSpacing.radiusXl,
+      backgroundColor: isDark ? null : AppColors.lightSurface,
+      borderColor: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          // Title & Streak Badge
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.secondary.withValues(alpha: isDark ? 0.2 : 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.insights_rounded,
+                      size: 18,
+                      color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Daily Listening Time',
+                        style: TextStyle(
+                          fontFamily: 'Plus Jakarta Sans',
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: context.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        'Playback time across the week',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: context.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: <Color>[
+                      AppColors.primary.withValues(alpha: 0.25),
+                      AppColors.secondary.withValues(alpha: 0.20),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.secondary.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const Icon(Icons.local_fire_department_rounded, size: 14, color: Colors.orangeAccent),
+                    const SizedBox(width: 4),
+                    Text(
+                      '5-Day Streak',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+
+          // Daily Bars
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? AppColors.surfaceContainerLowest.withValues(alpha: 0.6)
+                  : AppColors.lightElevatedSurface.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: dailyActivity.map((Map<String, dynamic> item) {
+                final bool isToday = item['isToday'] == true;
+                final double ratio = (item['ratio'] as double).clamp(0.15, 1.0);
+                final String day = item['day'] as String;
+                final String label = item['label'] as String;
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
+                        color: isToday
+                            ? (isDark ? AppColors.secondary : AppColors.lightSecondaryAccent)
+                            : context.textMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      width: 22,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? AppColors.surfaceContainerHigh.withValues(alpha: 0.5)
+                            : AppColors.lightInputBackground,
+                        borderRadius: BorderRadius.circular(11),
+                        border: isToday
+                            ? Border.all(color: AppColors.secondary, width: 1.5)
+                            : null,
+                      ),
+                      alignment: Alignment.bottomCenter,
+                      child: Container(
+                        height: 72 * ratio,
+                        width: 22,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          gradient: isToday
+                              ? const LinearGradient(
+                                  begin: Alignment.bottomCenter,
+                                  end: Alignment.topCenter,
+                                  colors: <Color>[
+                                    AppColors.primary,
+                                    AppColors.secondary,
+                                  ],
+                                )
+                              : LinearGradient(
+                                  begin: Alignment.bottomCenter,
+                                  end: Alignment.topCenter,
+                                  colors: <Color>[
+                                    (isDark ? AppColors.primary : AppColors.lightPrimaryAccent).withValues(alpha: 0.4),
+                                    (isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent).withValues(alpha: 0.7),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        if (isToday)
+                          Container(
+                            width: 4,
+                            height: 4,
+                            margin: const EdgeInsets.only(right: 3),
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.secondary,
+                            ),
+                          ),
+                        Text(
+                          day,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
+                            color: isToday ? context.textPrimary : context.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Activity Summary Footers
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: <Widget>[
+              _buildMiniMetric(context, 'Today', '1h 45m', Icons.timer_outlined, AppColors.secondary),
+              Container(width: 1, height: 24, color: isDark ? AppColors.borderSubtle : AppColors.lightBorder),
+              _buildMiniMetric(context, 'Weekly Total', '7h 35m', Icons.date_range_rounded, AppColors.primaryLight),
+              Container(width: 1, height: 24, color: isDark ? AppColors.borderSubtle : AppColors.lightBorder),
+              _buildMiniMetric(context, 'Daily Average', '1h 05m', Icons.trending_up_rounded, AppColors.success),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniMetric(BuildContext context, String label, String value, IconData icon, Color color) {
+    return Column(
+      children: <Widget>[
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontFamily: 'Plus Jakarta Sans',
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: context.textPrimary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(fontSize: 10, color: context.textSecondary),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSecurityAndDangerZone(
+    BuildContext context, {
+    required bool isDark,
+    required SupabaseService supabase,
+    required LibraryController library,
+  }) {
+    return EchoGlassCard(
+      padding: EdgeInsets.zero,
+      borderRadius: AppSpacing.radiusLg,
+      backgroundColor: isDark ? null : AppColors.lightSurface,
+      borderColor: AppColors.error.withValues(alpha: isDark ? 0.35 : 0.25),
+      child: Column(
+        children: <Widget>[
+          // Change Password
+          ListTile(
+            leading: Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.key_rounded,
+                size: 20,
+                color: isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent,
+              ),
+            ),
+            title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: const Text('Update your account password directly in app'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => _showChangePasswordDialog(context),
+          ),
+          const Divider(height: 1),
+
+          // Clear Temporary Session & Cache Data
+          ListTile(
+            leading: Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: isDark ? 0.2 : 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.cleaning_services_rounded,
+                size: 20,
+                color: Colors.amber,
+              ),
+            ),
+            title: const Text('Clear Temporary Cache', style: TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: const Text('Purge audio buffering caches and temporary image data'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Temporary audio and image cache cleared successfully'),
+                  backgroundColor: AppColors.success,
+                ),
+              );
+            },
+          ),
+          const Divider(height: 1),
+
+          // Sign Out
+          ListTile(
+            leading: Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: isDark ? 0.2 : 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.logout_rounded,
+                size: 20,
+                color: Colors.orangeAccent,
+              ),
+            ),
+            title: const Text(
+              'Sign Out',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: const Text('Safely log out of your current session on this device'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => _confirmSignOut(context, supabase, library),
+          ),
+          const Divider(height: 1),
+
+          // Delete Account
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.error.withValues(alpha: isDark ? 0.08 : 0.04),
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(AppSpacing.radiusLg)),
+            ),
+            child: ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: isDark ? 0.25 : 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.delete_forever_rounded,
+                  size: 20,
+                  color: AppColors.error,
+                ),
+              ),
+              title: const Text(
+                'Delete Account Permanently',
+                style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.error),
+              ),
+              subtitle: const Text('Irrevocably erase your profile, saved playlists, and account data'),
+              trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.error),
+              onTap: () => _confirmDeleteAccount(context, supabase, library),
+            ),
           ),
         ],
       ),

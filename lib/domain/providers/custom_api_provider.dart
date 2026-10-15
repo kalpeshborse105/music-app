@@ -443,7 +443,10 @@ class CustomApiProvider extends BaseMusicProvider {
       final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections').replace(
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
       );
-      final http.Response res = await http.get(uri).timeout(const Duration(seconds: 10));
+      final http.Response res = await http.get(
+        uri,
+        headers: _buildHeaders(),
+      ).timeout(const Duration(seconds: 30));
       if (res.statusCode == 200) {
         final dynamic data = jsonDecode(res.body);
         if (data is Map && data['sections'] is List) {

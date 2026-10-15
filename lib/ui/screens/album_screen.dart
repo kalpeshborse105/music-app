@@ -9,6 +9,7 @@ import '../services/track_actions.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/app_sheets.dart';
 import '../widgets/artwork.dart';
+import '../widgets/mini_player.dart';
 import '../widgets/state_views.dart';
 import '../widgets/track_tile.dart';
 
@@ -40,6 +41,10 @@ class _AlbumScreenState extends State<AlbumScreen> {
     final bool saved = context.watch<LibraryController>().isAlbumSaved(widget.album.id);
     return Scaffold(
       appBar: AppBar(),
+      bottomNavigationBar: const SafeArea(
+        top: false,
+        child: MiniPlayer(),
+      ),
       body: FutureBuilder<List<Track>>(
         future: _future,
         builder: (BuildContext context, AsyncSnapshot<List<Track>> snap) {

@@ -73,6 +73,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   final TextEditingController _catalogPositionController = TextEditingController(text: '1');
   final TextEditingController _catalogArtworkController = TextEditingController();
   String _catalogLanguage = 'all';
+  String _catalogGroupFilter = 'all';
   bool _catalogIsEnabled = true;
   bool _catalogIsBanner = false;
   DateTime? _campaignStart;
@@ -401,31 +402,42 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           ? Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                NavigationRail(
-                  selectedIndex: _selectedTab,
-                  onDestinationSelected: (int index) {
-                    setState(() => _selectedTab = index);
-                    _tabController.animateTo(index);
-                    _onTabSelected(index);
-                  },
-                  backgroundColor: isDark
-                      ? AppColors.surfaceContainerLowest
-                      : AppColors.lightElevatedSurface,
-                  indicatorColor: isDark
-                      ? AppColors.primary.withValues(alpha: 0.3)
-                      : AppColors.lightPrimaryAccent.withValues(alpha: 0.16),
-                  labelType: NavigationRailLabelType.all,
-                  destinations: _tabs.map((Map<String, dynamic> t) {
-                    return NavigationRailDestination(
-                      icon: Icon(t['icon'] as IconData),
-                      selectedIcon: Icon(t['icon'] as IconData,
-                          color: isDark
-                              ? AppColors.secondary
-                              : AppColors.lightSecondaryAccent),
-                      label: Text(t['title'] as String,
-                          style: const TextStyle(fontSize: 11)),
+                LayoutBuilder(
+                  builder: (BuildContext ctx, BoxConstraints constraints) {
+                    return SingleChildScrollView(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                        child: IntrinsicHeight(
+                          child: NavigationRail(
+                            selectedIndex: _selectedTab,
+                            onDestinationSelected: (int index) {
+                              setState(() => _selectedTab = index);
+                              _tabController.animateTo(index);
+                              _onTabSelected(index);
+                            },
+                            backgroundColor: isDark
+                                ? AppColors.surfaceContainerLowest
+                                : AppColors.lightElevatedSurface,
+                            indicatorColor: isDark
+                                ? AppColors.primary.withValues(alpha: 0.3)
+                                : AppColors.lightPrimaryAccent.withValues(alpha: 0.16),
+                            labelType: NavigationRailLabelType.all,
+                            destinations: _tabs.map((Map<String, dynamic> t) {
+                              return NavigationRailDestination(
+                                icon: Icon(t['icon'] as IconData),
+                                selectedIcon: Icon(t['icon'] as IconData,
+                                    color: isDark
+                                        ? AppColors.secondary
+                                        : AppColors.lightSecondaryAccent),
+                                label: Text(t['title'] as String,
+                                    style: const TextStyle(fontSize: 11)),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
                     );
-                  }).toList(),
+                  },
                 ),
                 VerticalDivider(
                   width: 1,
@@ -2263,7 +2275,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               'Configured Sections (${_catalogSections.length})',
               style: TextStyle(
                 fontFamily: 'Plus Jakarta Sans',
-                fontSize: 16,
+                fontSize: 18,
                 fontWeight: FontWeight.w700,
                 color: context.textPrimary,
               ),
@@ -2276,30 +2288,324 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
 
-        if (_catalogSections.isEmpty && !_isLoadingCatalog)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 36),
-              child: Text(
-                'No catalogue sections configured yet. Add your first section above.',
-                style: TextStyle(color: context.textMuted),
+        _buildConfiguredSectionsArea(context, isDark),
+      ],
+    );
+  }
+
+  Widget _buildConfiguredSectionsArea(BuildContext context, bool isDark) {
+    if (_catalogSections.isEmpty && !_isLoadingCatalog) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 36),
+          child: Text(
+            'No catalogue sections configured yet. Add your first section above.',
+            style: TextStyle(color: context.textMuted),
+          ),
+        ),
+      );
+    }
+
+    final int totalSections = _catalogSections.length;
+    final int artistCount = _catalogSections.where((CatalogSection s) => s.sourceType == 'artist').length;
+    final int playlistCount = _catalogSections.where((CatalogSection s) => s.sourceType == 'playlist').length;
+    final int albumCount = _catalogSections.where((CatalogSection s) => s.sourceType == 'album').length;
+    final int activeCount = _catalogSections.where((CatalogSection s) => s.isEnabled).length;
+
+    // Distinct display groups present in the data
+    final Set<String> groupKeys = <String>{};
+    for (final CatalogSection s in _catalogSections) {
+      groupKeys.add(s.displayGroup.isNotEmpty ? s.displayGroup : 'other');
+    }
+    final List<String> sortedGroups = groupKeys.toList()..sort();
+
+    String formatGroupTitle(String g) {
+      switch (g.toLowerCase()) {
+        case 'featured_artists':
+        case 'artists':
+          return 'Featured Artists';
+        case 'top_charts':
+          return 'Top Charts';
+        case 'featured_albums':
+        case 'albums':
+          return 'Featured Albums';
+        case 'trending_now':
+          return 'Trending Now';
+        case 'festival_specials':
+          return 'Festival Specials';
+        case 'hero_banners':
+          return 'Hero Banners';
+        default:
+          return g.split('_').map((String word) => word.isNotEmpty ? '${word[0].toUpperCase()}${word.substring(1)}' : '').join(' ');
+      }
+    }
+
+    IconData getGroupIcon(String g) {
+      switch (g.toLowerCase()) {
+        case 'featured_artists':
+        case 'artists':
+          return Icons.mic_external_on_rounded;
+        case 'top_charts':
+          return Icons.leaderboard_rounded;
+        case 'featured_albums':
+        case 'albums':
+          return Icons.album_rounded;
+        case 'trending_now':
+          return Icons.local_fire_department_rounded;
+        case 'festival_specials':
+          return Icons.celebration_rounded;
+        case 'hero_banners':
+          return Icons.view_carousel_rounded;
+        default:
+          return Icons.category_rounded;
+      }
+    }
+
+    final List<String> activeFilterGroups = _catalogGroupFilter == 'all'
+        ? sortedGroups
+        : <String>[_catalogGroupFilter];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        // Metric Counters Row
+        LayoutBuilder(
+          builder: (BuildContext ctx, BoxConstraints constraints) {
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: <Widget>[
+                _buildCatalogMetricChip(
+                  icon: Icons.layers_rounded,
+                  label: 'Total Sections',
+                  value: '$totalSections',
+                  color: AppColors.primary,
+                  isDark: isDark,
+                ),
+                _buildCatalogMetricChip(
+                  icon: Icons.mic_rounded,
+                  label: 'Artists Added',
+                  value: '$artistCount',
+                  color: AppColors.secondary,
+                  isDark: isDark,
+                ),
+                _buildCatalogMetricChip(
+                  icon: Icons.queue_music_rounded,
+                  label: 'Playlists',
+                  value: '$playlistCount',
+                  color: Colors.tealAccent,
+                  isDark: isDark,
+                ),
+                _buildCatalogMetricChip(
+                  icon: Icons.album_rounded,
+                  label: 'Albums',
+                  value: '$albumCount',
+                  color: Colors.amberAccent,
+                  isDark: isDark,
+                ),
+                _buildCatalogMetricChip(
+                  icon: Icons.check_circle_rounded,
+                  label: 'Live Active',
+                  value: '$activeCount / $totalSections',
+                  color: AppColors.success,
+                  isDark: isDark,
+                ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 18),
+
+        // Section / Group Filter Chips
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: <Widget>[
+              ChoiceChip(
+                selected: _catalogGroupFilter == 'all',
+                label: Text('All Sections ($totalSections)'),
+                onSelected: (bool selected) {
+                  if (selected) setState(() => _catalogGroupFilter = 'all');
+                },
               ),
-            ),
-          )
-        else
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _catalogSections.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (BuildContext ctx, int index) {
-              final CatalogSection section = _catalogSections[index];
-              return _buildCatalogSectionCard(ctx, section, index);
+              const SizedBox(width: 8),
+              for (final String group in sortedGroups) ...<Widget>[
+                Builder(
+                  builder: (BuildContext context) {
+                    final int count = _catalogSections
+                        .where((CatalogSection s) => (s.displayGroup.isNotEmpty ? s.displayGroup : 'other') == group)
+                        .length;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        selected: _catalogGroupFilter == group,
+                        avatar: Icon(getGroupIcon(group), size: 16),
+                        label: Text('${formatGroupTitle(group)} ($count)'),
+                        onSelected: (bool selected) {
+                          if (selected) setState(() => _catalogGroupFilter = group);
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+
+        // Render each Group neatly
+        for (final String group in activeFilterGroups) ...<Widget>[
+          Builder(
+            builder: (BuildContext context) {
+              final List<CatalogSection> groupSections = _catalogSections
+                  .where((CatalogSection s) => (s.displayGroup.isNotEmpty ? s.displayGroup : 'other') == group)
+                  .toList();
+              if (groupSections.isEmpty) return const SizedBox.shrink();
+
+              final String groupTitle = formatGroupTitle(group);
+              final IconData groupIcon = getGroupIcon(group);
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: isDark
+                      ? AppColors.surfaceContainerLowest.withValues(alpha: 0.5)
+                      : AppColors.lightElevatedSurface.withValues(alpha: 0.7),
+                  border: Border.all(
+                    color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
+                  ),
+                ),
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    // Group Header Bar
+                    Row(
+                      children: <Widget>[
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: isDark ? 0.25 : 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(groupIcon, size: 20, color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                groupTitle,
+                                style: TextStyle(
+                                  fontFamily: 'Plus Jakarta Sans',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: context.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                'Frontend Group: "$group" • ${groupSections.length} ${groupSections.length == 1 ? "item" : "items"}',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: context.textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.surfaceContainerHigh : AppColors.lightSurface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
+                            ),
+                          ),
+                          child: Text(
+                            '${groupSections.length} items',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(height: 1),
+                    const SizedBox(height: 12),
+
+                    // Items in this group
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: groupSections.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (BuildContext ctx, int index) {
+                        final CatalogSection sec = groupSections[index];
+                        final int globalIndex = _catalogSections.indexOf(sec);
+                        return _buildCatalogSectionCard(ctx, sec, globalIndex >= 0 ? globalIndex : index);
+                      },
+                    ),
+                  ],
+                ),
+              );
             },
           ),
+        ],
       ],
+    );
+  }
+
+  Widget _buildCatalogMetricChip({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+    required bool isDark,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceContainerHigh : AppColors.lightElevatedSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(
+                value,
+                style: const TextStyle(
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: AppColors.outline,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

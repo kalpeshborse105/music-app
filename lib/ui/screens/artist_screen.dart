@@ -12,6 +12,7 @@ import '../theme/app_spacing.dart';
 import '../widgets/app_sheets.dart';
 import '../widgets/artwork.dart';
 import '../widgets/cards.dart';
+import '../widgets/mini_player.dart';
 import '../widgets/state_views.dart';
 import '../widgets/track_tile.dart';
 
@@ -39,6 +40,10 @@ class _ArtistScreenState extends State<ArtistScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.artist.name),
+      ),
+      bottomNavigationBar: const SafeArea(
+        top: false,
+        child: MiniPlayer(),
       ),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 140),
