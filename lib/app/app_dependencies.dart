@@ -19,6 +19,7 @@ import '../domain/recommendations/recommendation_engine.dart';
 import '../state/search_controller.dart';
 import '../state/downloads_controller.dart';
 import '../state/library_controller.dart';
+import '../data/services/fcm_service.dart';
 import '../data/services/supabase_service.dart';
 
 /// Holds every long-lived dependency. Constructed once during bootstrap so the
@@ -160,10 +161,13 @@ class AppDependencies {
     await registry.initialize().catchError((Object e) {
       Logger.warn('registry init failed', error: e);
     });
-    // 2. Restore the last queue without autoplaying.
-    await playback.restore().catchError((Object e) {
-      Logger.warn('queue restore failed', error: e);
-      return false;
+    // 2. Fresh open: clear bottom player / queue (no stale mini-player).
+    await playback.resetForFreshLaunch().catchError((Object e) {
+      Logger.warn('fresh launch player reset failed', error: e);
+    });
+    // 3. FCM device token (no-op until Android google-services.json is added).
+    await FcmService.instance.initialize().catchError((Object e) {
+      Logger.warn('FCM warm-up skipped', error: e);
     });
   }
 

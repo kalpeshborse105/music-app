@@ -6,7 +6,9 @@ import '../../domain/providers/local_provider.dart';
 import '../../state/library_controller.dart';
 import '../services/track_actions.dart';
 import '../theme/app_spacing.dart';
+import '../../domain/models/advertisement.dart';
 import '../widgets/app_sheets.dart';
+import '../widgets/inline_ad_slot.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/sheet_scaffolds.dart';
 import '../widgets/state_views.dart';
@@ -74,16 +76,30 @@ class TrackListScreen extends StatelessWidget {
                     ),
                   ),
                 Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 96),
-                    itemCount: tracks.length,
-                    itemBuilder: (BuildContext c, int i) {
-                      final Track t = tracks[i];
-                      return TrackTile(
-                        track: t,
-                        index: i,
-                        onTap: () => TrackActions.playAll(context, tracks, startIndex: i),
-                        onMenu: () => showTrackActionsSheet(context, t),
+                  child: Builder(
+                    builder: (BuildContext ctx) {
+                      final int mid = tracks.length ~/ 2;
+                      final int extra = tracks.length >= 4 ? 1 : 0;
+                      return ListView.builder(
+                        padding: const EdgeInsets.only(bottom: 96),
+                        itemCount: tracks.length + extra,
+                        itemBuilder: (BuildContext c, int i) {
+                          if (extra == 1 && i == mid) {
+                            return const InlineAdSlot(
+                              placement: Advertisement.placementPlaylistMid,
+                            );
+                          }
+                          final int trackIndex =
+                              (extra == 1 && i > mid) ? i - 1 : i;
+                          final Track t = tracks[trackIndex];
+                          return TrackTile(
+                            track: t,
+                            index: trackIndex,
+                            onTap: () => TrackActions.playAll(
+                                context, tracks, startIndex: trackIndex),
+                            onMenu: () => showTrackActionsSheet(context, t),
+                          );
+                        },
                       );
                     },
                   ),
@@ -196,45 +212,57 @@ class PlaylistDetailScreen extends StatelessWidget {
               title: 'This playlist is empty',
               subtitle: 'Add songs from any track menu.',
             )
-          : ListView.builder(
-              padding: const EdgeInsets.only(bottom: 96),
-              itemCount: playlist.tracks.length,
-              itemBuilder: (BuildContext c, int i) {
-                final Track t = playlist.tracks[i];
-                return TrackTile(
-                  track: t,
-                  index: i,
-                  onTap: () => TrackActions.playAll(
-                      context, playlist.tracks, startIndex: i),
-                  onMenu: () => showModalBottomSheet<void>(
-                    context: context,
-                    showDragHandle: true,
-                    builder: (BuildContext ctx) => SafeArea(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          ListTile(
-                            leading: const Icon(Icons.play_arrow_rounded),
-                            title: const Text('Play'),
-                            onTap: () {
-                              Navigator.pop(ctx);
-                              TrackActions.playAll(context, playlist.tracks,
-                                  startIndex: i);
-                            },
+          : Builder(
+              builder: (BuildContext ctx) {
+                final int mid = playlist.tracks.length ~/ 2;
+                final int extra = playlist.tracks.length >= 4 ? 1 : 0;
+                return ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 96),
+                  itemCount: playlist.tracks.length + extra,
+                  itemBuilder: (BuildContext c, int i) {
+                    if (extra == 1 && i == mid) {
+                      return const InlineAdSlot(
+                        placement: Advertisement.placementPlaylistMid,
+                      );
+                    }
+                    final int trackIndex = (extra == 1 && i > mid) ? i - 1 : i;
+                    final Track t = playlist.tracks[trackIndex];
+                    return TrackTile(
+                      track: t,
+                      index: trackIndex,
+                      onTap: () => TrackActions.playAll(
+                          context, playlist.tracks, startIndex: trackIndex),
+                      onMenu: () => showModalBottomSheet<void>(
+                        context: context,
+                        showDragHandle: true,
+                        builder: (BuildContext sheetCtx) => SafeArea(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              ListTile(
+                                leading: const Icon(Icons.play_arrow_rounded),
+                                title: const Text('Play'),
+                                onTap: () {
+                                  Navigator.pop(sheetCtx);
+                                  TrackActions.playAll(context, playlist.tracks,
+                                      startIndex: trackIndex);
+                                },
+                              ),
+                              ListTile(
+                                leading: const Icon(Icons.delete_outline_rounded),
+                                title: const Text('Remove from playlist'),
+                                onTap: () async {
+                                  Navigator.pop(sheetCtx);
+                                  await library.removeTrackFromPlaylist(
+                                      playlist.id, t.id);
+                                },
+                              ),
+                            ],
                           ),
-                          ListTile(
-                            leading: const Icon(Icons.delete_outline_rounded),
-                            title: const Text('Remove from playlist'),
-                            onTap: () async {
-                              Navigator.pop(ctx);
-                              await library.removeTrackFromPlaylist(
-                                  playlist.id, t.id);
-                            },
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 );
               },
             ),

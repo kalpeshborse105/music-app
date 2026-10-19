@@ -7,6 +7,11 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Apply only when Firebase Android app file is present (download from Firebase Console).
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 // Load release signing config from android/key.properties when present.
 // See docs (README) for how to generate a keystore. When absent the build
 // falls back to debug signing so `flutter run --release` still works locally.

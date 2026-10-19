@@ -73,6 +73,18 @@ class PlaybackController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Fresh app launch: clear bottom player + persisted queue.
+  Future<void> resetForFreshLaunch() async {
+    _isMiniPlayerDismissed = true;
+    try {
+      await stop();
+    } catch (_) {}
+    try {
+      await _queueStore.clear();
+    } catch (_) {}
+    notifyListeners();
+  }
+
   void showMiniPlayer() {
     _isMiniPlayerDismissed = false;
     notifyListeners();

@@ -809,10 +809,15 @@ class CustomApiProvider extends BaseMusicProvider {
   // ---------------------------------------------------------------------------
   // In-app notifications (admin broadcast → user inbox)
   // ---------------------------------------------------------------------------
-  Future<List<Map<String, dynamic>>> fetchNotifications({int limit = 50}) async {
+  Future<List<Map<String, dynamic>>> fetchNotifications({
+    int limit = 50,
+    String? userId,
+  }) async {
     if (_baseUrl.isEmpty) return <Map<String, dynamic>>[];
+    final Map<String, String> qp = <String, String>{'limit': '$limit'};
+    if (userId != null && userId.isNotEmpty) qp['user_id'] = userId;
     final Uri uri = Uri.parse('$_baseUrl/api/notifications').replace(
-      queryParameters: <String, String>{'limit': '$limit'},
+      queryParameters: qp,
     );
     final http.Response res = await http.get(uri).timeout(const Duration(seconds: 10));
     if (res.statusCode == 200) {
@@ -829,11 +834,44 @@ class CustomApiProvider extends BaseMusicProvider {
       uri,
       headers: _buildHeaders(),
       body: jsonEncode(data),
-    ).timeout(const Duration(seconds: 10));
+    ).timeout(const Duration(seconds: 15));
     if (res.statusCode >= 200 && res.statusCode < 300) {
       return jsonDecode(res.body) as Map<String, dynamic>;
     }
-    throw ProviderException(id, message: 'Failed to create notification (${res.statusCode})');
+    String msg = 'Failed to create notification (${res.statusCode})';
+    try {
+      final dynamic b = jsonDecode(res.body);
+      if (b is Map && b['error'] != null) msg = b['error'].toString();
+    } catch (_) {}
+    throw ProviderException(id, message: msg);
+  }
+
+  Future<Map<String, dynamic>> sendFcmPush(Map<String, dynamic> data) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/fcm/send');
+    final http.Response res = await http.post(
+      uri,
+      headers: _buildHeaders(),
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 20));
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final dynamic body = jsonDecode(res.body);
+      if (body is Map<String, dynamic>) return body;
+      return <String, dynamic>{'success': true};
+    }
+    throw ProviderException(id, message: 'FCM send failed (${res.statusCode})');
+  }
+
+  Future<List<Map<String, dynamic>>> fetchFcmTokens() async {
+    final Uri uri = Uri.parse('$_baseUrl/api/fcm/tokens');
+    final http.Response res = await http
+        .get(uri, headers: _buildHeaders())
+        .timeout(const Duration(seconds: 10));
+    if (res.statusCode == 200) {
+      final Map<String, dynamic> body = jsonDecode(res.body) as Map<String, dynamic>;
+      final List<dynamic> list = (body['tokens'] as List<dynamic>?) ?? <dynamic>[];
+      return list.whereType<Map<String, dynamic>>().toList();
+    }
+    return <Map<String, dynamic>>[];
   }
 
   Future<bool> deleteNotification(String notifId) async {

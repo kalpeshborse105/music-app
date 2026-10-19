@@ -45,10 +45,24 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   bool _isLoadingUsers = false;
   List<Map<String, dynamic>> _users = <Map<String, dynamic>>[];
   String _userSearchQuery = '';
+  String _userRoleFilter = 'all';
+  String _userSort = 'newest';
 
   // Reports State
   bool _isLoadingReports = false;
   List<Map<String, dynamic>> _reports = <Map<String, dynamic>>[];
+  String _reportStatusFilter = 'all';
+  String _reportSort = 'newest';
+
+  // Ads filters
+  String _adPlacementFilter = 'all';
+  String _adStatusFilter = 'all';
+  String _adSort = 'newest';
+
+  // Notify filters
+  String _notifyTargetFilter = 'all';
+  String _notifySort = 'newest';
+  int _fcmTokenCount = 0;
 
   // Provider Live Test States
   String? _audiusTestResult;
@@ -145,17 +159,27 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     setState(() => _isLoadingNotifications = true);
     try {
       final MusicRepository repo = context.read<MusicRepository>();
-      final List<Map<String, dynamic>> items =
-          await repo.fetchNotifications(limit: 100);
+      final List<dynamic> results = await Future.wait<dynamic>(<Future<dynamic>>[
+        repo.fetchNotifications(limit: 100),
+        repo.fetchFcmTokens(),
+      ]);
       if (!mounted) return;
       setState(() {
-        _adminNotifications = items;
+        _adminNotifications = results[0] as List<Map<String, dynamic>>;
+        _fcmTokenCount = (results[1] as List<Map<String, dynamic>>).length;
         _isLoadingNotifications = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() => _isLoadingNotifications = false);
     }
+  }
+
+  void _goToTab(int index) {
+    if (index < 0 || index >= _tabs.length) return;
+    setState(() => _selectedTab = index);
+    _tabController.animateTo(index);
+    _onTabSelected(index);
   }
 
   Future<void> _loadAds() async {
@@ -382,6 +406,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
     return Scaffold(
       appBar: AppBar(
+        titleSpacing: 12,
         title: Row(
           children: <Widget>[
             Icon(
@@ -390,33 +415,64 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               size: 22,
             ),
             const SizedBox(width: 8),
-            Text(
-              'Kalpkrut Beats Operations Center',
-              style: TextStyle(
-                fontFamily: 'Plus Jakarta Sans',
-                fontWeight: FontWeight.w700,
-                fontSize: 18,
-                color: context.textPrimary,
+            Expanded(
+              child: Text(
+                isDesktop ? 'Kalpkrut Beats Operations' : 'Admin Dashboard',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: context.textPrimary,
+                ),
               ),
             ),
           ],
         ),
+        actions: <Widget>[
+          IconButton(
+            tooltip: 'Refresh',
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            icon: const Icon(Icons.refresh_rounded, size: 22),
+            onPressed: () {
+              _loadPlatformMetrics();
+              _onTabSelected(_selectedTab);
+            },
+          ),
+          const SizedBox(width: 4),
+        ],
         backgroundColor: (isDark ? AppColors.darkBg : AppColors.lightNavSurface)
             .withValues(alpha: 0.94),
         bottom: !isDesktop
-            ? TabBar(
-                controller: _tabController,
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
-                indicatorColor: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
-                labelColor: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
-                unselectedLabelColor: context.textSecondary,
-                tabs: _tabs.map((Map<String, dynamic> t) {
-                  return Tab(
-                    icon: Icon(t['icon'] as IconData, size: 18),
-                    text: t['title'] as String,
-                  );
-                }).toList(),
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(48),
+                child: TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  indicatorColor: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
+                  labelColor: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
+                  unselectedLabelColor: context.textSecondary,
+                  labelPadding: const EdgeInsets.symmetric(horizontal: 12),
+                  tabs: _tabs.map((Map<String, dynamic> t) {
+                    return Tab(
+                      height: 44,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(t['icon'] as IconData, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            t['title'] as String,
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
               )
             : null,
       ),
@@ -554,9 +610,72 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   }
 
   Widget _buildNotificationsTab(BuildContext context) {
+    final bool isDark = context.isDarkMode;
+    List<Map<String, dynamic>> list = List<Map<String, dynamic>>.from(_adminNotifications);
+    if (_notifyTargetFilter != 'all') {
+      list = list
+          .where((Map<String, dynamic> n) =>
+              '${n['target_type'] ?? 'none'}' == _notifyTargetFilter)
+          .toList();
+    }
+    list.sort((Map<String, dynamic> a, Map<String, dynamic> b) {
+      final int ta = (a['created_at'] as num?)?.toInt() ?? 0;
+      final int tb = (b['created_at'] as num?)?.toInt() ?? 0;
+      return _notifySort == 'oldest' ? ta.compareTo(tb) : tb.compareTo(ta);
+    });
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
+        EchoGlassCard(
+          padding: const EdgeInsets.all(14),
+          borderRadius: 14,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Icon(Icons.phone_android_rounded,
+                      color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Mobile FCM Push',
+                      style: TextStyle(
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: context.textPrimary,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$_fcmTokenCount devices',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: context.textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Send OS notification to user phones with song / album preview. '
+                'Uses FCM HTTP v1 (Firebase service-account JSON on API).',
+                style: TextStyle(fontSize: 12, color: context.textSecondary, height: 1.35),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
         Row(
           children: <Widget>[
             Expanded(
@@ -572,7 +691,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             ),
             IconButton(
               onPressed: _loadAdminNotifications,
-              icon: const Icon(Icons.refresh_rounded),
+              tooltip: 'Refresh',
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              icon: const Icon(Icons.refresh_rounded, size: 22),
             ),
             FilledButton.icon(
               onPressed: _showCreateNotificationDialog,
@@ -583,16 +705,66 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         ),
         const SizedBox(height: 6),
         Text(
-          'Amazon-style push to all app users. Tap opens song / playlist / artist.',
+          'All users or selected accounts. Tap on device opens song / album / playlist.',
           style: TextStyle(fontSize: 13, color: context.textSecondary),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: <Widget>[
+            SizedBox(
+              width: 160,
+              child: DropdownButtonFormField<String>(
+                value: _notifyTargetFilter,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Target',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                items: const <DropdownMenuItem<String>>[
+                  DropdownMenuItem(value: 'all', child: Text('All types')),
+                  DropdownMenuItem(value: 'song', child: Text('Song')),
+                  DropdownMenuItem(value: 'album', child: Text('Album')),
+                  DropdownMenuItem(value: 'playlist', child: Text('Playlist')),
+                  DropdownMenuItem(value: 'artist', child: Text('Artist')),
+                  DropdownMenuItem(value: 'none', child: Text('None')),
+                ],
+                onChanged: (String? v) =>
+                    setState(() => _notifyTargetFilter = v ?? 'all'),
+              ),
+            ),
+            SizedBox(
+              width: 140,
+              child: DropdownButtonFormField<String>(
+                value: _notifySort,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Sort',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                items: const <DropdownMenuItem<String>>[
+                  DropdownMenuItem(value: 'newest', child: Text('Newest')),
+                  DropdownMenuItem(value: 'oldest', child: Text('Oldest')),
+                ],
+                onChanged: (String? v) =>
+                    setState(() => _notifySort = v ?? 'newest'),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         if (_isLoadingNotifications)
           const Center(child: CircularProgressIndicator())
-        else if (_adminNotifications.isEmpty)
+        else if (list.isEmpty)
           Text('No notifications yet.', style: TextStyle(color: context.textMuted))
         else
-          ..._adminNotifications.map((Map<String, dynamic> n) {
+          ...list.map((Map<String, dynamic> n) {
+            final String audience = '${n['audience'] ?? 'all'}';
+            final List<dynamic> ids = (n['target_user_ids'] as List<dynamic>?) ?? <dynamic>[];
+            final String image = '${n['image_url'] ?? ''}';
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: EchoGlassCard(
@@ -600,8 +772,23 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 borderRadius: 14,
                 child: Row(
                   children: <Widget>[
-                    const Icon(Icons.notifications_active_rounded,
-                        color: AppColors.secondary),
+                    if (image.isNotEmpty)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          image,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.notifications_active_rounded,
+                            color: AppColors.secondary,
+                          ),
+                        ),
+                      )
+                    else
+                      const Icon(Icons.notifications_active_rounded,
+                          color: AppColors.secondary),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -609,23 +796,24 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                         children: <Widget>[
                           Text(
                             '${n['title'] ?? ''}',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: context.textPrimary,
+                            ),
                           ),
+                          const SizedBox(height: 2),
                           Text(
                             '${n['body'] ?? ''}',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: context.textSecondary,
-                            ),
+                            style: TextStyle(fontSize: 12, color: context.textSecondary),
                           ),
+                          const SizedBox(height: 4),
                           Text(
-                            '${n['target_type'] ?? 'none'} → ${n['target_id'] ?? '-'}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: context.textMuted,
-                            ),
+                            '${n['target_type'] ?? 'none'} → ${n['target_id'] ?? '-'} · '
+                            '${audience == 'selected' ? '${ids.length} users' : 'all users'}'
+                            '${n['fcm'] is Map ? ' · FCM ${(n['fcm'] as Map)['mode']}' : ''}',
+                            style: TextStyle(fontSize: 11, color: context.textMuted),
                           ),
                         ],
                       ),
@@ -650,53 +838,193 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   }
 
   Future<void> _showCreateNotificationDialog() async {
+    if (_users.isEmpty) {
+      await _loadUsers();
+    }
     final TextEditingController titleCtrl = TextEditingController();
     final TextEditingController bodyCtrl = TextEditingController();
     final TextEditingController targetCtrl = TextEditingController();
-    String targetType = 'playlist';
+    final TextEditingController imageCtrl = TextEditingController();
+    final TextEditingController userSearchCtrl = TextEditingController();
+    String targetType = 'song';
+    String audience = 'all';
+    final Set<String> selectedUserIds = <String>{};
+    String userQuery = '';
+    bool sendFcm = true;
+
     final bool? ok = await showDialog<bool>(
       context: context,
       builder: (BuildContext ctx) {
         return StatefulBuilder(
           builder: (BuildContext context, void Function(void Function()) setLocal) {
+            final List<Map<String, dynamic>> visibleUsers = _users.where((Map<String, dynamic> u) {
+              if (userQuery.isEmpty) return true;
+              final String name = (u['display_name'] ?? '').toString().toLowerCase();
+              final String email = (u['email'] ?? '').toString().toLowerCase();
+              final String q = userQuery.toLowerCase();
+              return name.contains(q) || email.contains(q);
+            }).toList();
+
             return AlertDialog(
               title: const Text('Send notification'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    TextField(
-                      controller: titleCtrl,
-                      decoration: const InputDecoration(labelText: 'Title'),
-                    ),
-                    TextField(
-                      controller: bodyCtrl,
-                      decoration: const InputDecoration(labelText: 'Message'),
-                      maxLines: 3,
-                    ),
-                    DropdownButtonFormField<String>(
-                      value: targetType,
-                      items: const <DropdownMenuItem<String>>[
-                        DropdownMenuItem(value: 'playlist', child: Text('Playlist')),
-                        DropdownMenuItem(value: 'song', child: Text('Song')),
-                        DropdownMenuItem(value: 'album', child: Text('Album')),
-                        DropdownMenuItem(value: 'artist', child: Text('Artist')),
-                        DropdownMenuItem(value: 'catalog', child: Text('Catalog section')),
-                        DropdownMenuItem(value: 'radio', child: Text('Radio')),
-                        DropdownMenuItem(value: 'none', child: Text('None')),
-                      ],
-                      onChanged: (String? v) =>
-                          setLocal(() => targetType = v ?? 'playlist'),
-                      decoration: const InputDecoration(labelText: 'Open target'),
-                    ),
-                    TextField(
-                      controller: targetCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Target ID / URL',
-                        hintText: 'playlist id, song id, section key…',
+              content: SizedBox(
+                width: 420,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      TextField(
+                        controller: titleCtrl,
+                        decoration: const InputDecoration(labelText: 'Title'),
                       ),
-                    ),
-                  ],
+                      TextField(
+                        controller: bodyCtrl,
+                        decoration: const InputDecoration(labelText: 'Message'),
+                        maxLines: 3,
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: targetType,
+                        items: const <DropdownMenuItem<String>>[
+                          DropdownMenuItem(value: 'song', child: Text('Song')),
+                          DropdownMenuItem(value: 'album', child: Text('Album')),
+                          DropdownMenuItem(value: 'playlist', child: Text('Playlist')),
+                          DropdownMenuItem(value: 'artist', child: Text('Artist')),
+                          DropdownMenuItem(value: 'catalog', child: Text('Catalog section')),
+                          DropdownMenuItem(value: 'radio', child: Text('Radio')),
+                          DropdownMenuItem(value: 'none', child: Text('None')),
+                        ],
+                        onChanged: (String? v) =>
+                            setLocal(() => targetType = v ?? 'song'),
+                        decoration: const InputDecoration(labelText: 'Open target'),
+                      ),
+                      TextField(
+                        controller: targetCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Target ID / URL',
+                          hintText: 'song id, album id, playlist id…',
+                        ),
+                      ),
+                      TextField(
+                        controller: imageCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Preview image URL (optional)',
+                          hintText: 'Cover art for rich notification',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Audience',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: context.textPrimary,
+                        ),
+                      ),
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('All users'),
+                        value: 'all',
+                        groupValue: audience,
+                        onChanged: (String? v) =>
+                            setLocal(() => audience = v ?? 'all'),
+                      ),
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          'Selected users (${selectedUserIds.length})',
+                        ),
+                        value: 'selected',
+                        groupValue: audience,
+                        onChanged: (String? v) =>
+                            setLocal(() => audience = v ?? 'selected'),
+                      ),
+                      if (audience == 'selected') ...<Widget>[
+                        Row(
+                          children: <Widget>[
+                            TextButton(
+                              onPressed: () {
+                                setLocal(() {
+                                  selectedUserIds
+                                    ..clear()
+                                    ..addAll(visibleUsers
+                                        .map((Map<String, dynamic> u) => '${u['id']}'));
+                                });
+                              },
+                              child: const Text('Select all'),
+                            ),
+                            TextButton(
+                              onPressed: () =>
+                                  setLocal(() => selectedUserIds.clear()),
+                              child: const Text('Clear'),
+                            ),
+                          ],
+                        ),
+                        TextField(
+                          controller: userSearchCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Filter users',
+                            prefixIcon: Icon(Icons.search_rounded, size: 18),
+                            isDense: true,
+                          ),
+                          onChanged: (String v) =>
+                              setLocal(() => userQuery = v.trim()),
+                        ),
+                        const SizedBox(height: 6),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 180),
+                          child: visibleUsers.isEmpty
+                              ? Text(
+                                  'No users loaded. Open Users tab once, then retry.',
+                                  style: TextStyle(color: context.textMuted, fontSize: 12),
+                                )
+                              : ListView.builder(
+                                  shrinkWrap: true,
+                                  itemCount: visibleUsers.length,
+                                  itemBuilder: (_, int i) {
+                                    final Map<String, dynamic> u = visibleUsers[i];
+                                    final String id = '${u['id']}';
+                                    final String name =
+                                        (u['display_name'] as String?)?.trim().isNotEmpty ==
+                                                true
+                                            ? u['display_name'] as String
+                                            : 'Listener';
+                                    final String email = '${u['email'] ?? ''}';
+                                    final bool checked = selectedUserIds.contains(id);
+                                    return CheckboxListTile(
+                                      dense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                      value: checked,
+                                      title: Text(name, style: const TextStyle(fontSize: 13)),
+                                      subtitle: Text(email, style: const TextStyle(fontSize: 11)),
+                                      onChanged: (bool? v) {
+                                        setLocal(() {
+                                          if (v == true) {
+                                            selectedUserIds.add(id);
+                                          } else {
+                                            selectedUserIds.remove(id);
+                                          }
+                                        });
+                                      },
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Also send OS push (FCM)'),
+                        subtitle: Text(
+                          '$_fcmTokenCount registered devices',
+                          style: TextStyle(fontSize: 11, color: context.textMuted),
+                        ),
+                        value: sendFcm,
+                        onChanged: (bool v) => setLocal(() => sendFcm = v),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               actions: <Widget>[
@@ -705,7 +1033,15 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
-                  onPressed: () => Navigator.pop(ctx, true),
+                  onPressed: () {
+                    if (audience == 'selected' && selectedUserIds.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Select at least one user')),
+                      );
+                      return;
+                    }
+                    Navigator.pop(ctx, true);
+                  },
                   child: const Text('Broadcast'),
                 ),
               ],
@@ -717,16 +1053,24 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     if (ok != true || !mounted) return;
     try {
       final MusicRepository repo = context.read<MusicRepository>();
-      await repo.createNotification(<String, dynamic>{
+      final Map<String, dynamic> result = await repo.createNotification(<String, dynamic>{
         'title': titleCtrl.text.trim(),
         'body': bodyCtrl.text.trim(),
         'target_type': targetType,
         'target_id': targetCtrl.text.trim(),
+        'image_url': imageCtrl.text.trim(),
+        'audience': audience,
+        'target_user_ids': selectedUserIds.toList(),
+        'send_fcm': sendFcm,
       });
       _loadAdminNotifications();
       if (!mounted) return;
+      final dynamic fcm = result['fcm'];
+      final String fcmHint = fcm is Map
+          ? ' · FCM ${fcm['sent'] ?? 0}/${fcm['recipients'] ?? 0} (${fcm['mode']})'
+          : '';
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Notification sent to users')),
+        SnackBar(content: Text('Notification queued$fcmHint')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -2892,7 +3236,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Control Amazon Prime style popups, images, target URLs, and whether users see a ✕ cross icon, "Close ✕", or "Skip" button.',
+                      'Popup or inline placements (home / library / playlist). Inactive ads hide with no empty gap.',
                       style: TextStyle(
                         fontSize: 12.5,
                         color: isDark ? Colors.white70 : Colors.black54,
@@ -2919,59 +3263,153 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             ],
           ),
         ),
-        const SizedBox(height: 20),
-
-        if (_isLoadingAds)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.all(40),
-              child: CircularProgressIndicator(),
-            ),
-          )
-        else if (_ads.isEmpty)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Icon(
-                    Icons.campaign_outlined,
-                    size: 56,
-                    color: isDark ? Colors.white24 : Colors.black26,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'No Ads Configured Yet',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white70 : Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Create your first announcement or promo banner using the button above.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: isDark ? Colors.white38 : Colors.black45,
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: <Widget>[
+            SizedBox(
+              width: 180,
+              child: DropdownButtonFormField<String>(
+                value: _adPlacementFilter,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Placement',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                items: <DropdownMenuItem<String>>[
+                  const DropdownMenuItem(value: 'all', child: Text('All placements')),
+                  ...Advertisement.placementOptions.map(
+                    (Map<String, String> o) => DropdownMenuItem<String>(
+                      value: o['value'],
+                      child: Text(o['label'] ?? o['value'] ?? '', overflow: TextOverflow.ellipsis),
                     ),
                   ),
                 ],
+                onChanged: (String? v) =>
+                    setState(() => _adPlacementFilter = v ?? 'all'),
               ),
             ),
-          )
-        else
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _ads.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 14),
-            itemBuilder: (BuildContext ctx, int index) {
-              final Advertisement ad = _ads[index];
-              return _buildAdItemCard(context, ad);
-            },
-          ),
+            SizedBox(
+              width: 140,
+              child: DropdownButtonFormField<String>(
+                value: _adStatusFilter,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Status',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                items: const <DropdownMenuItem<String>>[
+                  DropdownMenuItem(value: 'all', child: Text('All')),
+                  DropdownMenuItem(value: 'active', child: Text('Active')),
+                  DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
+                ],
+                onChanged: (String? v) =>
+                    setState(() => _adStatusFilter = v ?? 'all'),
+              ),
+            ),
+            SizedBox(
+              width: 140,
+              child: DropdownButtonFormField<String>(
+                value: _adSort,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Sort',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                items: const <DropdownMenuItem<String>>[
+                  DropdownMenuItem(value: 'newest', child: Text('Newest')),
+                  DropdownMenuItem(value: 'title', child: Text('Title A–Z')),
+                ],
+                onChanged: (String? v) => setState(() => _adSort = v ?? 'newest'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        Builder(
+          builder: (BuildContext ctx) {
+            List<Advertisement> filtered = _ads.where((Advertisement ad) {
+              if (_adPlacementFilter != 'all' && ad.placement != _adPlacementFilter) {
+                return false;
+              }
+              if (_adStatusFilter == 'active' && !ad.isActive) return false;
+              if (_adStatusFilter == 'inactive' && ad.isActive) return false;
+              return true;
+            }).toList();
+            filtered.sort((Advertisement a, Advertisement b) {
+              if (_adSort == 'title') {
+                return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+              }
+              final DateTime da = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+              final DateTime db = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+              return db.compareTo(da);
+            });
+
+            if (_isLoadingAds) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(40),
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            }
+            if (_ads.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        Icons.campaign_outlined,
+                        size: 56,
+                        color: isDark ? Colors.white24 : Colors.black26,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No Ads Configured Yet',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white70 : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Create your first announcement or promo banner using the button above.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? Colors.white38 : Colors.black45,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+            if (filtered.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text('No ads match this filter.',
+                    style: TextStyle(color: context.textMuted)),
+              );
+            }
+            return ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: filtered.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 14),
+              itemBuilder: (BuildContext c, int index) {
+                return _buildAdItemCard(context, filtered[index]);
+              },
+            );
+          },
+        ),
       ],
     );
   }
@@ -3043,23 +3481,46 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.withValues(alpha: 0.4), width: 0.8),
-                ),
-                child: Text(
-                  closeBadgeText,
-                  style: const TextStyle(
-                    color: Colors.blue,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.withValues(alpha: 0.4), width: 0.8),
+                  ),
+                  child: Text(
+                    closeBadgeText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.blue,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    ad.placement.replaceAll('_', ' '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.purpleAccent,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
               Transform.scale(
                 scale: 0.85,
                 child: Switch(
@@ -3226,6 +3687,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         TextEditingController(text: ad?.targetUrl ?? '');
 
     String closeButtonType = ad?.closeButtonType ?? 'icon';
+    String placement = ad?.placement ?? Advertisement.placementPopup;
     bool isActive = ad?.isActive ?? true;
     bool isUploadingPoster = false;
     bool showManualUrlInput = false;
@@ -3494,10 +3956,39 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                         },
                       ),
                       const SizedBox(height: 14),
+                      DropdownButtonFormField<String>(
+                        value: placement,
+                        decoration: const InputDecoration(
+                          labelText: 'Placement (where it appears)',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: Advertisement.placementOptions
+                            .map(
+                              (Map<String, String> o) => DropdownMenuItem<String>(
+                                value: o['value'],
+                                child: Text(
+                                  o['label'] ?? o['value']!,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (String? val) {
+                          if (val != null) {
+                            setDialogState(() => placement = val);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 14),
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text('Active / Published Live', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                        subtitle: const Text('When active, shown to users upon opening app', style: TextStyle(fontSize: 12)),
+                        subtitle: Text(
+                          placement == Advertisement.placementPopup
+                              ? 'Popup on app open'
+                              : 'Inline card — auto-hides when off (no layout gap)',
+                          style: const TextStyle(fontSize: 12),
+                        ),
                         value: isActive,
                         activeTrackColor: Colors.amber,
                         onChanged: (bool val) => setDialogState(() => isActive = val),
@@ -3532,6 +4023,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                       targetUrl: targetCtrl.text.trim().isNotEmpty ? targetCtrl.text.trim() : null,
                       closeButtonType: closeButtonType,
                       isActive: isActive,
+                      placement: placement,
                       createdAt: ad?.createdAt ?? DateTime.now(),
                     );
 
@@ -3584,30 +4076,33 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: <Widget>[
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  'Platform Database Overview',
-                  style: TextStyle(
-                    fontFamily: 'Plus Jakarta Sans',
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: context.textPrimary,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Dashboard Overview',
+                    style: TextStyle(
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: context.textPrimary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Live data synchronized from Supabase cloud infrastructure.',
-                  style: TextStyle(fontSize: 13, color: context.textSecondary),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    'Live platform metrics. Use top tabs / side rail for sections.',
+                    style: TextStyle(fontSize: 13, color: context.textSecondary),
+                  ),
+                ],
+              ),
             ),
             IconButton(
-              icon: const Icon(Icons.refresh_rounded),
+              icon: const Icon(Icons.refresh_rounded, size: 22),
               tooltip: 'Refresh Metrics',
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
               onPressed: _loadPlatformMetrics,
             ),
           ],
@@ -3669,7 +4164,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           ),
           const SizedBox(height: 16),
 
-          // Real Metric Grid
+          // Real Metric Grid (tap opens the related section — no duplicate chip map)
           Wrap(
             spacing: 12,
             runSpacing: 12,
@@ -3680,6 +4175,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 value: _metrics['users_count'] ?? '0',
                 icon: Icons.people_outline_rounded,
                 color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
+                onTap: () => _goToTab(5),
               ),
               _buildMetricCard(
                 context,
@@ -3687,6 +4183,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 value: _metrics['tracks_count'] ?? 'Not tracked yet',
                 icon: Icons.music_note_rounded,
                 color: isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent,
+                onTap: () => _goToTab(1),
               ),
               _buildMetricCard(
                 context,
@@ -3694,6 +4191,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 value: _metrics['artists_count'] ?? 'Not tracked yet',
                 icon: Icons.mic_external_on_rounded,
                 color: isDark ? AppColors.tertiaryLight : AppColors.lightTertiaryAccent,
+                onTap: () => _goToTab(1),
               ),
               _buildMetricCard(
                 context,
@@ -3701,6 +4199,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 value: _metrics['playlists_count'] ?? '0',
                 icon: Icons.queue_music_rounded,
                 color: Colors.amber,
+                onTap: () => _goToTab(1),
               ),
               _buildMetricCard(
                 context,
@@ -3708,6 +4207,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 value: _metrics['favorites_count'] ?? '0',
                 icon: Icons.favorite_border_rounded,
                 color: AppColors.tertiary,
+                onTap: () => _goToTab(5),
               ),
               _buildMetricCard(
                 context,
@@ -3722,6 +4222,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 value: _metrics['reports_count'] ?? '0',
                 icon: Icons.flag_outlined,
                 color: AppColors.error,
+                onTap: () => _goToTab(9),
               ),
             ],
           ),
@@ -3736,44 +4237,49 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     required String value,
     required IconData icon,
     required Color color,
+    VoidCallback? onTap,
   }) {
     final bool isDark = context.isDarkMode;
     final double cardWidth = (MediaQuery.of(context).size.width - 48) / 2;
 
     return SizedBox(
       width: cardWidth.clamp(150.0, 240.0),
-      child: EchoGlassCard(
-        padding: const EdgeInsets.all(16),
-        borderRadius: 16,
-        backgroundColor: isDark ? null : AppColors.lightSurface,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: <Widget>[
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: context.textSecondary,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: EchoGlassCard(
+          padding: const EdgeInsets.all(16),
+          borderRadius: 16,
+          backgroundColor: isDark ? null : AppColors.lightSurface,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: context.textSecondary,
+                    ),
                   ),
-                ),
-                Icon(icon, color: color, size: 20),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: TextStyle(
-                fontFamily: 'Plus Jakarta Sans',
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: context.textPrimary,
+                  Icon(icon, color: color, size: 20),
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Text(
+                value,
+                style: TextStyle(
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: context.textPrimary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -3787,12 +4293,25 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     final bool isDark = context.isDarkMode;
 
     final List<Map<String, dynamic>> filteredUsers = _users.where((Map<String, dynamic> u) {
+      if (_userRoleFilter != 'all' && '${u['role'] ?? 'user'}' != _userRoleFilter) {
+        return false;
+      }
       if (_userSearchQuery.isEmpty) return true;
       final String name = (u['display_name'] ?? '').toString().toLowerCase();
       final String email = (u['email'] ?? '').toString().toLowerCase();
       final String query = _userSearchQuery.toLowerCase();
       return name.contains(query) || email.contains(query);
-    }).toList();
+    }).toList()
+      ..sort((Map<String, dynamic> a, Map<String, dynamic> b) {
+        if (_userSort == 'name') {
+          final String na = (a['display_name'] ?? a['email'] ?? '').toString().toLowerCase();
+          final String nb = (b['display_name'] ?? b['email'] ?? '').toString().toLowerCase();
+          return na.compareTo(nb);
+        }
+        final DateTime da = DateTime.tryParse('${a['created_at'] ?? ''}') ?? DateTime(1970);
+        final DateTime db = DateTime.tryParse('${b['created_at'] ?? ''}') ?? DateTime(1970);
+        return _userSort == 'oldest' ? da.compareTo(db) : db.compareTo(da);
+      });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3822,6 +4341,8 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
               tooltip: 'Refresh Users',
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
               onPressed: _loadUsers,
             ),
           ],
@@ -3841,6 +4362,50 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               borderSide: BorderSide.none,
             ),
           ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: <Widget>[
+            SizedBox(
+              width: 140,
+              child: DropdownButtonFormField<String>(
+                value: _userRoleFilter,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Role',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                items: const <DropdownMenuItem<String>>[
+                  DropdownMenuItem(value: 'all', child: Text('All roles')),
+                  DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                  DropdownMenuItem(value: 'user', child: Text('User')),
+                ],
+                onChanged: (String? v) =>
+                    setState(() => _userRoleFilter = v ?? 'all'),
+              ),
+            ),
+            SizedBox(
+              width: 150,
+              child: DropdownButtonFormField<String>(
+                value: _userSort,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Sort',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                items: const <DropdownMenuItem<String>>[
+                  DropdownMenuItem(value: 'newest', child: Text('Newest')),
+                  DropdownMenuItem(value: 'oldest', child: Text('Oldest')),
+                  DropdownMenuItem(value: 'name', child: Text('Name A–Z')),
+                ],
+                onChanged: (String? v) => setState(() => _userSort = v ?? 'newest'),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 16),
 
@@ -4483,53 +5048,116 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             ),
           ],
         ),
-        const SizedBox(height: 16),
-
-        if (_isLoadingReports)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 40),
-            child: Center(child: CircularProgressIndicator()),
-          )
-        else if (_reports.isEmpty)
-          EchoGlassCard(
-            padding: const EdgeInsets.all(24),
-            borderRadius: 16,
-            backgroundColor: isDark ? null : AppColors.lightSurface,
-            child: Center(
-              child: Column(
-                children: <Widget>[
-                  Icon(
-                    Icons.check_circle_outline_rounded,
-                    color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
-                    size: 40,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'No Pending Reports',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                      color: context.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'All active tracks and community playlists are clean.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: context.textSecondary, fontSize: 12),
-                  ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: <Widget>[
+            SizedBox(
+              width: 150,
+              child: DropdownButtonFormField<String>(
+                value: _reportStatusFilter,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Status',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                items: const <DropdownMenuItem<String>>[
+                  DropdownMenuItem(value: 'all', child: Text('All')),
+                  DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                  DropdownMenuItem(value: 'resolved', child: Text('Resolved')),
+                  DropdownMenuItem(value: 'dismissed', child: Text('Dismissed')),
                 ],
+                onChanged: (String? v) =>
+                    setState(() => _reportStatusFilter = v ?? 'all'),
               ),
             ),
-          )
-        else
-          ListView.separated(
+            SizedBox(
+              width: 140,
+              child: DropdownButtonFormField<String>(
+                value: _reportSort,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Sort',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                items: const <DropdownMenuItem<String>>[
+                  DropdownMenuItem(value: 'newest', child: Text('Newest')),
+                  DropdownMenuItem(value: 'oldest', child: Text('Oldest')),
+                ],
+                onChanged: (String? v) =>
+                    setState(() => _reportSort = v ?? 'newest'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        Builder(builder: (BuildContext _) {
+          List<Map<String, dynamic>> reports = _reports.where((Map<String, dynamic> r) {
+            if (_reportStatusFilter == 'all') return true;
+            return '${r['status'] ?? 'pending'}'.toLowerCase() == _reportStatusFilter;
+          }).toList()
+            ..sort((Map<String, dynamic> a, Map<String, dynamic> b) {
+              final DateTime da =
+                  DateTime.tryParse('${a['created_at'] ?? ''}') ?? DateTime(1970);
+              final DateTime db =
+                  DateTime.tryParse('${b['created_at'] ?? ''}') ?? DateTime(1970);
+              return _reportSort == 'oldest' ? da.compareTo(db) : db.compareTo(da);
+            });
+
+          if (_isLoadingReports) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (_reports.isEmpty) {
+            return EchoGlassCard(
+              padding: const EdgeInsets.all(24),
+              borderRadius: 16,
+              backgroundColor: isDark ? null : AppColors.lightSurface,
+              child: Center(
+                child: Column(
+                  children: <Widget>[
+                    Icon(
+                      Icons.check_circle_outline_rounded,
+                      color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
+                      size: 40,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No Pending Reports',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: context.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'All active tracks and community playlists are clean.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: context.textSecondary, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+          if (reports.isEmpty) {
+            return Text('No reports match this filter.',
+                style: TextStyle(color: context.textMuted));
+          }
+          return ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: _reports.length,
+            itemCount: reports.length,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (BuildContext ctx, int i) {
-              final Map<String, dynamic> r = _reports[i];
+              final Map<String, dynamic> r = reports[i];
               final String id = r['id']?.toString() ?? '';
               final String reason = r['reason']?.toString() ?? 'Content Report';
               final String status = r['status']?.toString() ?? 'pending';
@@ -4566,7 +5194,8 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 ),
               );
             },
-          ),
+          );
+        }),
       ],
     );
   }

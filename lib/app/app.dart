@@ -9,6 +9,7 @@ import '../core/storage/settings_store.dart';
 import '../core/utils/app_messenger.dart';
 import '../data/music_repository.dart';
 import '../data/provider_registry.dart';
+import '../data/services/fcm_service.dart';
 import '../data/services/supabase_service.dart';
 import '../domain/playback/playback_controller.dart';
 import '../domain/recommendations/recommendation_engine.dart';
@@ -50,6 +51,10 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
     });
 
     _globalAuthSub = SupabaseService().authStateChanges.listen((AuthState data) {
+      if (data.event == AuthChangeEvent.signedIn ||
+          data.event == AuthChangeEvent.tokenRefreshed) {
+        FcmService.instance.syncUser();
+      }
       if (data.event == AuthChangeEvent.passwordRecovery) {
         SupabaseService().isPasswordRecovery = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -950,10 +950,13 @@ class MusicRepository {
     );
   }
 
-  Future<List<Map<String, dynamic>>> fetchNotifications({int limit = 50}) async {
+  Future<List<Map<String, dynamic>>> fetchNotifications({
+    int limit = 50,
+    String? userId,
+  }) async {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) return <Map<String, dynamic>>[];
-    return provider.fetchNotifications(limit: limit);
+    return provider.fetchNotifications(limit: limit, userId: userId);
   }
 
   Future<Map<String, dynamic>> createNotification(Map<String, dynamic> data) async {
@@ -968,6 +971,20 @@ class MusicRepository {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) return false;
     return provider.deleteNotification(notifId);
+  }
+
+  Future<Map<String, dynamic>> sendFcmPush(Map<String, dynamic> data) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) {
+      throw const ProviderException('custom_api', message: 'Custom API provider not configured');
+    }
+    return provider.sendFcmPush(data);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchFcmTokens() async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return <Map<String, dynamic>>[];
+    return provider.fetchFcmTokens();
   }
 
   Future<Map<String, dynamic>> createRadioStation(Map<String, dynamic> data) async {

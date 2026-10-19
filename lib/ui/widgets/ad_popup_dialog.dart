@@ -24,7 +24,9 @@ class AdPopupDialog extends StatelessWidget {
     if (_hasShownThisSession) return;
     try {
       final List<Advertisement> activeAds =
-          await SupabaseService().fetchActiveAdvertisements();
+          await SupabaseService().fetchActiveAdvertisements(
+        placement: Advertisement.placementPopup,
+      );
       if (activeAds.isEmpty) return;
 
       _hasShownThisSession = true;

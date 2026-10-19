@@ -349,6 +349,7 @@ CREATE TABLE IF NOT EXISTS public.advertisements (
     is_active BOOLEAN DEFAULT true,
     close_button_type TEXT DEFAULT 'icon', -- 'icon', 'text_and_cross', 'text_only'
     display_order INT DEFAULT 0,
+    placement TEXT DEFAULT 'popup', -- popup | home_pre_radio | home_post_recent | catalog_mid | library_mid | playlist_mid
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

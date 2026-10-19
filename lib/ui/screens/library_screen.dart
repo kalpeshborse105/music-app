@@ -19,8 +19,10 @@ import '../widgets/app_sheets.dart';
 import '../widgets/artwork.dart';
 import '../widgets/cards.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/inline_ad_slot.dart';
 import '../widgets/state_views.dart';
 import '../widgets/track_tile.dart';
+import '../../domain/models/advertisement.dart';
 import 'category_detail_screen.dart';
 import 'list_screen.dart';
 import 'onboarding_auth_screen.dart';
@@ -1066,6 +1068,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 );
               },
             ),
+          ),
+        ),
+      );
+    }
+
+    // Admin mid-library ad (hidden when inactive)
+    if (_selectedFilter == 'All') {
+      slivers.add(
+        const SliverToBoxAdapter(
+          child: InlineAdSlot(
+            placement: Advertisement.placementLibraryMid,
           ),
         ),
       );

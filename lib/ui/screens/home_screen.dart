@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/utils/formatters.dart';
 import '../../data/music_repository.dart';
+import '../../data/services/supabase_service.dart';
 import '../../domain/models/catalog_section.dart';
 import '../../domain/models/paged_result.dart';
 import '../../domain/models/track.dart';
@@ -16,8 +17,10 @@ import '../theme/app_spacing.dart';
 import '../widgets/app_sheets.dart';
 import '../widgets/cards.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/inline_ad_slot.dart';
 import '../widgets/state_views.dart';
 import '../widgets/track_tile.dart';
+import '../../domain/models/advertisement.dart';
 import '../../domain/models/album.dart';
 import '../../domain/models/artist.dart';
 import 'album_screen.dart';
@@ -290,10 +293,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   // 1. Header with Brand Mark and Actions
                   SliverToBoxAdapter(child: _buildHeader(context)),
 
-                  // Global Search Redirect Bar
-                  SliverToBoxAdapter(child: _buildSearchBar(context)),
+                  // Admin ad: after header, before radio (only if active)
+                  const SliverToBoxAdapter(
+                    child: InlineAdSlot(
+                      placement: Advertisement.placementHomePreRadio,
+                    ),
+                  ),
 
-                  // Akashvani Live Radio Banner
+                  // Beats Radio Live Banner
                   SliverToBoxAdapter(child: _buildLiveRadioBanner(context)),
 
                   // Top Festival / Special Hero Banner (if active)
@@ -318,6 +325,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         context,
                         library,
                         repo,
+                      ),
+                    ),
+
+                    const SliverToBoxAdapter(
+                      child: InlineAdSlot(
+                        placement: Advertisement.placementHomePostRecent,
                       ),
                     ),
 
@@ -401,28 +414,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  const Text(
-                    'Kalpkrut Beats',
-                    style: TextStyle(
-                      fontFamily: 'Plus Jakarta Sans',
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                      letterSpacing: -0.4,
-                    ),
-                  ),
-                  Text(
-                    'Home',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 11,
-                      color: context.textSecondary,
-                    ),
-                  ),
-                ],
+              Text(
+                'Kalpkrut Beats',
+                style: TextStyle(
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 20,
+                  letterSpacing: -0.2,
+                  height: 1.15,
+                  color: context.textPrimary,
+                ),
               ),
             ],
           ),
@@ -441,56 +442,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSearchBar(BuildContext context) {
-    final bool isDark = context.isDarkMode;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.xs,
-        AppSpacing.lg,
-        AppSpacing.sm,
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(24),
-        onTap: () => AppShell.selectTab(context, 1),
-        child: Container(
-          height: 46,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: isDark
-                ? AppColors.surfaceContainerHigh.withValues(alpha: 0.8)
-                : AppColors.lightElevatedSurface,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
-            ),
-          ),
-          child: Row(
-            children: <Widget>[
-              Icon(
-                Icons.search_rounded,
-                size: 20,
-                color: isDark
-                    ? AppColors.textSecondaryDark
-                    : AppColors.textSecondaryLight,
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'Search songs, artists, albums...',
-                style: TextStyle(
-                  fontSize: 13.5,
-                  color: isDark
-                      ? AppColors.textSecondaryDark
-                      : AppColors.textSecondaryLight,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -607,7 +558,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final MusicRepository repo = context.read<MusicRepository>();
     List<Map<String, dynamic>> notes = <Map<String, dynamic>>[];
     try {
-      notes = await repo.fetchNotifications(limit: 40);
+      notes = await repo.fetchNotifications(
+        limit: 40,
+        userId: SupabaseService().currentUserId,
+      );
     } catch (_) {}
 
     if (!context.mounted) return;
@@ -684,6 +638,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             timestamp: when,
                             icon: Icons.campaign_rounded,
                             color: AppColors.secondary,
+                            imageUrl: '${n['image_url'] ?? ''}',
                           ),
                         );
                       },
@@ -768,6 +723,7 @@ class _HomeScreenState extends State<HomeScreen> {
     required String timestamp,
     required IconData icon,
     required Color color,
+    String imageUrl = '',
   }) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -781,6 +737,25 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          if (imageUrl.trim().isNotEmpty)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                imageUrl.trim(),
+                width: 44,
+                height: 44,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: color, size: 18),
+                ),
+              ),
+            )
+          else
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -1534,14 +1509,25 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         }
 
+        final List<MapEntry<String, List<CatalogSection>>> groupEntries =
+            grouped.entries.toList();
+        final int midGroup = groupEntries.isEmpty
+            ? 0
+            : (groupEntries.length / 2).floor().clamp(0, groupEntries.length);
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             // Dynamic Sections grouped by category (Phase 4)
-            for (final MapEntry<String, List<CatalogSection>> entry
-                in grouped.entries) ...<Widget>[
+            for (int gi = 0; gi < groupEntries.length; gi++) ...<Widget>[
+              if (gi == midGroup && groupEntries.length > 1)
+                const InlineAdSlot(
+                  placement: Advertisement.placementCatalogMid,
+                ),
               Builder(
                 builder: (BuildContext ctx) {
+                  final MapEntry<String, List<CatalogSection>> entry =
+                      groupEntries[gi];
                   final String groupTitle = entry.key;
                   final List<CatalogSection> groupSections = entry.value;
 

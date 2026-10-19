@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "986422322069",
+    "project_id": "kalpkrut-beats",
+    "storage_bucket": "kalpkrut-beats.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:986422322069:android:d230e799adc8f025e74c9c",
+        "android_client_info": {
+          "package_name": "com.kalpkrut.beats"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAqFfka7WFvu2CPiYcIfXEno9CP19QHbfs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1076,7 +1076,7 @@ class SupabaseService {
 
   /// Fetches real registered users from `profiles` table for admin inspection.
   /// Passwords and sensitive authentication credentials are never returned.
-  Future<List<Map<String, dynamic>>> fetchAdminUsers({int limit = 50}) async {
+  Future<List<Map<String, dynamic>>> fetchAdminUsers({int limit = 200}) async {
     if (!_isInitialized) return <Map<String, dynamic>>[];
     try {
       final List<dynamic> data = await client
@@ -1147,9 +1147,13 @@ class SupabaseService {
     return _getLocalAds();
   }
 
-  Future<List<Advertisement>> fetchActiveAdvertisements() async {
+  Future<List<Advertisement>> fetchActiveAdvertisements({String? placement}) async {
     final List<Advertisement> all = await fetchAdvertisements();
-    return all.where((Advertisement ad) => ad.isActive && ad.imageUrl.isNotEmpty).toList();
+    return all.where((Advertisement ad) {
+      if (!ad.isActive || ad.imageUrl.isEmpty) return false;
+      if (placement == null || placement.isEmpty) return true;
+      return ad.placement == placement;
+    }).toList();
   }
 
   Future<bool> saveAdvertisement(Advertisement ad) async {
@@ -1159,7 +1163,15 @@ class SupabaseService {
         await client.from('advertisements').upsert(ad.toJson());
         remoteSuccess = true;
       } catch (e) {
+        // Older DBs without placement column — retry without it.
         debugPrint('[SupabaseService] saveAdvertisement remote error: $e');
+        try {
+          final Map<String, dynamic> fallback = ad.toJson()..remove('placement');
+          await client.from('advertisements').upsert(fallback);
+          remoteSuccess = true;
+        } catch (e2) {
+          debugPrint('[SupabaseService] saveAdvertisement fallback error: $e2');
+        }
       }
     }
 
