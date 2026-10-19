@@ -430,6 +430,7 @@ class CustomApiProvider extends BaseMusicProvider {
     bool includeDisabled = false,
     String? lang,
     String? group,
+    bool refresh = false,
   }) async {
     if (_baseUrl.isEmpty) return <Map<String, dynamic>>[];
     try {
@@ -439,6 +440,7 @@ class CustomApiProvider extends BaseMusicProvider {
         queryParams['lang'] = lang;
       }
       if (group != null && group.isNotEmpty) queryParams['group'] = group;
+      if (refresh) queryParams['refresh'] = '1';
 
       final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections').replace(
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
@@ -446,37 +448,13 @@ class CustomApiProvider extends BaseMusicProvider {
       final http.Response res = await http.get(
         uri,
         headers: _buildHeaders(),
-      ).timeout(const Duration(seconds: 12));
+      ).timeout(Duration(seconds: refresh ? 45 : 10));
       if (res.statusCode == 200) {
         final dynamic data = jsonDecode(res.body);
         if (data is Map && data['sections'] is List) {
-          final List<Map<String, dynamic>> sections = List<Map<String, dynamic>>.from(
+          return List<Map<String, dynamic>>.from(
             (data['sections'] as List<dynamic>).whereType<Map<String, dynamic>>(),
           );
-          // Cold API may return shells while warming — one quick retry fills songs.
-          final bool warming = data['warming'] == true ||
-              (data['warming'] is num && (data['warming'] as num) > 0);
-          final bool thin = sections.isNotEmpty &&
-              sections.where((Map<String, dynamic> s) =>
-                  (s['items'] is List) && (s['items'] as List).isNotEmpty).length <
-                  (sections.length / 3).ceil();
-          if ((warming || thin) && !includeDisabled) {
-            await Future<void>.delayed(const Duration(milliseconds: 2800));
-            final http.Response retry = await http.get(
-              uri,
-              headers: _buildHeaders(),
-            ).timeout(const Duration(seconds: 12));
-            if (retry.statusCode == 200) {
-              final dynamic retryData = jsonDecode(retry.body);
-              if (retryData is Map && retryData['sections'] is List) {
-                return List<Map<String, dynamic>>.from(
-                  (retryData['sections'] as List<dynamic>)
-                      .whereType<Map<String, dynamic>>(),
-                );
-              }
-            }
-          }
-          return sections;
         }
       }
     } catch (e) {

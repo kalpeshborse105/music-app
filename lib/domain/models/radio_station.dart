@@ -53,6 +53,17 @@ class RadioStation {
         (langs.isNotEmpty ? langs.first : 'hindi');
     if (langs.isEmpty) langs.add(primary);
 
+    final String category = json['category'] as String? ?? 'National';
+    final String rawTier = (json['tier'] as String?)?.trim().toLowerCase() ?? '';
+    final String catLower = category.toLowerCase();
+    final String tier = (rawTier == 'private' || rawTier == 'government')
+        ? rawTier
+        : (catLower.contains('private') ||
+                catLower.contains('popular') ||
+                catLower.contains('mirchi')
+            ? 'private'
+            : 'government');
+
     return RadioStation(
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? 'Radio Station',
@@ -62,10 +73,10 @@ class RadioStation {
       streamUrl: json['stream_url'] as String? ?? '',
       artworkUrl: json['artwork_url'] as String? ??
           'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80',
-      category: json['category'] as String? ?? 'National',
+      category: category,
       language: primary,
       languages: langs,
-      tier: (json['tier'] as String?)?.trim().toLowerCase() ?? 'government',
+      tier: tier,
       district: json['district'] as String? ?? '',
       isLive: json['is_live'] as bool? ?? true,
       verified: json['verified'] as bool? ?? false,

@@ -94,6 +94,7 @@ class AppDependencies {
       registry: registry,
       downloadStore: downloadStore,
       settings: settings,
+      cache: cache,
     );
 
     // Initialize the background audio service. If the platform doesn't support

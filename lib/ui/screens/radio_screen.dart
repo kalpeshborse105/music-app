@@ -19,7 +19,8 @@ class RadioScreen extends StatefulWidget {
 
 class _RadioScreenState extends State<RadioScreen> {
   List<RadioStation> _all = RadioStation.stations;
-  String _tier = 'private'; // private | government | all
+  /// Default All so every station shows (Popular / AIR are filters).
+  String _tier = 'all'; // private | government | all
   String _state = 'all';
   String _district = 'all';
   String _query = '';
@@ -214,14 +215,14 @@ class _RadioScreenState extends State<RadioScreen> {
                     children: <Widget>[
                       _tierChip('Popular', 'private'),
                       const SizedBox(width: 8),
-                      _tierChip('AIR', 'government'),
+                      _tierChip('Akashvani', 'government'),
                       const SizedBox(width: 8),
-                      _tierChip('All A–Z', 'all'),
+                      _tierChip('All', 'all'),
                     ],
                   ),
                 ),
               ),
-              if (_tier == 'government')
+              if (_tier != 'private')
                 SliverToBoxAdapter(
                   child: SizedBox(
                     height: 40,
@@ -262,7 +263,7 @@ class _RadioScreenState extends State<RadioScreen> {
                     ),
                   ),
                 ),
-              if (_tier == 'government' && _districts.length > 1)
+              if (_tier != 'private' && _districts.length > 1)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.only(top: 8),

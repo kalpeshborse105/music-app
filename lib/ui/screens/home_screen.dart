@@ -111,7 +111,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final String? lang = _activeLang;
     setState(() {
       _trendingFuture = repo.trending(limit: 20, language: lang);
-      _catalogSectionsFuture = repo.getCatalogSections(lang: lang);
+      _catalogSectionsFuture = repo.getCatalogSections(
+        lang: lang,
+        forceRefresh: true,
+      );
     });
     await Future.wait(<Future<dynamic>>[
       _loadInitialTracks(),
@@ -150,11 +153,13 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _currentOffset += paged.items.length;
           _infiniteTracks.addAll(paged.items);
-          _hasMore = paged.hasMore;
+          _hasMore = paged.hasMore || paged.items.isNotEmpty;
+          if (paged.items.isEmpty) _hasMore = true;
         });
       }
     } catch (e) {
       debugPrint('[HomeScreen] _loadInitialTracks error: $e');
+      if (mounted) setState(() => _hasMore = true);
     } finally {
       if (mounted) setState(() => _isLoadingInitial = false);
     }
@@ -1430,98 +1435,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPickedForYouLoading(BuildContext context) {
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const SectionHeader(
-            title: 'Picked for you',
-            subtitle: 'Curating related music…',
-            topPadding: AppSpacing.sm,
-          ),
-          SizedBox(
-            height: 168,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              itemCount: 5,
-              separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
-              itemBuilder: (BuildContext ctx, int i) {
-                return TweenAnimationBuilder<double>(
-                  tween: Tween<double>(begin: 0.45, end: 1),
-                  duration: Duration(milliseconds: 700 + i * 120),
-                  curve: Curves.easeInOut,
-                  builder: (BuildContext c, double value, Widget? child) {
-                    return Opacity(
-                      opacity: 0.35 + (value * 0.45),
-                      child: child,
-                    );
-                  },
-                  child: Container(
-                    width: 132,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-                      color: isDark
-                          ? AppColors.surfaceContainerHigh.withValues(alpha: 0.7)
-                          : AppColors.lightElevatedSurface,
-                    ),
-                    padding: const EdgeInsets.all(10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Expanded(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius:
-                                  BorderRadius.circular(AppSpacing.radiusMd),
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: <Color>[
-                                  const Color(0xFFFF8A3D).withValues(alpha: 0.35),
-                                  AppColors.primary.withValues(alpha: 0.25),
-                                ],
-                              ),
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.auto_awesome_rounded,
-                                color: Color(0xFFFF8A3D),
-                                size: 28,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Container(
-                          height: 10,
-                          width: 88,
-                          decoration: BoxDecoration(
-                            color: Colors.white24,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          height: 8,
-                          width: 56,
-                          decoration: BoxDecoration(
-                            color: Colors.white12,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
+    return const _MadeForYouSkeleton();
   }
 
   Widget _buildAdminCatalogSections(
@@ -2001,30 +1915,24 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 6),
 
           if (_isLoadingInitial && tracks.isEmpty)
-            Column(
-              children: List<Widget>.generate(
-                4,
-                (_) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Container(
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? AppColors.surfaceContainerHigh.withValues(alpha: 0.5)
-                          : AppColors.lightElevatedSurface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 28),
+              child: Center(
+                child: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2.4),
                 ),
               ),
             )
           else if (tracks.isEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
+              padding: const EdgeInsets.symmetric(vertical: 20),
               child: Center(
-                child: Text(
-                  'No tracks available right now',
-                  style: TextStyle(color: context.textMuted, fontSize: 13),
+                child: TextButton.icon(
+                  onPressed: _loadInitialTracks,
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('Load songs'),
                 ),
               ),
             )
@@ -2054,18 +1962,85 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   )
-                else if (!_hasMore && tracks.isNotEmpty)
+                else if (_hasMore)
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     child: Center(
-                      child: Text(
-                        'You\'ve reached the end of the mix',
-                        style: TextStyle(color: context.textMuted, fontSize: 12),
+                      child: TextButton(
+                        onPressed: _loadMore,
+                        child: const Text('Load more songs'),
                       ),
                     ),
                   ),
               ],
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Simple Made for you logo pulse — no shelf skeletons.
+class _MadeForYouSkeleton extends StatefulWidget {
+  const _MadeForYouSkeleton();
+
+  @override
+  State<_MadeForYouSkeleton> createState() => _MadeForYouSkeletonState();
+}
+
+class _MadeForYouSkeletonState extends State<_MadeForYouSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 28),
+      child: Column(
+        children: <Widget>[
+          const SectionHeader(
+            title: 'Made for you',
+            subtitle: 'Loading your music…',
+            topPadding: 0,
+          ),
+          const SizedBox(height: 8),
+          AnimatedBuilder(
+            animation: _pulse,
+            builder: (BuildContext context, Widget? child) {
+              final double t = _pulse.value;
+              return Opacity(
+                opacity: 0.75 + t * 0.25,
+                child: Transform.scale(
+                  scale: 0.94 + t * 0.06,
+                  child: child,
+                ),
+              );
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Image.asset(
+                'assets/icon/app_icon.png',
+                width: 64,
+                height: 64,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
         ],
       ),
     );

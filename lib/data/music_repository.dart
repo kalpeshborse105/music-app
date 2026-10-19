@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../core/cache/cache_store.dart';
 import '../core/cache/ttl_cache.dart';
 import '../core/constants/app_constants.dart';
 import '../core/errors/app_exception.dart';
@@ -41,13 +42,16 @@ class MusicRepository {
     required ProviderRegistry registry,
     DownloadStore? downloadStore,
     SettingsStore? settings,
+    CacheStore? cache,
   })  : _registry = registry,
         _downloadStore = downloadStore,
-        _settings = settings;
+        _settings = settings,
+        _cache = cache;
 
   final ProviderRegistry _registry;
   final DownloadStore? _downloadStore;
   final SettingsStore? _settings;
+  final CacheStore? _cache;
 
   // Aggregate result caches for the hot discovery path.
   final TtlCache<String, SearchResult> _searchCache =
@@ -193,7 +197,7 @@ class MusicRepository {
         : _discoveryProviders;
 
     if (providers.isEmpty) {
-      return const PagedResult<Track>(items: <Track>[], total: 0, hasMore: false);
+      return const PagedResult<Track>(items: <Track>[], total: 0, hasMore: true);
     }
 
     for (final MusicProvider p in providers) {
@@ -207,7 +211,8 @@ class MusicRepository {
             items: deduped,
             total: res.total,
             nextOffset: offset + deduped.length,
-            hasMore: res.hasMore,
+            // Keep scrolling even if a page is thin — home infinite feed.
+            hasMore: res.hasMore || deduped.length >= limit,
           );
         } catch (e) {
           Logger.warn('CustomApiProvider trendingPaged error: $e');
@@ -220,7 +225,7 @@ class MusicRepository {
       items: tracks,
       total: tracks.length,
       nextOffset: offset + tracks.length,
-      hasMore: tracks.length >= limit,
+      hasMore: tracks.length >= limit || tracks.isEmpty,
     );
   }
 
@@ -614,11 +619,74 @@ class MusicRepository {
   // ─── Catalogue Management ──────────────────────────────────────────────────
   CustomApiProvider? get _customApiProvider => _registry.byId('custom_api') as CustomApiProvider?;
 
+  String _catalogCacheKey({
+    required bool includeDisabled,
+    String? lang,
+    String? group,
+  }) {
+    return 'catalog_sections_v2:'
+        '${includeDisabled ? 'all' : 'on'}:'
+        '${(lang ?? 'all').toLowerCase()}:'
+        '${(group ?? 'all').toLowerCase()}';
+  }
+
+  int _catalogFilledCount(List<CatalogSection> sections) {
+    return sections.where((CatalogSection s) => s.items.isNotEmpty).length;
+  }
+
+  List<CatalogSection>? _readCatalogCache(String key) {
+    final List<dynamic>? raw = _cache?.getList(key);
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return raw
+          .whereType<Map>()
+          .map(
+            (Map m) => CatalogSection.fromJson(Map<String, dynamic>.from(m)),
+          )
+          .toList();
+    } catch (e) {
+      debugPrint('[MusicRepository] catalog cache decode failed: $e');
+      return null;
+    }
+  }
+
+  Future<void> _writeCatalogCache(String key, List<Map<String, dynamic>> raw) async {
+    final CacheStore? cache = _cache;
+    if (cache == null || raw.isEmpty) return;
+    try {
+      await cache.set(key, raw, AppConstants.catalogCacheTtl);
+    } catch (e) {
+      debugPrint('[MusicRepository] catalog cache write failed: $e');
+    }
+  }
+
+  bool _catalogLooksHealthy(List<CatalogSection> sections) {
+    if (sections.isEmpty) return false;
+    final int filled = _catalogFilledCount(sections);
+    return filled >= 1 && filled >= (sections.length / 3).ceil();
+  }
+
   Future<List<CatalogSection>> getCatalogSections({
     bool includeDisabled = false,
     String? lang,
     String? group,
+    bool forceRefresh = false,
   }) async {
+    final String cacheKey = _catalogCacheKey(
+      includeDisabled: includeDisabled,
+      lang: lang,
+      group: group,
+    );
+    final List<CatalogSection>? cached = includeDisabled
+        ? null
+        : _readCatalogCache(cacheKey);
+    final bool cacheOk = cached != null && _catalogLooksHealthy(cached);
+
+    // Instant reopen — no network, no bg refresh (pull-to-refresh sets forceRefresh).
+    if (cacheOk && !forceRefresh) {
+      return cached;
+    }
+
     final CustomApiProvider? provider = _customApiProvider;
     if (provider != null) {
       try {
@@ -626,14 +694,31 @@ class MusicRepository {
           includeDisabled: includeDisabled,
           lang: lang,
           group: group,
+          refresh: forceRefresh || !cacheOk,
         );
         if (raw.isNotEmpty) {
-          return raw.map((Map<String, dynamic> m) => CatalogSection.fromJson(m)).toList();
+          final List<CatalogSection> fresh = raw
+              .map((Map<String, dynamic> m) => CatalogSection.fromJson(m))
+              .toList();
+          if (_catalogLooksHealthy(fresh)) {
+            if (!includeDisabled) {
+              await _writeCatalogCache(cacheKey, raw);
+            }
+            return fresh;
+          }
+          if (cacheOk) return cached;
+          if (!includeDisabled) {
+            await _writeCatalogCache(cacheKey, raw);
+          }
+          return fresh;
         }
       } catch (e) {
         debugPrint('[MusicRepository] getCatalogSections error: $e');
       }
     }
+
+    if (cacheOk) return cached;
+
     if (SupabaseService().isInitialized) {
       return _getCatalogSectionsFromSupabase(
         includeDisabled: includeDisabled,
@@ -641,7 +726,7 @@ class MusicRepository {
         group: group,
       );
     }
-    return <CatalogSection>[];
+    return cached ?? <CatalogSection>[];
   }
 
   Future<List<CatalogSection>> _getCatalogSectionsFromSupabase({

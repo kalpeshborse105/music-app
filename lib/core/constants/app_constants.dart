@@ -23,6 +23,8 @@ class AppConstants {
   static const Duration discoveryCacheTtl = Duration(minutes: 30);
   static const Duration entityCacheTtl = Duration(hours: 6);
   static const Duration streamCacheTtl = Duration(minutes: 20);
+  /// Home catalogue shelves — first full fetch, then instant reopen.
+  static const Duration catalogCacheTtl = Duration(hours: 24);
 
   // Pagination
   static const int defaultPageSize = 20;
