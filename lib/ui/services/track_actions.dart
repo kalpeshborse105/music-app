@@ -95,9 +95,12 @@ class TrackActions {
   // ---- Share (no technical stream URLs exposed — spec §22) ----
   static Future<void> share(BuildContext context, Track track) async {
     try {
+      final String provider = (track.providerId ?? 'custom_api').toString();
+      final String pid = (track.providerTrackId ?? track.id).toString();
+      final String url = 'https://beats.kalpkrutinfotech.com/track/${provider.replaceAll(':', '-')}/${Uri.encodeComponent(pid)}';
       final String text = 'Listening to “${track.title}” by ${track.artistNames}'
-          '${track.album != null ? ' — ${track.album!.title}' : ''} on Kalpkrut Beats';
-      await Share.share(text);
+          '${track.album != null ? ' — ${track.album!.title}' : ''} on Kalpkrut Beats\n\nListen: $url';
+      await Share.share(text, subject: track.title);
     } catch (_) {
       AppMessenger.show('Sharing is not available here');
     }

@@ -5,6 +5,7 @@ import '../../data/music_repository.dart';
 import '../../domain/models/album.dart';
 import '../../domain/models/track.dart';
 import '../../state/library_controller.dart';
+import 'package:share_plus/share_plus.dart';
 import '../services/track_actions.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/app_sheets.dart';
@@ -40,7 +41,22 @@ class _AlbumScreenState extends State<AlbumScreen> {
   Widget build(BuildContext context) {
     final bool saved = context.watch<LibraryController>().isAlbumSaved(widget.album.id);
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(
+        actions: <Widget>[
+          IconButton(
+            icon: const Icon(Icons.share_rounded),
+            tooltip: 'Share album',
+            onPressed: () {
+              final String provider = widget.album.providerId ?? 'custom_api';
+              final String pid = widget.album.providerAlbumId ?? widget.album.id;
+              final String url =
+                  'https://beats.kalpkrutinfotech.com/album/${provider.replaceAll(':', '-')}/${Uri.encodeComponent(pid)}';
+              Share.share('Check out the album: ${widget.album.title}\n\n$url',
+                  subject: widget.album.title);
+            },
+          ),
+        ],
+      ),
       bottomNavigationBar: const SafeArea(
         top: false,
         child: MiniPlayer(),

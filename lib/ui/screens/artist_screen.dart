@@ -6,6 +6,7 @@ import '../../domain/models/album.dart';
 import '../../domain/models/artist.dart';
 import '../../domain/models/track.dart';
 import '../../state/library_controller.dart';
+import 'package:share_plus/share_plus.dart';
 import '../services/track_actions.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
@@ -40,6 +41,20 @@ class _ArtistScreenState extends State<ArtistScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.artist.name),
+        actions: <Widget>[
+          IconButton(
+            icon: const Icon(Icons.share_rounded),
+            tooltip: 'Share artist',
+            onPressed: () {
+              final String provider = widget.artist.providerId ?? 'custom_api';
+              final String pid = widget.artist.providerArtistId ?? widget.artist.id;
+              final String url =
+                  'https://beats.kalpkrutinfotech.com/artist/${provider.replaceAll(':', '-')}/${Uri.encodeComponent(pid)}';
+              Share.share('Check out ${widget.artist.name}\n\n$url',
+                  subject: widget.artist.name);
+            },
+          ),
+        ],
       ),
       bottomNavigationBar: const SafeArea(
         top: false,

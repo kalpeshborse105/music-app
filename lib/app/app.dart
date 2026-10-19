@@ -23,6 +23,12 @@ import '../ui/screens/delete_account_screen.dart';
 import '../ui/screens/onboarding_auth_screen.dart';
 import '../ui/screens/reset_password_screen.dart';
 import '../ui/screens/splash_screen.dart';
+import '../ui/screens/album_screen.dart';
+import '../ui/screens/artist_screen.dart';
+import '../ui/screens/list_screen.dart';
+import '../domain/models/album.dart';
+import '../domain/models/artist.dart';
+import '../domain/models/track.dart';
 import '../ui/theme/app_colors.dart';
 import '../ui/theme/app_theme.dart';
 import 'app_dependencies.dart';
@@ -65,6 +71,7 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
         });
       }
     });
+    // initial deep-link navigation can be added here if desired.
   }
 
   @override

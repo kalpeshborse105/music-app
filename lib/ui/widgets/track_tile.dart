@@ -8,6 +8,8 @@ import '../theme/app_spacing.dart';
 import 'artwork.dart';
 import 'now_playing_bars.dart';
 import 'source_badge.dart';
+import '../services/track_actions.dart';
+import 'package:flutter/services.dart';
 
 /// Stitch Nocturnal Track Tile supporting ranking, live soundbars, lossless tags,
 /// and smooth pressed / hover states.
@@ -179,12 +181,32 @@ class TrackTile extends StatelessWidget {
                 ),
               if (trailing != null)
                 trailing!
-              else if (onMenu != null)
-                IconButton(
-                  onPressed: onMenu,
+              else
+                PopupMenuButton<String>(
+                  onSelected: (String v) async {
+                    if (v == 'share') {
+                      await TrackActions.share(context, track);
+                    } else if (v == 'copy_link') {
+                      final String url = _buildShareUrl(track);
+                      await Clipboard.setData(ClipboardData(text: url));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied to clipboard')));
+                    } else if (v == 'favorite') {
+                      await TrackActions.toggleFavorite(context, track);
+                    } else if (v == 'add_to_playlist') {
+                      await TrackActions.addToPlaylist(context, track);
+                    } else if (v == 'more' && onMenu != null) {
+                      onMenu!();
+                    }
+                  },
+                  itemBuilder: (_) => <PopupMenuEntry<String>>[
+                    const PopupMenuItem<String>(value: 'share', child: ListTile(leading: Icon(Icons.share), title: Text('Share'))),
+                    const PopupMenuItem<String>(value: 'copy_link', child: ListTile(leading: Icon(Icons.link), title: Text('Copy link'))),
+                    const PopupMenuItem<String>(value: 'favorite', child: ListTile(leading: Icon(Icons.favorite_border), title: Text('Add / Remove Favorite'))),
+                    const PopupMenuItem<String>(value: 'add_to_playlist', child: ListTile(leading: Icon(Icons.playlist_add), title: Text('Add to playlist'))),
+                    if (onMenu != null) const PopupMenuItem<String>(value: 'more', child: ListTile(leading: Icon(Icons.more_horiz), title: Text('More'))),
+                  ],
                   icon: const Icon(Icons.more_vert_rounded, size: 20, color: AppColors.textMutedDark),
                   tooltip: 'More options',
-                  visualDensity: VisualDensity.compact,
                 ),
             ],
           ),
@@ -192,6 +214,16 @@ class TrackTile extends StatelessWidget {
       ),
     );
   }
+}
+
+String _buildShareUrl(Track track) {
+  // Prefer provider-specific id when available. Use path style: /track/<providerId>/<providerTrackId>
+  final String provider = (track.providerId ?? 'custom_api').toString();
+  final String pid = (track.providerTrackId ?? track.id).toString();
+  // Normalize parts
+  final String cleanProvider = provider.replaceAll(':', '-');
+  final String cleanId = Uri.encodeComponent(pid);
+  return 'https://beats.kalpkrutinfotech.com/track/$cleanProvider/$cleanId';
 }
 
 class _HotTag extends StatelessWidget {

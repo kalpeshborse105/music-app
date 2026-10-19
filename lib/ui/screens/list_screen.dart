@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../domain/models/track.dart';
 import '../../domain/providers/local_provider.dart';
 import '../../state/library_controller.dart';
+import 'package:share_plus/share_plus.dart';
 import '../services/track_actions.dart';
 import '../theme/app_spacing.dart';
 import '../../domain/models/advertisement.dart';
@@ -205,7 +206,21 @@ class PlaylistDetailScreen extends StatelessWidget {
       );
     }
     return Scaffold(
-      appBar: AppBar(title: Text(playlist.title)),
+      appBar: AppBar(
+        title: Text(playlist.title),
+        actions: <Widget>[
+          IconButton(
+            icon: const Icon(Icons.share_rounded),
+            tooltip: 'Share playlist',
+            onPressed: () {
+              final String url =
+                  'https://beats.kalpkrutinfotech.com/playlist/${Uri.encodeComponent(playlist.id)}';
+              Share.share('Check out this playlist: ${playlist.title}\n\n$url',
+                  subject: playlist.title);
+            },
+          ),
+        ],
+      ),
       body: playlist.tracks.isEmpty
           ? const MessageView(
               icon: Icons.library_add_outlined,
