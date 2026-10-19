@@ -937,6 +937,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 final String title = (cat['title'] as String?) ?? (cat['name'] as String?) ?? 'Music';
                 final String subtitle = (cat['subtitle'] as String?) ?? '';
                 final String query = (cat['query'] as String?) ?? title;
+                final String sourceUrl = (cat['source_url'] as String?) ??
+                    (cat['url'] as String?) ??
+                    '';
                 final String artworkUrl = (cat['artwork_url'] as String?) ?? '';
                 final String emoji = (cat['emoji'] as String?) ?? '🎵';
                 final Color color1 = _parseHexColor(cat['gradient_start'], const Color(0xFF6366F1));
@@ -948,6 +951,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       builder: (_) => CategoryDetailScreen(
                         title: title,
                         query: query,
+                        sourceUrl: sourceUrl.isNotEmpty ? sourceUrl : null,
                         subtitle: subtitle,
                         artworkUrl: artworkUrl,
                         gradientColors: <Color>[color1, color2],

@@ -9,7 +9,7 @@ import '../theme/app_colors.dart';
 import '../widgets/artwork.dart';
 import '../widgets/glass_card.dart';
 
-/// Live radio: Private / Popular first, then Akashvani by state & district.
+/// Live radio: Popular / AIR / All, with search + alphabetical All tab.
 class RadioScreen extends StatefulWidget {
   const RadioScreen({super.key});
 
@@ -22,12 +22,20 @@ class _RadioScreenState extends State<RadioScreen> {
   String _tier = 'private'; // private | government | all
   String _state = 'all';
   String _district = 'all';
+  String _query = '';
   bool _loading = true;
+  final TextEditingController _searchCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -69,14 +77,34 @@ class _RadioScreenState extends State<RadioScreen> {
             s.district.toLowerCase() == _district.toLowerCase(),
       );
     }
+    final String q = _query.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      list = list.where((RadioStation s) {
+        return s.name.toLowerCase().contains(q) ||
+            s.tagline.toLowerCase().contains(q) ||
+            s.state.toLowerCase().contains(q) ||
+            s.district.toLowerCase().contains(q) ||
+            s.language.toLowerCase().contains(q) ||
+            s.frequency.toLowerCase().contains(q);
+      });
+    }
     final List<RadioStation> out = list.toList();
-    out.sort((RadioStation a, RadioStation b) {
-      final int t = (a.isPrivate ? 0 : 1).compareTo(b.isPrivate ? 0 : 1);
-      if (t != 0) return t;
-      final int st = a.state.compareTo(b.state);
-      if (st != 0) return st;
-      return a.district.compareTo(b.district);
-    });
+    if (_tier == 'all') {
+      out.sort(
+        (RadioStation a, RadioStation b) =>
+            a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      );
+    } else {
+      out.sort((RadioStation a, RadioStation b) {
+        final int t = (a.isPrivate ? 0 : 1).compareTo(b.isPrivate ? 0 : 1);
+        if (t != 0) return t;
+        final int st = a.state.compareTo(b.state);
+        if (st != 0) return st;
+        final int d = a.district.compareTo(b.district);
+        if (d != 0) return d;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+    }
     return out;
   }
 
@@ -126,7 +154,7 @@ class _RadioScreenState extends State<RadioScreen> {
                 elevation: 0,
                 automaticallyImplyLeading: false,
                 title: const Text(
-                  'Live Radio',
+                  'Beats Radio Live',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
@@ -149,19 +177,51 @@ class _RadioScreenState extends State<RadioScreen> {
               ),
               SliverToBoxAdapter(
                 child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (String v) => setState(() => _query = v),
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    cursorColor: AppColors.neonCyan,
+                    decoration: InputDecoration(
+                      hintText: 'Search stations, city, language…',
+                      hintStyle: const TextStyle(color: Colors.white54, fontSize: 13.5),
+                      prefixIcon: const Icon(Icons.search_rounded, color: Colors.white54),
+                      suffixIcon: _query.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.close_rounded, color: Colors.white54),
+                              onPressed: () {
+                                _searchCtrl.clear();
+                                setState(() => _query = '');
+                              },
+                            ),
+                      filled: true,
+                      fillColor: AppColors.surfaceContainerHighest,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                   child: Row(
                     children: <Widget>[
                       _tierChip('Popular', 'private'),
                       const SizedBox(width: 8),
-                      _tierChip('Akashvani', 'government'),
+                      _tierChip('AIR', 'government'),
                       const SizedBox(width: 8),
-                      _tierChip('All', 'all'),
+                      _tierChip('All A–Z', 'all'),
                     ],
                   ),
                 ),
               ),
-              if (_tier != 'private')
+              if (_tier == 'government')
                 SliverToBoxAdapter(
                   child: SizedBox(
                     height: 40,
@@ -202,7 +262,7 @@ class _RadioScreenState extends State<RadioScreen> {
                     ),
                   ),
                 ),
-              if (_tier != 'private' && _districts.length > 1)
+              if (_tier == 'government' && _districts.length > 1)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.only(top: 8),
@@ -248,7 +308,7 @@ class _RadioScreenState extends State<RadioScreen> {
                   hasScrollBody: false,
                   child: Center(
                     child: Text(
-                      'No stations in this filter',
+                      'No stations match your search',
                       style: TextStyle(color: Colors.white54),
                     ),
                   ),
@@ -290,12 +350,43 @@ class _RadioScreenState extends State<RadioScreen> {
                               },
                               child: Row(
                                 children: <Widget>[
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Artwork(
-                                      url: station.artworkUrl,
-                                      size: 56,
-                                      radius: 12,
+                                  Container(
+                                    width: 58,
+                                    height: 58,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                      gradient: LinearGradient(
+                                        colors: station.isPrivate
+                                            ? const <Color>[
+                                                Color(0xFFFF6A00),
+                                                Color(0xFFE11D48),
+                                              ]
+                                            : const <Color>[
+                                                Color(0xFF0B3D2E),
+                                                Color(0xFF138808),
+                                              ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      boxShadow: <BoxShadow>[
+                                        BoxShadow(
+                                          color: (station.isPrivate
+                                                  ? const Color(0xFFFF6A00)
+                                                  : const Color(0xFF138808))
+                                              .withValues(alpha: 0.35),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 3),
+                                        ),
+                                      ],
+                                    ),
+                                    padding: const EdgeInsets.all(2),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(14),
+                                      child: Artwork(
+                                        url: station.artworkUrl,
+                                        size: 54,
+                                        radius: 14,
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 12),
@@ -371,7 +462,7 @@ class _RadioScreenState extends State<RadioScreen> {
       child: GestureDetector(
         onTap: () => setState(() {
           _tier = value;
-          if (value == 'private') {
+          if (value != 'government') {
             _state = 'all';
             _district = 'all';
           }

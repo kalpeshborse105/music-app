@@ -5000,6 +5000,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     final TextEditingController titleCtrl = TextEditingController(text: existing?['title']?.toString() ?? '');
     final TextEditingController subtitleCtrl = TextEditingController(text: existing?['subtitle']?.toString() ?? '');
     final TextEditingController queryCtrl = TextEditingController(text: existing?['query']?.toString() ?? '');
+    final TextEditingController sourceUrlCtrl = TextEditingController(
+      text: (existing?['source_url'] ?? existing?['url'])?.toString() ?? '',
+    );
     final TextEditingController typeCtrl = TextEditingController(text: existing?['category_type']?.toString() ?? 'mood');
     final TextEditingController emojiCtrl = TextEditingController(text: existing?['emoji']?.toString() ?? '🎶');
     final TextEditingController startColorCtrl = TextEditingController(text: existing?['gradient_start']?.toString() ?? '#1E3A8A');
@@ -5030,7 +5033,19 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     const SizedBox(height: 10),
                     TextField(
                       controller: queryCtrl,
-                      decoration: const InputDecoration(labelText: 'Search / Mood Query *', hintText: 'e.g. Bollywood Hits'),
+                      decoration: const InputDecoration(
+                        labelText: 'Search / Mood Query *',
+                        hintText: 'e.g. Bollywood Hits',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: sourceUrlCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Playlist / Source URL (optional)',
+                        hintText: 'https://www.jiosaavn.com/featured/...',
+                        helperText: 'Same as Catalogue — paste JioSaavn playlist/album URL to load exact songs',
+                      ),
                     ),
                     const SizedBox(height: 10),
                     TextField(
@@ -5040,7 +5055,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     const SizedBox(height: 10),
                     TextField(
                       controller: typeCtrl,
-                      decoration: const InputDecoration(labelText: 'Type (mood | search | playlist)', hintText: 'mood'),
+                      decoration: const InputDecoration(
+                        labelText: 'Type (mood | search | playlist)',
+                        hintText: 'playlist if using Source URL',
+                      ),
                     ),
                     const SizedBox(height: 10),
                     Row(
@@ -5100,11 +5118,22 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     );
 
     if (saved == true) {
+      final String sourceUrl = sourceUrlCtrl.text.trim();
+      String query = queryCtrl.text.trim().isNotEmpty
+          ? queryCtrl.text.trim()
+          : titleCtrl.text.trim();
+      String categoryType = typeCtrl.text.trim().isNotEmpty
+          ? typeCtrl.text.trim()
+          : 'mood';
+      if (sourceUrl.isNotEmpty && categoryType == 'mood') {
+        categoryType = 'playlist';
+      }
       final Map<String, dynamic> data = <String, dynamic>{
         'title': titleCtrl.text.trim(),
         'subtitle': subtitleCtrl.text.trim(),
-        'query': queryCtrl.text.trim().isNotEmpty ? queryCtrl.text.trim() : titleCtrl.text.trim(),
-        'category_type': typeCtrl.text.trim().isNotEmpty ? typeCtrl.text.trim() : 'mood',
+        'query': query,
+        'source_url': sourceUrl,
+        'category_type': categoryType,
         'emoji': emojiCtrl.text.trim().isNotEmpty ? emojiCtrl.text.trim() : '🎶',
         'gradient_start': startColorCtrl.text.trim().isNotEmpty ? startColorCtrl.text.trim() : '#1E3A8A',
         'gradient_end': endColorCtrl.text.trim().isNotEmpty ? endColorCtrl.text.trim() : '#2563EB',
@@ -5250,6 +5279,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               final String subtitle = c['subtitle']?.toString() ?? '';
               final String emoji = c['emoji']?.toString() ?? '🎶';
               final String query = c['query']?.toString() ?? '';
+              final String sourceUrl = (c['source_url'] ?? c['url'])?.toString() ?? '';
               final bool active = c['is_active'] != false;
 
               return EchoGlassCard(
@@ -5310,7 +5340,11 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                             style: TextStyle(fontSize: 11.5, color: context.textSecondary),
                           ),
                           Text(
-                            'Links to: $query (${c["category_type"] ?? "mood"})',
+                            sourceUrl.isNotEmpty
+                                ? 'URL: $sourceUrl'
+                                : 'Query: $query (${c["category_type"] ?? "mood"})',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(fontSize: 10, color: context.textMuted),
                           ),
                         ],

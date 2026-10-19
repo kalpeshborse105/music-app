@@ -1,5 +1,115 @@
 [
   {
+    "id": "radio_mirchi_hindi",
+    "name": "Radio Mirchi Hindi",
+    "tagline": "Indias favourite Hindi hits",
+    "frequency": "98.3 FM",
+    "state": "Maharashtra",
+    "district": "Mumbai",
+    "language": "hindi",
+    "languages": [
+      "hindi"
+    ],
+    "stream_url": "https://eu8.fastcast4u.com/proxy/clyedupq/stream",
+    "artwork_url": "https://ui-avatars.com/api/?name=Mirchi&background=FF6A00&color=fff&size=256&bold=true&format=png",
+    "category": "Private Popular",
+    "tier": "private",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "mirchi_marathi",
+    "name": "Mirchi Marathi",
+    "tagline": "Hottest Marathi music and content",
+    "frequency": "Online",
+    "state": "Maharashtra",
+    "district": "Mumbai",
+    "language": "marathi",
+    "languages": [
+      "marathi",
+      "hindi"
+    ],
+    "stream_url": "https://mirchiplaylive.akamaized.net/hls/live/2036929-b/MUM/MARATHI_Auto.m3u8",
+    "artwork_url": "https://ui-avatars.com/api/?name=Marathi&background=E11D48&color=fff&size=256&bold=true&format=png",
+    "category": "Private Popular",
+    "tier": "private",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "club_mirchi",
+    "name": "Club Mirchi",
+    "tagline": "Non-stop dance and party beats",
+    "frequency": "Online",
+    "state": "Maharashtra",
+    "district": "Mumbai",
+    "language": "hindi",
+    "languages": [
+      "hindi",
+      "english"
+    ],
+    "stream_url": "https://mirchiplaylive.akamaized.net/hls/live/2036929-b/MUM/CLUBMI_Auto.m3u8",
+    "artwork_url": "https://ui-avatars.com/api/?name=Club&background=7C3AED&color=fff&size=256&bold=true&format=png",
+    "category": "Private Popular",
+    "tier": "private",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "mirchi_retro",
+    "name": "Mirchi Retro",
+    "tagline": "Golden era Bollywood classics",
+    "frequency": "Online",
+    "state": "National",
+    "district": "",
+    "language": "hindi",
+    "languages": [
+      "hindi"
+    ],
+    "stream_url": "https://mirchiplaylive.akamaized.net/hls/live/2036929-b/MUM/MRETRO_Auto.m3u8",
+    "artwork_url": "https://ui-avatars.com/api/?name=Retro&background=B45309&color=fff&size=256&bold=true&format=png",
+    "category": "Private Popular",
+    "tier": "private",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "meethi_mirchi",
+    "name": "Meethi Mirchi",
+    "tagline": "Soft romantic Hindi melodies",
+    "frequency": "Online",
+    "state": "National",
+    "district": "",
+    "language": "hindi",
+    "languages": [
+      "hindi"
+    ],
+    "stream_url": "https://mirchiplaylive.akamaized.net/hls/live/2036929-b/MUM/MEETHI_Auto.m3u8",
+    "artwork_url": "https://ui-avatars.com/api/?name=Meethi&background=DB2777&color=fff&size=256&bold=true&format=png",
+    "category": "Private Popular",
+    "tier": "private",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "mirchi_top_20",
+    "name": "Mirchi Top 20",
+    "tagline": "Chartbusters updated weekly",
+    "frequency": "Online",
+    "state": "National",
+    "district": "",
+    "language": "hindi",
+    "languages": [
+      "hindi"
+    ],
+    "stream_url": "https://mirchiplaylive.akamaized.net/hls/live/2036929-b/MUM/MTOP20_Auto.m3u8",
+    "artwork_url": "https://ui-avatars.com/api/?name=Top20&background=DC2626&color=fff&size=256&bold=true&format=png",
+    "category": "Private Popular",
+    "tier": "private",
+    "is_live": true,
+    "verified": true
+  },
+  {
     "id": "hindi_gold_classics",
     "name": "Hindi Gold Classics",
     "tagline": "Evergreen Bollywood classics 24/7",
@@ -11,7 +121,7 @@
       "hindi"
     ],
     "stream_url": "https://azuracast.vibesounds.in:8010/radio.mp3",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Hindi&background=CA8A04&color=fff&size=256&bold=true&format=png",
     "category": "Private Popular",
     "tier": "private",
     "is_live": true,
@@ -29,7 +139,7 @@
       "hindi"
     ],
     "stream_url": "http://millenniumhits.out.airtime.pro:8000/millenniumhits_a",
-    "artwork_url": "https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Bhakti&background=EA580C&color=fff&size=256&bold=true&format=png",
     "category": "Private Popular",
     "tier": "private",
     "is_live": true,
@@ -47,7 +157,7 @@
       "hindi"
     ],
     "stream_url": "https://stream.radiojar.com/4ywdgup3bnzuv",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=India&background=2563EB&color=fff&size=256&bold=true&format=png",
     "category": "Private Popular",
     "tier": "private",
     "is_live": true,
@@ -65,7 +175,7 @@
       "english"
     ],
     "stream_url": "https://streams.ilovemusic.de/iloveradio17.mp3",
-    "artwork_url": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Lo-Fi&background=0F766E&color=fff&size=256&bold=true&format=png",
     "category": "Private Popular",
     "tier": "private",
     "is_live": true,
@@ -83,7 +193,7 @@
       "hindi"
     ],
     "stream_url": "https://radio.wavespb.com/live/146ed6ec6dea5a24/146ed6ec6dea5a24.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=National&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -104,7 +214,7 @@
       "malayalam"
     ],
     "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airbang04/air036_Auto.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=National&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -122,7 +232,7 @@
       "hindi"
     ],
     "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airdelhi03/air003_Auto.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Delhi&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -140,7 +250,7 @@
       "hindi"
     ],
     "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airdelhi02/air002_Auto.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Delhi&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -158,7 +268,7 @@
       "hindi"
     ],
     "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airdelhi05/air005_Auto.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Delhi&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -177,7 +287,7 @@
       "english"
     ],
     "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airdelhi01/air001_Auto.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=National&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -197,7 +307,7 @@
       "english"
     ],
     "stream_url": "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio010/hlspbaudio010_Auto.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Mumbai&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -217,7 +327,7 @@
       "english"
     ],
     "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airmum01/air049_Auto.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Mumbai&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -237,7 +347,7 @@
       "english"
     ],
     "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airmum02/air050_Auto.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Mumbai&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -257,7 +367,7 @@
       "english"
     ],
     "stream_url": "https://radio.wavespb.com/live/39d650ca0476a1fe/39d650ca0476a1fe.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Pune&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -277,7 +387,7 @@
       "english"
     ],
     "stream_url": "https://radio.wavespb.com/live/c0040b54233d76a1/c0040b54233d76a1.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Dhule&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -297,7 +407,7 @@
       "english"
     ],
     "stream_url": "https://radio.wavespb.com/live/bd41e24a31710397/bd41e24a31710397.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Jalgaon&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -317,7 +427,7 @@
       "english"
     ],
     "stream_url": "https://radio.wavespb.com/live/5dd27f81c839f0f5/5dd27f81c839f0f5.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Akola&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -337,7 +447,7 @@
       "english"
     ],
     "stream_url": "https://radio.wavespb.com/live/84ad8273437552d7/84ad8273437552d7.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Nagpur&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -357,7 +467,7 @@
       "english"
     ],
     "stream_url": "https://radio.wavespb.com/live/019f90c3d79daeb9/019f90c3d79daeb9.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Nagpur&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -377,7 +487,7 @@
       "english"
     ],
     "stream_url": "https://radio.wavespb.com/live/6878cc031c86befd/6878cc031c86befd.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Satara&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -397,7 +507,7 @@
       "english"
     ],
     "stream_url": "https://radio.wavespb.com/live/2792d5e06dbdc800/2792d5e06dbdc800.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Solapur&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -417,7 +527,7 @@
       "english"
     ],
     "stream_url": "https://air.pc.cdn.bitgravity.com/air/live/pbaudio063/playlist.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Kolhapur&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -436,7 +546,7 @@
       "hindi"
     ],
     "stream_url": "https://radio.wavespb.com/live/5adc4acbbdd1f6cf/5adc4acbbdd1f6cf.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Punjabi&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -455,7 +565,7 @@
       "english"
     ],
     "stream_url": "https://radio.wavespb.com/live/d533f2af4f49bd6f/d533f2af4f49bd6f.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Nadu&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -474,7 +584,7 @@
       "english"
     ],
     "stream_url": "https://radio.wavespb.com/live/b20ff2fc0bb34b3d/b20ff2fc0bb34b3d.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Chennai&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -493,7 +603,7 @@
       "english"
     ],
     "stream_url": "https://radio.wavespb.com/live/f893db91dedcb4ab/f893db91dedcb4ab.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Chennai&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -513,7 +623,7 @@
       "hindi"
     ],
     "stream_url": "https://radio.wavespb.com/live/3a02c5c035815bb9/3a02c5c035815bb9.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Hyderabad&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -533,7 +643,7 @@
       "hindi"
     ],
     "stream_url": "https://radio.wavespb.com/live/89969ad91f106dde/89969ad91f106dde.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Hyderabad&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -552,7 +662,7 @@
       "hindi"
     ],
     "stream_url": "https://radio.wavespb.com/live/8a1bb2ca9d2a6741/8a1bb2ca9d2a6741.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Gujarati&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -570,7 +680,7 @@
       "bengali"
     ],
     "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airkol07/air071_Auto.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Bangla&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -590,7 +700,7 @@
       "english"
     ],
     "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airkol05/air069_Auto.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=Kolkata&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -609,7 +719,7 @@
       "english"
     ],
     "stream_url": "https://radio.wavespb.com/live/ad3a8436a329e2d6/ad3a8436a329e2d6.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=MALAYALAM&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,
@@ -629,7 +739,7 @@
       "english"
     ],
     "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airbang03/air035_Auto.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "artwork_url": "https://ui-avatars.com/api/?name=KANNADA&background=0B3D2E&color=fff&size=256&bold=true&format=png",
     "category": "Akashvani AIR",
     "tier": "government",
     "is_live": true,

@@ -54,16 +54,18 @@ class EchoGlassCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(borderRadius),
         border: Border.all(color: borderColor ?? defaultBorder, width: 1),
       ),
+      // Do not re-clip with the outer radius here — padding already insets
+      // the child, and a second large radius was cutting off card content.
       child: Material(
         type: MaterialType.transparency,
-        borderRadius: BorderRadius.circular(borderRadius),
-        clipBehavior: Clip.antiAlias,
+        clipBehavior: Clip.none,
         child: child,
       ),
     );
 
     Widget result = ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
+      clipBehavior: Clip.antiAlias,
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
         child: content,

@@ -58,33 +58,14 @@ class _HomeScreenState extends State<HomeScreen> {
     _onScrollToTop();
   }
 
-  /// Language preference chips — these map to the `lang=` backend parameter.
-  /// A `null` language means 'all'.
-  static const List<String> _languages = <String>[
+  /// Mood chips only — language browsing lives in Library + catalog
+  /// "Browse Languages" shelves (seeded from new-releases/{lang}).
+  static const List<String> _moods = <String>[
     'All',
-    'Hindi',
-    'Punjabi',
-    'Bhojpuri',
-    'Haryanvi',
-    'Marathi',
-    'Gujarati',
-    'Tamil',
-    'Telugu',
-    'Bengali',
-  ];
-
-  /// Mood / genre chips — these map to the `lang=` backend parameter which
-  /// the backend routes through MOOD_QUERIES (not a language filter).
-  /// They are kept separate from _languages so a language like 'Telugu'
-  /// is never confused with a mood like 'Romantic'.
-  static const List<String> _moodFilters = <String>[
     'Devotional',
     'Romantic',
     'Chill',
   ];
-
-  /// Combined display list: languages first, then moods.
-  static List<String> get _moods => <String>[..._languages, ..._moodFilters];
 
   late Future<List<Track>> _trendingFuture;
   late Future<List<CatalogSection>> _catalogSectionsFuture;
@@ -97,16 +78,17 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _hasMore = true;
   int _currentOffset = 0;
 
-  /// Returns the lang= parameter value for the currently selected chip.
-  /// Language chips (Hindi, Telugu, etc.) map to their lowercase name.
-  /// Mood chips (Devotional, Romantic, Chill) also send their lowercase name;
-  /// the backend routes them through MOOD_QUERIES when the value matches a
-  /// known mood key, so language filtering and mood filtering never conflict.
-
+  /// Mood chips map to `lang=` (backend MOOD_QUERIES). `All` → no filter.
   String? get _activeLang {
     if (_selectedMood == 'All') return null;
     return _selectedMood.toLowerCase();
   }
+
+  static const Set<String> _moodOnlyChips = <String>{
+    'Devotional',
+    'Romantic',
+    'Chill',
+  };
 
   @override
   void initState() {
@@ -320,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
 
                   // Dynamic Mood Category View or Standard Discovery Soundscape
-                  if (_moodFilters.contains(_selectedMood)) ...<Widget>[
+                  if (_moodOnlyChips.contains(_selectedMood)) ...<Widget>[
                     SliverToBoxAdapter(
                       child: _buildCategoryView(context, repo, playback),
                     ),
@@ -568,7 +550,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Row(
                       children: <Widget>[
                         Text(
-                          'AKASHVANI LIVE RADIO',
+                          'BEATS RADIO LIVE',
                           style: TextStyle(
                             color: AppColors.neonCyan,
                             fontSize: 11,
@@ -595,7 +577,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     SizedBox(height: 2),
                     Text(
-                      'All India Radio Vividh Bharati, FM Gold & Regional Stations',
+                      'Mirchi, private FM & regional live stations',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 12.5,
@@ -1447,6 +1429,101 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildPickedForYouLoading(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const SectionHeader(
+            title: 'Picked for you',
+            subtitle: 'Curating related music…',
+            topPadding: AppSpacing.sm,
+          ),
+          SizedBox(
+            height: 168,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              itemCount: 5,
+              separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+              itemBuilder: (BuildContext ctx, int i) {
+                return TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0.45, end: 1),
+                  duration: Duration(milliseconds: 700 + i * 120),
+                  curve: Curves.easeInOut,
+                  builder: (BuildContext c, double value, Widget? child) {
+                    return Opacity(
+                      opacity: 0.35 + (value * 0.45),
+                      child: child,
+                    );
+                  },
+                  child: Container(
+                    width: 132,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+                      color: isDark
+                          ? AppColors.surfaceContainerHigh.withValues(alpha: 0.7)
+                          : AppColors.lightElevatedSurface,
+                    ),
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius:
+                                  BorderRadius.circular(AppSpacing.radiusMd),
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: <Color>[
+                                  const Color(0xFFFF8A3D).withValues(alpha: 0.35),
+                                  AppColors.primary.withValues(alpha: 0.25),
+                                ],
+                              ),
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                Icons.auto_awesome_rounded,
+                                color: Color(0xFFFF8A3D),
+                                size: 28,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                          height: 10,
+                          width: 88,
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          height: 8,
+                          width: 56,
+                          decoration: BoxDecoration(
+                            color: Colors.white12,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAdminCatalogSections(
     BuildContext context,
     MusicRepository repo,
@@ -1456,25 +1533,7 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (BuildContext context, AsyncSnapshot<List<CatalogSection>> snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&
             !snapshot.hasData) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(
-              child: Column(
-                children: <Widget>[
-                  SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircularProgressIndicator(strokeWidth: 2.4),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    'Loading music shelves…',
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-          );
+          return _buildPickedForYouLoading(context);
         }
         final List<CatalogSection> sections =
             snapshot.data ?? <CatalogSection>[];
@@ -1586,10 +1645,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: <Widget>[
                         SectionHeader(
                           title: sec.displayTitle,
-                          subtitle:
-                              '${sec.displayGroup} • ${sec.language.toUpperCase()}',
                           topPadding: AppSpacing.sm,
-                          actionLabel: 'See all (${sec.items.length})',
+                          actionLabel: 'See all',
                           onAction: () => openSection(sec),
                         ),
                         _buildDoubleRowShelf(
@@ -1674,12 +1731,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: <Widget>[
                       SectionHeader(
                         title: groupTitle,
-                        subtitle: groupSections.length > 1
-                            ? '${groupSections.length} ${isArtistGroup ? "artists" : "collections"}'
-                            : (groupSections.first.subtitle ??
-                                  '${groupSections.first.sourceType.toUpperCase()} • ${groupSections.first.language.toUpperCase()}'),
                         topPadding: AppSpacing.sm,
-                        actionLabel: groupSections.length > 2
+                        actionLabel: groupSections.length > 1
                             ? 'See all'
                             : null,
                       ),

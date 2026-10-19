@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -1673,7 +1672,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Premium plans (ad-free / downloads+) will appear here when launched — Amazon-style plan picker.',
+            'You\'re on Premium Free — unlimited streaming at ₹0. Ad-free and more plans coming soon.',
             style: TextStyle(fontSize: 12, color: context.textMuted, height: 1.35),
           ),
         ],
@@ -1703,7 +1702,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!minsByDay.containsKey(day)) continue;
       minsByDay[day] = (minsByDay[day] ?? 0) + _estimateEntryMinutes(entry);
     }
-    final int maxMins = minsByDay.values.fold<int>(0, math.max).clamp(1, 24 * 60);
+    // Fill bars against a full day (24h) of listening — never show "24 hr" in UI.
+    const int dayCapMins = 24 * 60;
     int streak = 0;
     for (int i = days.length - 1; i >= 0; i--) {
       if ((minsByDay[days[i]] ?? 0) > 0) {
@@ -1718,11 +1718,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     const List<String> labels = <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     final List<Map<String, dynamic>> dailyActivity = days.map((DateTime d) {
       final int mins = minsByDay[d] ?? 0;
+      final double fill = (mins / dayCapMins).clamp(0.0, 1.0);
       return <String, dynamic>{
         'day': labels[d.weekday - 1],
         'mins': mins,
         'label': _formatListenMins(mins),
-        'ratio': (mins / maxMins).clamp(0.08, 1.0),
+        // Tiny visible stub when there was any listening that day.
+        'ratio': mins > 0 ? fill.clamp(0.06, 1.0) : 0.0,
         'isToday': d == days.last,
       };
     }).toList();
@@ -1825,7 +1827,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: dailyActivity.map((Map<String, dynamic> item) {
                 final bool isToday = item['isToday'] == true;
-                final double ratio = (item['ratio'] as double).clamp(0.15, 1.0);
+                final double ratio = (item['ratio'] as double).clamp(0.0, 1.0);
                 final String day = item['day'] as String;
                 final String label = item['label'] as String;
 
@@ -1850,17 +1852,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         color: isDark
                             ? AppColors.surfaceContainerHigh.withValues(alpha: 0.5)
                             : AppColors.lightInputBackground,
-                        borderRadius: BorderRadius.circular(11),
+                        borderRadius: BorderRadius.circular(8),
                         border: isToday
                             ? Border.all(color: AppColors.secondary, width: 1.5)
                             : null,
                       ),
                       alignment: Alignment.bottomCenter,
+                      clipBehavior: Clip.antiAlias,
                       child: Container(
                         height: 72 * ratio,
                         width: 22,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(7),
                           gradient: isToday
                               ? const LinearGradient(
                                   begin: Alignment.bottomCenter,

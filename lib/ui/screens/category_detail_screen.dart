@@ -17,6 +17,7 @@ import '../widgets/track_tile.dart';
 class CategoryDetailScreen extends StatefulWidget {
   final String title;
   final String query;
+  final String? sourceUrl;
   final String? subtitle;
   final String? artworkUrl;
   final List<Color>? gradientColors;
@@ -26,6 +27,7 @@ class CategoryDetailScreen extends StatefulWidget {
     super.key,
     required this.title,
     required this.query,
+    this.sourceUrl,
     this.subtitle,
     this.artworkUrl,
     this.gradientColors,
@@ -45,15 +47,48 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
     _loadTracks();
   }
 
+  bool _isHttp(String value) =>
+      value.toLowerCase().startsWith('http://') ||
+      value.toLowerCase().startsWith('https://');
+
+  Future<List<Track>> _resolveTracks(MusicRepository repo) async {
+    final String link = (widget.sourceUrl ?? '').trim().isNotEmpty
+        ? widget.sourceUrl!.trim()
+        : widget.query.trim();
+
+    // Admin pasted a JioSaavn / catalogue URL — resolve like Catalogue sections
+    if (_isHttp(link)) {
+      try {
+        final Map<String, dynamic> preview = await repo.previewCatalogUrl(link);
+        if (preview['valid'] == true && preview['items'] is List) {
+          final List<Track> fromUrl = <Track>[];
+          for (final dynamic raw in preview['items'] as List<dynamic>) {
+            if (raw is! Map) continue;
+            final Map<String, dynamic> item = Map<String, dynamic>.from(raw);
+            final String tid = '${item['id'] ?? ''}'.trim();
+            if (tid.isEmpty) continue;
+            item['providerId'] = 'custom_api';
+            item['providerTrackId'] = tid;
+            item['id'] = tid.startsWith('custom_api:') ? tid : 'custom_api:track:$tid';
+            try {
+              fromUrl.add(Track.fromJson(item));
+            } catch (_) {}
+          }
+          if (fromUrl.isNotEmpty) return fromUrl;
+        }
+      } catch (_) {}
+    }
+
+    final SearchResult primary = await repo.search(widget.query, limit: 30);
+    if (primary.tracks.isNotEmpty) return primary.tracks;
+    final SearchResult fallback =
+        await repo.search('${widget.title} songs', limit: 25);
+    return fallback.tracks;
+  }
+
   void _loadTracks() {
     final MusicRepository repo = context.read<MusicRepository>();
-    _tracksFuture = repo.search(widget.query, limit: 30).then((SearchResult r) {
-      if (r.tracks.isNotEmpty) {
-        return r.tracks;
-      }
-      // Fallback search with generic query if specific query yielded 0
-      return repo.search('${widget.title} songs', limit: 25).then((SearchResult r2) => r2.tracks);
-    });
+    _tracksFuture = _resolveTracks(repo);
   }
 
   @override

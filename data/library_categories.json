@@ -9,7 +9,8 @@
     "gradient_end": "#B45309",
     "artwork_url": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&q=80",
     "emoji": "🎬",
-    "is_active": true
+    "is_active": true,
+    "source_url": ""
   },
   {
     "id": "bhakti_aarti",
@@ -21,7 +22,8 @@
     "gradient_end": "#EAB308",
     "artwork_url": "https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=500&q=80",
     "emoji": "🕉️",
-    "is_active": true
+    "is_active": true,
+    "source_url": ""
   },
   {
     "id": "punjabi_beats",
@@ -33,7 +35,8 @@
     "gradient_end": "#F59E0B",
     "artwork_url": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80",
     "emoji": "🥁",
-    "is_active": true
+    "is_active": true,
+    "source_url": ""
   },
   {
     "id": "romantic_love",
@@ -45,7 +48,8 @@
     "gradient_end": "#F43F5E",
     "artwork_url": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500&q=80",
     "emoji": "💖",
-    "is_active": true
+    "is_active": true,
+    "source_url": ""
   },
   {
     "id": "retro_classics",
@@ -57,7 +61,8 @@
     "gradient_end": "#EA580C",
     "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
     "emoji": "📻",
-    "is_active": true
+    "is_active": true,
+    "source_url": ""
   },
   {
     "id": "marathi_hits",
@@ -69,7 +74,8 @@
     "gradient_end": "#2563EB",
     "artwork_url": "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=500&q=80",
     "emoji": "🚩",
-    "is_active": true
+    "is_active": true,
+    "source_url": ""
   },
   {
     "id": "garba_dandiya",
@@ -81,7 +87,8 @@
     "gradient_end": "#C084FC",
     "artwork_url": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&q=80",
     "emoji": "💃",
-    "is_active": true
+    "is_active": true,
+    "source_url": ""
   },
   {
     "id": "south_cinema",
@@ -93,7 +100,8 @@
     "gradient_end": "#10B981",
     "artwork_url": "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=500&q=80",
     "emoji": "🔥",
-    "is_active": true
+    "is_active": true,
+    "source_url": ""
   },
   {
     "id": "workout_energy",
@@ -105,7 +113,8 @@
     "gradient_end": "#DC2626",
     "artwork_url": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500&q=80",
     "emoji": "⚡",
-    "is_active": true
+    "is_active": true,
+    "source_url": ""
   },
   {
     "id": "lofi_chill",
@@ -117,7 +126,8 @@
     "gradient_end": "#0D9488",
     "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
     "emoji": "☕",
-    "is_active": true
+    "is_active": true,
+    "source_url": ""
   },
   {
     "id": "sufi_ghazals",
@@ -129,7 +139,8 @@
     "gradient_end": "#7C3AED",
     "artwork_url": "https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=500&q=80",
     "emoji": "🌙",
-    "is_active": true
+    "is_active": true,
+    "source_url": ""
   },
   {
     "id": "indie_pop",
@@ -141,6 +152,7 @@
     "gradient_end": "#14B8A6",
     "artwork_url": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80",
     "emoji": "🎸",
-    "is_active": true
+    "is_active": true,
+    "source_url": ""
   }
 ]

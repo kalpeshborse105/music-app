@@ -177,6 +177,7 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const Color accent = Color(0xFFFF8A3D);
     return Padding(
       padding: EdgeInsets.fromLTRB(
         AppSpacing.lg,
@@ -185,8 +186,24 @@ class SectionHeader extends StatelessWidget {
         AppSpacing.sm,
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
+          Container(
+            width: 4,
+            height: subtitle != null ? 36 : 22,
+            margin: const EdgeInsets.only(right: 10),
+            decoration: BoxDecoration(
+              color: accent,
+              borderRadius: BorderRadius.circular(4),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.35),
+                  blurRadius: 6,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+          ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

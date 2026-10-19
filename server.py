@@ -3303,11 +3303,17 @@ def api_library_categories():
             cat_id = re.sub(r"[^a-z0-9_]+", "_", title.lower()).strip("_")
 
         categories = load_library_categories()
+        source_url = str(body.get("source_url") or body.get("url") or "").strip()
+        query = str(body.get("query") or title).strip()
+        # If admin pastes a playlist/album URL into query, promote it to source_url
+        if not source_url and query.lower().startswith(("http://", "https://")):
+            source_url = query
         new_cat = {
             "id": cat_id,
             "title": title,
             "subtitle": str(body.get("subtitle") or "").strip(),
-            "query": str(body.get("query") or title).strip(),
+            "query": query,
+            "source_url": source_url,
             "category_type": str(body.get("category_type") or "mood").strip(),
             "gradient_start": str(body.get("gradient_start") or "#1E3A8A").strip(),
             "gradient_end": str(body.get("gradient_end") or "#2563EB").strip(),
@@ -3346,6 +3352,8 @@ def api_library_category_detail(cat_id):
         c["subtitle"] = str(body["subtitle"]).strip()
     if "query" in body:
         c["query"] = str(body["query"]).strip()
+    if "source_url" in body or "url" in body:
+        c["source_url"] = str(body.get("source_url") or body.get("url") or "").strip()
     if "category_type" in body:
         c["category_type"] = str(body["category_type"]).strip()
     if "gradient_start" in body:
@@ -3358,6 +3366,10 @@ def api_library_category_detail(cat_id):
         c["emoji"] = str(body["emoji"]).strip()
     if "is_active" in body:
         c["is_active"] = bool(body["is_active"])
+    # Keep URL + query in sync when admin pastes a link into query
+    q = (c.get("query") or "").strip()
+    if q.lower().startswith(("http://", "https://")) and not c.get("source_url"):
+        c["source_url"] = q
 
     save_library_categories(cats)
     return jsonify(c)

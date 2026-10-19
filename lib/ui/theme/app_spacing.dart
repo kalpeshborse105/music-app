@@ -18,11 +18,11 @@ class AppSpacing {
   static const EdgeInsets screenVertical =
       EdgeInsets.symmetric(horizontal: lg, vertical: lg);
 
-  // Radius
-  static const double radiusSm = 8;
-  static const double radiusMd = 12;
-  static const double radiusLg = 16;
-  static const double radiusXl = 24;
+  // Radius — keep modest so clipped card interiors don't hide artwork/text
+  static const double radiusSm = 6;
+  static const double radiusMd = 10;
+  static const double radiusLg = 12;
+  static const double radiusXl = 16;
   static const double radiusPill = 999;
 
   static const BorderRadius brSm = BorderRadius.all(Radius.circular(radiusSm));
