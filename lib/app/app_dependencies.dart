@@ -19,6 +19,7 @@ import '../domain/recommendations/recommendation_engine.dart';
 import '../state/search_controller.dart';
 import '../state/downloads_controller.dart';
 import '../state/library_controller.dart';
+import '../data/services/deep_link_service.dart';
 import '../data/services/fcm_service.dart';
 import '../data/services/supabase_service.dart';
 
@@ -168,6 +169,10 @@ class AppDependencies {
     // 3. FCM device token (no-op until Android google-services.json is added).
     await FcmService.instance.initialize().catchError((Object e) {
       Logger.warn('FCM warm-up skipped', error: e);
+    });
+    // 4. Share / App Links + FCM tap → open song/album/artist.
+    await DeepLinkService.instance.start(repository).catchError((Object e) {
+      Logger.warn('deep link warm-up skipped', error: e);
     });
   }
 

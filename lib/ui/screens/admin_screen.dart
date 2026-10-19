@@ -114,17 +114,18 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
   late TabController _tabController;
 
+  // Music-ops first: content → ads → notify → people → system.
   static const List<Map<String, dynamic>> _tabs = <Map<String, dynamic>>[
     <String, dynamic>{'title': 'Overview', 'icon': Icons.dashboard_rounded},
     <String, dynamic>{'title': 'Catalogue', 'icon': Icons.queue_music_rounded},
     <String, dynamic>{'title': 'Radio', 'icon': Icons.radio_rounded},
     <String, dynamic>{'title': 'Library', 'icon': Icons.category_rounded},
     <String, dynamic>{'title': 'Ads', 'icon': Icons.campaign_rounded},
+    <String, dynamic>{'title': 'Notify', 'icon': Icons.notifications_active_rounded},
     <String, dynamic>{'title': 'Users', 'icon': Icons.people_alt_rounded},
+    <String, dynamic>{'title': 'Reports', 'icon': Icons.report_problem_rounded},
     <String, dynamic>{'title': 'Providers', 'icon': Icons.hub_rounded},
     <String, dynamic>{'title': 'Licenses', 'icon': Icons.gavel_rounded},
-    <String, dynamic>{'title': 'Notify', 'icon': Icons.notifications_active_rounded},
-    <String, dynamic>{'title': 'Reports', 'icon': Icons.report_problem_rounded},
     <String, dynamic>{'title': 'Settings', 'icon': Icons.tune_rounded},
   ];
 
@@ -150,9 +151,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     if (index == 2) _loadRadioStations();
     if (index == 3) _loadLibraryCategories();
     if (index == 4) _loadAds();
-    if (index == 5) _loadUsers();
-    if (index == 8) _loadAdminNotifications();
-    if (index == 9) _loadReports();
+    if (index == 5) _loadAdminNotifications();
+    if (index == 6) _loadUsers();
+    if (index == 7) _loadReports();
   }
 
   Future<void> _loadAdminNotifications() async {
@@ -554,7 +555,15 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 ),
                 SingleChildScrollView(
                   padding: const EdgeInsets.all(AppSpacing.md),
+                  child: _buildNotificationsTab(context),
+                ),
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   child: _buildUsersTab(context),
+                ),
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: _buildReportsTab(context),
                 ),
                 SingleChildScrollView(
                   padding: const EdgeInsets.all(AppSpacing.md),
@@ -563,14 +572,6 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 SingleChildScrollView(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   child: _buildLicensesTab(context),
-                ),
-                SingleChildScrollView(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: _buildNotificationsTab(context),
-                ),
-                SingleChildScrollView(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: _buildReportsTab(context),
                 ),
                 SingleChildScrollView(
                   padding: const EdgeInsets.all(AppSpacing.md),
@@ -594,15 +595,15 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       case 4:
         return _buildAdsTab(context);
       case 5:
-        return _buildUsersTab(context);
-      case 6:
-        return _buildProvidersTab(context);
-      case 7:
-        return _buildLicensesTab(context);
-      case 8:
         return _buildNotificationsTab(context);
-      case 9:
+      case 6:
+        return _buildUsersTab(context);
+      case 7:
         return _buildReportsTab(context);
+      case 8:
+        return _buildProvidersTab(context);
+      case 9:
+        return _buildLicensesTab(context);
       case 10:
       default:
         return _buildSettingsTab(context);
@@ -819,6 +820,11 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                       ),
                     ),
                     IconButton(
+                      tooltip: 'Edit',
+                      icon: const Icon(Icons.edit_rounded, size: 20),
+                      onPressed: () => _showCreateNotificationDialog(existing: n),
+                    ),
+                    IconButton(
                       icon: const Icon(Icons.delete_outline_rounded,
                           color: Colors.redAccent),
                       onPressed: () async {
@@ -837,20 +843,30 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     );
   }
 
-  Future<void> _showCreateNotificationDialog() async {
+  Future<void> _showCreateNotificationDialog({Map<String, dynamic>? existing}) async {
     if (_users.isEmpty) {
       await _loadUsers();
     }
-    final TextEditingController titleCtrl = TextEditingController();
-    final TextEditingController bodyCtrl = TextEditingController();
-    final TextEditingController targetCtrl = TextEditingController();
-    final TextEditingController imageCtrl = TextEditingController();
+    final bool isEdit = existing != null;
+    final TextEditingController titleCtrl =
+        TextEditingController(text: '${existing?['title'] ?? ''}');
+    final TextEditingController bodyCtrl =
+        TextEditingController(text: '${existing?['body'] ?? ''}');
+    final TextEditingController targetCtrl =
+        TextEditingController(text: '${existing?['target_id'] ?? ''}');
+    final TextEditingController imageCtrl =
+        TextEditingController(text: '${existing?['image_url'] ?? ''}');
     final TextEditingController userSearchCtrl = TextEditingController();
-    String targetType = 'song';
-    String audience = 'all';
-    final Set<String> selectedUserIds = <String>{};
+    String targetType = '${existing?['target_type'] ?? 'song'}';
+    if (targetType.isEmpty) targetType = 'song';
+    String audience = '${existing?['audience'] ?? 'all'}';
+    if (audience != 'selected') audience = 'all';
+    final Set<String> selectedUserIds = <String>{
+      for (final dynamic id in (existing?['target_user_ids'] as List<dynamic>? ?? <dynamic>[]))
+        '$id',
+    };
     String userQuery = '';
-    bool sendFcm = true;
+    bool sendFcm = !isEdit;
 
     final bool? ok = await showDialog<bool>(
       context: context,
@@ -866,7 +882,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             }).toList();
 
             return AlertDialog(
-              title: const Text('Send notification'),
+              title: Text(isEdit ? 'Edit notification' : 'Send notification'),
               content: SizedBox(
                 width: 420,
                 child: SingleChildScrollView(
@@ -1042,7 +1058,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     }
                     Navigator.pop(ctx, true);
                   },
-                  child: const Text('Broadcast'),
+                  child: Text(isEdit ? 'Save' : 'Broadcast'),
                 ),
               ],
             );
@@ -1053,7 +1069,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     if (ok != true || !mounted) return;
     try {
       final MusicRepository repo = context.read<MusicRepository>();
-      final Map<String, dynamic> result = await repo.createNotification(<String, dynamic>{
+      final Map<String, dynamic> payload = <String, dynamic>{
         'title': titleCtrl.text.trim(),
         'body': bodyCtrl.text.trim(),
         'target_type': targetType,
@@ -1062,7 +1078,17 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         'audience': audience,
         'target_user_ids': selectedUserIds.toList(),
         'send_fcm': sendFcm,
-      });
+      };
+      if (isEdit) {
+        await repo.updateNotification('${existing!['id']}', payload);
+        _loadAdminNotifications();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Notification updated')),
+        );
+        return;
+      }
+      final Map<String, dynamic> result = await repo.createNotification(payload);
       _loadAdminNotifications();
       if (!mounted) return;
       final dynamic fcm = result['fcm'];
@@ -4175,7 +4201,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 value: _metrics['users_count'] ?? '0',
                 icon: Icons.people_outline_rounded,
                 color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
-                onTap: () => _goToTab(5),
+                onTap: () => _goToTab(6),
               ),
               _buildMetricCard(
                 context,
@@ -4207,7 +4233,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 value: _metrics['favorites_count'] ?? '0',
                 icon: Icons.favorite_border_rounded,
                 color: AppColors.tertiary,
-                onTap: () => _goToTab(5),
+                onTap: () => _goToTab(6),
               ),
               _buildMetricCard(
                 context,
@@ -4222,7 +4248,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 value: _metrics['reports_count'] ?? '0',
                 icon: Icons.flag_outlined,
                 color: AppColors.error,
-                onTap: () => _goToTab(9),
+                onTap: () => _goToTab(7),
               ),
             ],
           ),

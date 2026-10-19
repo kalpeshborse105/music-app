@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../core/share/share_links.dart';
 import '../../core/utils/app_messenger.dart';
 import '../../domain/models/album.dart';
 import '../../domain/models/artist.dart';
@@ -92,15 +94,49 @@ class TrackActions {
     );
   }
 
-  // ---- Share (no technical stream URLs exposed — spec §22) ----
+  // ---- Share (official public links — no provider noise in URL) ----
   static Future<void> share(BuildContext context, Track track) async {
     try {
-      final String provider = (track.providerId ?? 'custom_api').toString();
-      final String pid = (track.providerTrackId ?? track.id).toString();
-      final String url = 'https://beats.kalpkrutinfotech.com/track/${provider.replaceAll(':', '-')}/${Uri.encodeComponent(pid)}';
-      final String text = 'Listening to “${track.title}” by ${track.artistNames}'
-          '${track.album != null ? ' — ${track.album!.title}' : ''} on Kalpkrut Beats\n\nListen: $url';
+      final String url = ShareLinks.song(track);
+      final String text =
+          'Listening to “${track.title}” by ${track.artistNames} on Kalpkrut Beats\n\n$url';
       await Share.share(text, subject: track.title);
+    } catch (_) {
+      AppMessenger.show('Sharing is not available here');
+    }
+  }
+
+  static Future<void> copySongLink(BuildContext context, Track track) async {
+    await Clipboard.setData(ClipboardData(text: ShareLinks.song(track)));
+    AppMessenger.show('Link copied');
+  }
+
+  static Future<void> shareAlbum(BuildContext context, Album album) async {
+    try {
+      final String url = ShareLinks.album(album);
+      await Share.share('Check out “${album.title}” on Kalpkrut Beats\n\n$url',
+          subject: album.title);
+    } catch (_) {
+      AppMessenger.show('Sharing is not available here');
+    }
+  }
+
+  static Future<void> shareArtist(BuildContext context, Artist artist) async {
+    try {
+      final String url = ShareLinks.artist(artist);
+      await Share.share('Check out ${artist.name} on Kalpkrut Beats\n\n$url',
+          subject: artist.name);
+    } catch (_) {
+      AppMessenger.show('Sharing is not available here');
+    }
+  }
+
+  static Future<void> sharePlaylist(
+      BuildContext context, String playlistId, String title) async {
+    try {
+      final String url = ShareLinks.playlist(playlistId);
+      await Share.share('Check out “$title” on Kalpkrut Beats\n\n$url',
+          subject: title);
     } catch (_) {
       AppMessenger.show('Sharing is not available here');
     }

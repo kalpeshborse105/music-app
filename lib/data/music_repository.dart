@@ -317,6 +317,17 @@ class MusicRepository {
     }
   }
 
+  /// Resolve a public share id (song id without provider prefix) via custom API.
+  Future<Track?> getTrackByProviderId(String providerTrackId) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return null;
+    try {
+      return await provider.getTrack(providerTrackId);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<Album> getAlbum(Album album) =>
       _providerFor(album.providerId).getAlbum(album.id);
 
@@ -971,6 +982,18 @@ class MusicRepository {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) return false;
     return provider.deleteNotification(notifId);
+  }
+
+  Future<Map<String, dynamic>> updateNotification(
+    String notifId,
+    Map<String, dynamic> data,
+  ) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) {
+      throw const ProviderException('custom_api',
+          message: 'Custom API provider not configured');
+    }
+    return provider.updateNotification(notifId, data);
   }
 
   Future<Map<String, dynamic>> sendFcmPush(Map<String, dynamic> data) async {

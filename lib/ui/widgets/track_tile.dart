@@ -9,7 +9,6 @@ import 'artwork.dart';
 import 'now_playing_bars.dart';
 import 'source_badge.dart';
 import '../services/track_actions.dart';
-import 'package:flutter/services.dart';
 
 /// Stitch Nocturnal Track Tile supporting ranking, live soundbars, lossless tags,
 /// and smooth pressed / hover states.
@@ -187,9 +186,7 @@ class TrackTile extends StatelessWidget {
                     if (v == 'share') {
                       await TrackActions.share(context, track);
                     } else if (v == 'copy_link') {
-                      final String url = _buildShareUrl(track);
-                      await Clipboard.setData(ClipboardData(text: url));
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied to clipboard')));
+                      await TrackActions.copySongLink(context, track);
                     } else if (v == 'favorite') {
                       await TrackActions.toggleFavorite(context, track);
                     } else if (v == 'add_to_playlist') {
@@ -214,16 +211,6 @@ class TrackTile extends StatelessWidget {
       ),
     );
   }
-}
-
-String _buildShareUrl(Track track) {
-  // Prefer provider-specific id when available. Use path style: /track/<providerId>/<providerTrackId>
-  final String provider = (track.providerId ?? 'custom_api').toString();
-  final String pid = (track.providerTrackId ?? track.id).toString();
-  // Normalize parts
-  final String cleanProvider = provider.replaceAll(':', '-');
-  final String cleanId = Uri.encodeComponent(pid);
-  return 'https://beats.kalpkrutinfotech.com/track/$cleanProvider/$cleanId';
 }
 
 class _HotTag extends StatelessWidget {

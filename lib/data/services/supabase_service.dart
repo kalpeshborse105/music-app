@@ -130,7 +130,8 @@ class SupabaseService {
       } else if (kIsWeb) {
         redirect = kReleaseMode ? 'https://beats.kalpkrutinfotech.com/' : Uri.base.origin;
       } else {
-        redirect = 'com.kalpkrut.beats://login-callback';
+        // HTTPS bridge page opens the app scheme, then tells user to close Chrome.
+        redirect = 'https://beats.kalpkrutinfotech.com/auth/callback';
       }
 
       return await client.auth.signInWithOAuth(

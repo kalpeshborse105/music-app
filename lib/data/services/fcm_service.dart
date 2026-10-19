@@ -32,6 +32,11 @@ class FcmService {
         badge: true,
         sound: true,
       );
+      await messaging.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
       FirebaseMessaging.onMessage.listen(_onForeground);
       FirebaseMessaging.onMessageOpenedApp.listen(_onOpened);
       final RemoteMessage? initial = await messaging.getInitialMessage();

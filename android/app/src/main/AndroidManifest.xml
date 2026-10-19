@@ -63,24 +63,30 @@
                 <data android:scheme="com.kalpkrut.beats" />
             </intent-filter>
 
-            <!-- App Links for beats.kalpkrutinfotech.com (password reset & web links) -->
+            <!-- App Links: song / album / artist / playlist share URLs -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data
-                    android:scheme="https"
-                    android:host="beats.kalpkrutinfotech.com" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data
-                    android:scheme="http"
-                    android:host="beats.kalpkrutinfotech.com" />
+                <data android:scheme="https" android:host="beats.kalpkrutinfotech.com" android:pathPrefix="/song" />
+                <data android:scheme="https" android:host="beats.kalpkrutinfotech.com" android:pathPrefix="/album" />
+                <data android:scheme="https" android:host="beats.kalpkrutinfotech.com" android:pathPrefix="/artist" />
+                <data android:scheme="https" android:host="beats.kalpkrutinfotech.com" android:pathPrefix="/playlist" />
+                <data android:scheme="https" android:host="beats.kalpkrutinfotech.com" android:pathPrefix="/track" />
+                <data android:scheme="https" android:host="beats.kalpkrutinfotech.com" android:pathPrefix="/reset-password" />
             </intent-filter>
         </activity>
+
+        <!-- FCM / system notification branding -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/ic_launcher_background" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="kalpkrut_beats_push" />
 
         <!-- Background audio service (audio_service). Keeps playback alive,
              drives the media notification and lock-screen controls. -->

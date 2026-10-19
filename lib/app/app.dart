@@ -9,6 +9,7 @@ import '../core/storage/settings_store.dart';
 import '../core/utils/app_messenger.dart';
 import '../data/music_repository.dart';
 import '../data/provider_registry.dart';
+import '../data/services/deep_link_service.dart';
 import '../data/services/fcm_service.dart';
 import '../data/services/supabase_service.dart';
 import '../domain/playback/playback_controller.dart';
@@ -23,12 +24,6 @@ import '../ui/screens/delete_account_screen.dart';
 import '../ui/screens/onboarding_auth_screen.dart';
 import '../ui/screens/reset_password_screen.dart';
 import '../ui/screens/splash_screen.dart';
-import '../ui/screens/album_screen.dart';
-import '../ui/screens/artist_screen.dart';
-import '../ui/screens/list_screen.dart';
-import '../domain/models/album.dart';
-import '../domain/models/artist.dart';
-import '../domain/models/track.dart';
 import '../ui/theme/app_colors.dart';
 import '../ui/theme/app_theme.dart';
 import 'app_dependencies.dart';
@@ -71,12 +66,12 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
         });
       }
     });
-    // initial deep-link navigation can be added here if desired.
   }
 
   @override
   void dispose() {
     _globalAuthSub?.cancel();
+    DeepLinkService.instance.dispose();
     super.dispose();
   }
 
@@ -123,7 +118,9 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
                   builder: (BuildContext context) => const SplashScreen(),
                 );
               }
-              if (path == '/reset-password' || path.startsWith('/reset-password') || name.contains('reset-password')) {
+              if (path == '/reset-password' ||
+                  path.startsWith('/reset-password') ||
+                  name.contains('reset-password')) {
                 return MaterialPageRoute<void>(
                   settings: routeSettings,
                   builder: (BuildContext context) => const ResetPasswordScreen(),
@@ -132,10 +129,12 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
               if (routeSettings.name == '/delete-account') {
                 return MaterialPageRoute<void>(
                   settings: routeSettings,
-                  builder: (BuildContext context) => const DeleteAccountPortalScreen(),
+                  builder: (BuildContext context) =>
+                      const DeleteAccountPortalScreen(),
                 );
               }
-              if (routeSettings.name == '/operations' || routeSettings.name == '/admin') {
+              if (routeSettings.name == '/operations' ||
+                  routeSettings.name == '/admin') {
                 return MaterialPageRoute<void>(
                   settings: routeSettings,
                   builder: (BuildContext context) {
@@ -144,7 +143,8 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
                       return OnboardingAuthScreen(
                         initialShowAuthForm: true,
                         onComplete: () {
-                          Navigator.pushReplacementNamed(context, routeSettings.name ?? '/admin');
+                          Navigator.pushReplacementNamed(
+                              context, routeSettings.name ?? '/admin');
                         },
                       );
                     }
@@ -152,7 +152,8 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
                   },
                 );
               }
-              if (routeSettings.name == '/login' || routeSettings.name == '/signup') {
+              if (routeSettings.name == '/login' ||
+                  routeSettings.name == '/signup') {
                 return MaterialPageRoute<void>(
                   settings: routeSettings,
                   builder: (BuildContext context) {
@@ -169,22 +170,26 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
                   },
                 );
               }
-              if (routeSettings.name == '/search' || routeSettings.name == '/library') {
+              if (routeSettings.name == '/search' ||
+                  routeSettings.name == '/library') {
                 return MaterialPageRoute<void>(
                   settings: routeSettings,
-                  builder: (BuildContext context) => const AppShell(initialIndex: 1),
+                  builder: (BuildContext context) =>
+                      const AppShell(initialIndex: 1),
                 );
               }
               if (routeSettings.name == '/radio') {
                 return MaterialPageRoute<void>(
                   settings: routeSettings,
-                  builder: (BuildContext context) => const AppShell(initialIndex: 2),
+                  builder: (BuildContext context) =>
+                      const AppShell(initialIndex: 2),
                 );
               }
               if (routeSettings.name == '/profile') {
                 return MaterialPageRoute<void>(
                   settings: routeSettings,
-                  builder: (BuildContext context) => const AppShell(initialIndex: 3),
+                  builder: (BuildContext context) =>
+                      const AppShell(initialIndex: 3),
                 );
               }
               return null;
@@ -220,7 +225,8 @@ class _AuthGateState extends State<AuthGate> {
 
   void _checkInitialAuth() {
     final SupabaseService supabase = SupabaseService();
-    final bool auth = supabase.isAuthenticated && supabase.currentSession != null;
+    final bool auth =
+        supabase.isAuthenticated && supabase.currentSession != null;
     if (auth) {
       supabase.ensureProfile();
     }
@@ -254,7 +260,6 @@ class _AuthGateState extends State<AuthGate> {
       }
     });
   }
-
 
   @override
   void dispose() {

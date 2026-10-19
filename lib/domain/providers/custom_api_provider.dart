@@ -883,6 +883,22 @@ class CustomApiProvider extends BaseMusicProvider {
     return res.statusCode >= 200 && res.statusCode < 300;
   }
 
+  Future<Map<String, dynamic>> updateNotification(
+    String notifId,
+    Map<String, dynamic> data,
+  ) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/notifications/$notifId');
+    final http.Response res = await http.put(
+      uri,
+      headers: _buildHeaders(),
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 15));
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    }
+    throw ProviderException(id, message: 'Failed to update notification (${res.statusCode})');
+  }
+
   // ---------------------------------------------------------------------------
   // Library Discovery Categories Admin Management
   // ---------------------------------------------------------------------------
