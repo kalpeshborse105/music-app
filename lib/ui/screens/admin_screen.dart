@@ -479,53 +479,52 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       ),
       body: isDesktop
           ? Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                LayoutBuilder(
-                  builder: (BuildContext ctx, BoxConstraints constraints) {
-                    return SingleChildScrollView(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                        child: IntrinsicHeight(
-                          child: NavigationRail(
-                            selectedIndex: _selectedTab,
-                            onDestinationSelected: (int index) {
-                              setState(() => _selectedTab = index);
-                              _tabController.animateTo(index);
-                              _onTabSelected(index);
-                            },
-                            backgroundColor: isDark
-                                ? AppColors.surfaceContainerLowest
-                                : AppColors.lightElevatedSurface,
-                            indicatorColor: isDark
-                                ? AppColors.primary.withValues(alpha: 0.3)
-                                : AppColors.lightPrimaryAccent.withValues(alpha: 0.16),
-                            labelType: NavigationRailLabelType.all,
-                            destinations: _tabs.map((Map<String, dynamic> t) {
-                              return NavigationRailDestination(
-                                icon: Icon(t['icon'] as IconData),
-                                selectedIcon: Icon(t['icon'] as IconData,
-                                    color: isDark
-                                        ? AppColors.secondary
-                                        : AppColors.lightSecondaryAccent),
-                                label: Text(t['title'] as String,
-                                    style: const TextStyle(fontSize: 11)),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ),
-                    );
+                NavigationRail(
+                  selectedIndex: _selectedTab,
+                  onDestinationSelected: (int index) {
+                    setState(() => _selectedTab = index);
+                    _tabController.animateTo(index);
+                    _onTabSelected(index);
                   },
+                  backgroundColor: isDark
+                      ? AppColors.surfaceContainerLowest
+                      : AppColors.lightElevatedSurface,
+                  indicatorColor: isDark
+                      ? AppColors.primary.withValues(alpha: 0.3)
+                      : AppColors.lightPrimaryAccent.withValues(alpha: 0.16),
+                  labelType: NavigationRailLabelType.all,
+                  destinations: _tabs.map((Map<String, dynamic> t) {
+                    return NavigationRailDestination(
+                      icon: Icon(t['icon'] as IconData),
+                      selectedIcon: Icon(t['icon'] as IconData,
+                          color: isDark
+                              ? AppColors.secondary
+                              : AppColors.lightSecondaryAccent),
+                      label: Text(t['title'] as String,
+                          style: const TextStyle(fontSize: 11)),
+                    );
+                  }).toList(),
                 ),
                 VerticalDivider(
                   width: 1,
                   color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
                 ),
                 Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
-                    child: _buildSelectedTabContent(context),
+                  child: LayoutBuilder(
+                    builder: (BuildContext ctx, BoxConstraints constraints) {
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight - AppSpacing.lg * 2,
+                            minWidth: constraints.maxWidth,
+                          ),
+                          child: _buildSelectedTabContent(context),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],
@@ -857,8 +856,11 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     final TextEditingController imageCtrl =
         TextEditingController(text: '${existing?['image_url'] ?? ''}');
     final TextEditingController userSearchCtrl = TextEditingController();
-    String targetType = '${existing?['target_type'] ?? 'song'}';
-    if (targetType.isEmpty) targetType = 'song';
+    const List<String> allowedTargets = <String>[
+      'song', 'album', 'playlist', 'artist', 'catalog', 'radio', 'none',
+    ];
+    String targetType = '${existing?['target_type'] ?? 'song'}'.toLowerCase().trim();
+    if (!allowedTargets.contains(targetType)) targetType = 'song';
     String audience = '${existing?['audience'] ?? 'all'}';
     if (audience != 'selected') audience = 'all';
     final Set<String> selectedUserIds = <String>{
@@ -866,7 +868,8 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         '$id',
     };
     String userQuery = '';
-    bool sendFcm = !isEdit;
+    // Always default ON — same as previous Broadcast FCM behavior (create + edit).
+    bool sendFcm = true;
 
     final bool? ok = await showDialog<bool>(
       context: context,
@@ -1079,24 +1082,23 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         'target_user_ids': selectedUserIds.toList(),
         'send_fcm': sendFcm,
       };
-      if (isEdit) {
-        await repo.updateNotification('${existing!['id']}', payload);
-        _loadAdminNotifications();
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Notification updated')),
-        );
-        return;
-      }
-      final Map<String, dynamic> result = await repo.createNotification(payload);
+      final Map<String, dynamic> result = isEdit
+          ? await repo.updateNotification('${existing!['id']}', payload)
+          : await repo.createNotification(payload);
       _loadAdminNotifications();
       if (!mounted) return;
       final dynamic fcm = result['fcm'];
       final String fcmHint = fcm is Map
           ? ' · FCM ${fcm['sent'] ?? 0}/${fcm['recipients'] ?? 0} (${fcm['mode']})'
-          : '';
+          : (sendFcm ? ' · FCM pending' : '');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Notification queued$fcmHint')),
+        SnackBar(
+          content: Text(
+            isEdit
+                ? 'Notification updated$fcmHint'
+                : 'Notification sent$fcmHint',
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -4266,15 +4268,20 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     VoidCallback? onTap,
   }) {
     final bool isDark = context.isDarkMode;
-    final double cardWidth = (MediaQuery.of(context).size.width - 48) / 2;
+    final double screenW = MediaQuery.of(context).size.width;
+    final bool wide = screenW >= 900;
+    // Desktop: 3–4 cards per row filling the content pane; phone: 2-up.
+    final double cardWidth = wide
+        ? ((screenW - 220) / 3).clamp(200.0, 320.0)
+        : ((screenW - 48) / 2).clamp(150.0, 240.0);
 
     return SizedBox(
-      width: cardWidth.clamp(150.0, 240.0),
+      width: cardWidth,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: EchoGlassCard(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           borderRadius: 16,
           backgroundColor: isDark ? null : AppColors.lightSurface,
           child: Column(
@@ -4283,23 +4290,25 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: <Widget>[
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: context.textSecondary,
+                  Flexible(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: context.textSecondary,
+                      ),
                     ),
                   ),
-                  Icon(icon, color: color, size: 20),
+                  Icon(icon, color: color, size: 22),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Text(
                 value,
                 style: TextStyle(
                   fontFamily: 'Plus Jakarta Sans',
-                  fontSize: 22,
+                  fontSize: wide ? 26 : 22,
                   fontWeight: FontWeight.w800,
                   color: context.textPrimary,
                 ),

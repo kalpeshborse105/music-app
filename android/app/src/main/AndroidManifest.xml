@@ -61,6 +61,11 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="com.kalpkrut.beats" />
+                <data android:scheme="com.kalpkrut.beats" android:host="song" />
+                <data android:scheme="com.kalpkrut.beats" android:host="album" />
+                <data android:scheme="com.kalpkrut.beats" android:host="artist" />
+                <data android:scheme="com.kalpkrut.beats" android:host="playlist" />
+                <data android:scheme="com.kalpkrut.beats" android:host="track" />
             </intent-filter>
 
             <!-- App Links: song / album / artist / playlist share URLs -->

@@ -4,6 +4,7 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 
 import '../../app/app.dart';
+import '../../core/utils/logger.dart';
 import '../../domain/models/album.dart';
 import '../../domain/models/artist.dart';
 import '../../domain/models/track.dart';
@@ -13,10 +14,9 @@ import '../../ui/screens/list_screen.dart';
 import '../../ui/services/track_actions.dart';
 import '../music_repository.dart';
 import 'fcm_service.dart';
-import '../../core/utils/logger.dart';
 
-/// Handles https://beats.kalpkrutinfotech.com/song|album|artist|playlist/... opens
-/// and FCM notification taps with target_type / target_id.
+/// Handles https://beats…/song|album|artist|playlist and
+/// com.kalpkrut.beats://song/… plus FCM notification taps.
 class DeepLinkService {
   DeepLinkService._();
   static final DeepLinkService instance = DeepLinkService._();
@@ -24,6 +24,7 @@ class DeepLinkService {
   StreamSubscription<Uri>? _sub;
   MusicRepository? _repo;
   bool _booted = false;
+  String? _lastHandled;
 
   Future<void> start(MusicRepository repo) async {
     _repo = repo;
@@ -38,8 +39,7 @@ class DeepLinkService {
       final AppLinks links = AppLinks();
       final Uri? initial = await links.getInitialLink();
       if (initial != null) {
-        // Delay until navigator is ready.
-        Future<void>.delayed(const Duration(milliseconds: 900), () {
+        Future<void>.delayed(const Duration(milliseconds: 1200), () {
           openUri(initial);
         });
       }
@@ -57,57 +57,87 @@ class DeepLinkService {
   }
 
   void openFromPayload(Map<String, dynamic> data) {
-    final String type = '${data['target_type'] ?? data['type'] ?? ''}'.toLowerCase();
+    final String type =
+        '${data['target_type'] ?? data['type'] ?? ''}'.toLowerCase();
     final String id = '${data['target_id'] ?? data['id'] ?? ''}'.trim();
     if (id.isEmpty) return;
-    openTyped(type, id, title: '${data['preview_title'] ?? data['title'] ?? ''}');
+    openTyped(
+      type.isEmpty ? 'song' : type,
+      id,
+      title: '${data['preview_title'] ?? data['title'] ?? ''}',
+    );
   }
 
   void openUri(Uri uri) {
-    if (uri.host.isNotEmpty &&
-        uri.host != 'beats.kalpkrutinfotech.com' &&
-        uri.scheme != 'com.kalpkrut.beats') {
+    // Custom scheme: com.kalpkrut.beats://song/ID
+    // HTTPS: https://beats.kalpkrutinfotech.com/song/ID
+    final bool isAppScheme = uri.scheme == 'com.kalpkrut.beats';
+    final bool isHttpsHost = uri.host == 'beats.kalpkrutinfotech.com';
+    if (!isAppScheme && !isHttpsHost && uri.host.isNotEmpty) {
       return;
     }
-    // OAuth callback — AuthGate / Supabase handle this.
     if (uri.host == 'login-callback' || uri.path.contains('login-callback')) {
       return;
     }
-    final List<String> parts = uri.pathSegments.where((String s) => s.isNotEmpty).toList();
-    if (parts.isEmpty) return;
 
-    // Support both /song/ID and legacy /track/custom_api/ID
-    String type = parts.first.toLowerCase();
+    final List<String> parts =
+        uri.pathSegments.where((String s) => s.isNotEmpty).toList();
+
+    String type = '';
     String id = '';
-    if (type == 'track' && parts.length >= 2) {
-      type = 'song';
-      id = parts.length >= 3 ? parts.sublist(2).join('/') : parts[1];
-      if (id == 'custom_api' && parts.length >= 3) {
-        id = parts.sublist(2).join('/');
+
+    if (isAppScheme) {
+      // host is type (song/album/…), path is id
+      type = uri.host.toLowerCase();
+      if (parts.isNotEmpty) {
+        id = Uri.decodeComponent(parts.join('/'));
+      } else if (uri.path.isNotEmpty) {
+        id = Uri.decodeComponent(uri.path.replaceFirst('/', ''));
       }
-    } else if (parts.length >= 2) {
-      id = Uri.decodeComponent(parts.sublist(1).join('/'));
+    } else {
+      if (parts.isEmpty) return;
+      type = parts.first.toLowerCase();
+      if (type == 'track') {
+        type = 'song';
+        // /track/custom_api/ID or /track/ID
+        if (parts.length >= 3 && parts[1] == 'custom_api') {
+          id = Uri.decodeComponent(parts.sublist(2).join('/'));
+        } else if (parts.length >= 2) {
+          id = Uri.decodeComponent(parts.sublist(1).join('/'));
+          if (id == 'custom_api' && parts.length >= 3) {
+            id = Uri.decodeComponent(parts.sublist(2).join('/'));
+          }
+        }
+      } else if (parts.length >= 2) {
+        id = Uri.decodeComponent(parts.sublist(1).join('/'));
+      }
     }
-    if (id.isEmpty) return;
-    if (id == 'custom_api' && parts.length >= 3) {
-      id = Uri.decodeComponent(parts.sublist(2).join('/'));
-    }
+
+    if (id.isEmpty || type.isEmpty) return;
+    if (id == 'custom_api') return;
     openTyped(type, id);
   }
 
   Future<void> openTyped(String type, String id, {String title = ''}) async {
-    final NavigatorState? nav = KalpkrutBeatsApp.navigatorKey.currentState;
+    final String clean = id.contains(':') ? id.split(':').last : id;
+    final String kind = type.toLowerCase();
+    final String dedupeKey = '$kind:$clean';
+    if (_lastHandled == dedupeKey) return;
+    _lastHandled = dedupeKey;
+    Future<void>.delayed(const Duration(seconds: 2), () {
+      if (_lastHandled == dedupeKey) _lastHandled = null;
+    });
+
+    NavigatorState? nav = KalpkrutBeatsApp.navigatorKey.currentState;
     if (nav == null) {
-      Future<void>.delayed(const Duration(milliseconds: 600), () {
+      Future<void>.delayed(const Duration(milliseconds: 700), () {
+        _lastHandled = null;
         openTyped(type, id, title: title);
       });
       return;
     }
     final BuildContext? ctx = nav.context;
     if (ctx == null || !ctx.mounted) return;
-
-    final String clean = id.contains(':') ? id.split(':').last : id;
-    final String kind = type.toLowerCase();
 
     try {
       if (kind == 'song' || kind == 'track') {
@@ -141,22 +171,7 @@ class DeepLinkService {
         return;
       }
       if (kind == 'playlist' || kind == 'catalog') {
-        final MusicRepository? repo = _repo;
-        if (repo != null) {
-          try {
-            final Track? seed = await repo.resolveTrack(clean);
-            if (seed != null && ctx.mounted) {
-              await TrackActions.play(ctx, seed);
-              return;
-            }
-          } catch (_) {}
-        }
-        nav.push(MaterialPageRoute<void>(
-          builder: (_) => TrackListScreen(
-            title: title.isNotEmpty ? title : 'Playlist',
-            tracks: const <Track>[],
-          ),
-        ));
+        await _openSong(ctx, clean, title: title.isNotEmpty ? title : 'Playlist');
       }
     } catch (e) {
       Logger.warn('deep link open failed', error: e);
@@ -167,12 +182,13 @@ class DeepLinkService {
     final MusicRepository? repo = _repo;
     Track? track;
     if (repo != null) {
+      // Prefer direct track API (reliable for share ids).
       try {
-        track = await repo.resolveTrack(id);
+        track = await repo.getTrackByProviderId(id);
       } catch (_) {}
       if (track == null) {
         try {
-          track = await repo.getTrackByProviderId(id);
+          track = await repo.resolveTrack(id);
         } catch (_) {}
       }
     }
@@ -181,7 +197,6 @@ class DeepLinkService {
       await TrackActions.play(context, track);
       return;
     }
-    // Fallback: open empty list with title so user lands in-app.
     KalpkrutBeatsApp.navigatorKey.currentState?.push(MaterialPageRoute<void>(
       builder: (_) => TrackListScreen(
         title: title.isNotEmpty ? title : 'Song',
