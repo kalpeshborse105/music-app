@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../data/music_repository.dart';
 import '../../domain/models/radio_station.dart';
 import '../../domain/models/track.dart';
 import '../../domain/playback/playback_controller.dart';
@@ -8,360 +9,394 @@ import '../theme/app_colors.dart';
 import '../widgets/artwork.dart';
 import '../widgets/glass_card.dart';
 
-/// Akashvani / All India Radio live stations screen.
-class RadioScreen extends StatelessWidget {
+/// Live radio: Private / Popular first, then Akashvani by state & district.
+class RadioScreen extends StatefulWidget {
   const RadioScreen({super.key});
+
+  @override
+  State<RadioScreen> createState() => _RadioScreenState();
+}
+
+class _RadioScreenState extends State<RadioScreen> {
+  List<RadioStation> _all = RadioStation.stations;
+  String _tier = 'private'; // private | government | all
+  String _state = 'all';
+  String _district = 'all';
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final MusicRepository repo = context.read<MusicRepository>();
+      final List<Map<String, dynamic>> raw = await repo.fetchRadioStations();
+      if (!mounted) return;
+      setState(() {
+        _all = raw.isNotEmpty
+            ? raw.map(RadioStation.fromJson).toList()
+            : RadioStation.stations;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _all = RadioStation.stations;
+        _loading = false;
+      });
+    }
+  }
+
+  List<RadioStation> get _filtered {
+    Iterable<RadioStation> list = _all;
+    if (_tier == 'private') {
+      list = list.where((RadioStation s) => s.isPrivate);
+    } else if (_tier == 'government') {
+      list = list.where((RadioStation s) => !s.isPrivate);
+    }
+    if (_state != 'all') {
+      list = list.where(
+        (RadioStation s) => s.state.toLowerCase() == _state.toLowerCase(),
+      );
+    }
+    if (_district != 'all') {
+      list = list.where(
+        (RadioStation s) =>
+            s.district.toLowerCase() == _district.toLowerCase(),
+      );
+    }
+    final List<RadioStation> out = list.toList();
+    out.sort((RadioStation a, RadioStation b) {
+      final int t = (a.isPrivate ? 0 : 1).compareTo(b.isPrivate ? 0 : 1);
+      if (t != 0) return t;
+      final int st = a.state.compareTo(b.state);
+      if (st != 0) return st;
+      return a.district.compareTo(b.district);
+    });
+    return out;
+  }
+
+  List<String> get _states {
+    final Set<String> s = _all
+        .where((RadioStation x) => !x.isPrivate && x.state.isNotEmpty)
+        .map((RadioStation x) => x.state)
+        .toSet();
+    final List<String> list = s.toList()..sort();
+    return <String>['all', ...list];
+  }
+
+  List<String> get _districts {
+    if (_state == 'all') return <String>['all'];
+    final Set<String> d = _all
+        .where(
+          (RadioStation x) =>
+              !x.isPrivate &&
+              x.state.toLowerCase() == _state.toLowerCase() &&
+              x.district.isNotEmpty,
+        )
+        .map((RadioStation x) => x.district)
+        .toSet();
+    final List<String> list = d.toList()..sort();
+    return <String>['all', ...list];
+  }
 
   @override
   Widget build(BuildContext context) {
     final PlaybackController playback = context.watch<PlaybackController>();
     final Track? currentTrack = playback.snapshot.track;
     final bool isPlaying = playback.snapshot.playing;
+    final List<RadioStation> stations = _filtered;
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: Stack(
-        children: <Widget>[
-          // Ambient glow orbs
-          Positioned(
-            top: -40,
-            right: -40,
-            child: Container(
-              width: 260,
-              height: 260,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.electricViolet.withValues(alpha: 0.20),
+      body: SafeArea(
+        child: RefreshIndicator(
+          color: AppColors.neonCyan,
+          onRefresh: _load,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: <Widget>[
+              SliverAppBar(
+                floating: true,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                automaticallyImplyLeading: false,
+                title: const Text(
+                  'Live Radio',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                actions: <Widget>[
+                  if (_loading)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 16),
+                      child: Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-            ),
-          ),
-          Positioned(
-            top: 240,
-            left: -60,
-            child: Container(
-              width: 240,
-              height: 240,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.neonCyan.withValues(alpha: 0.15),
-              ),
-            ),
-          ),
-
-          SafeArea(
-            child: CustomScrollView(
-              slivers: <Widget>[
-                SliverAppBar(
-                  floating: true,
-                  pinned: false,
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  automaticallyImplyLeading: false,
-                  title: Row(
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  child: Row(
                     children: <Widget>[
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          gradient: AppColors.heroGradient,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.radio_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      const Text(
-                        'Akashvani Live Radio',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
+                      _tierChip('Popular', 'private'),
+                      const SizedBox(width: 8),
+                      _tierChip('Akashvani', 'government'),
+                      const SizedBox(width: 8),
+                      _tierChip('All', 'all'),
                     ],
                   ),
                 ),
-
-                // Hero Banner
+              ),
+              if (_tier != 'private')
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 40,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      children: _states.map((String st) {
+                        final bool selected = _state == st;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(st == 'all' ? 'All states' : st),
+                            selected: selected,
+                            onSelected: (_) {
+                              setState(() {
+                                _state = st;
+                                _district = 'all';
+                              });
+                            },
+                            selectedColor:
+                                AppColors.neonCyan.withValues(alpha: 0.22),
+                            labelStyle: TextStyle(
+                              color: selected
+                                  ? AppColors.neonCyan
+                                  : Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            backgroundColor: AppColors.surfaceContainerHighest,
+                            side: BorderSide(
+                              color: selected
+                                  ? AppColors.neonCyan
+                                  : Colors.white12,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              if (_tier != 'private' && _districts.length > 1)
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    child: EchoGlassCard(
-                      padding: const EdgeInsets.all(18),
-                      borderRadius: 20,
-                      child: Row(
-                        children: <Widget>[
-                          Container(
-                            width: 54,
-                            height: 54,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: const LinearGradient(
-                                colors: <Color>[
-                                  Color(0xFFFF9933),
-                                  Color(0xFF138808),
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
+                    padding: const EdgeInsets.only(top: 8),
+                    child: SizedBox(
+                      height: 36,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        children: _districts.map((String d) {
+                          final bool selected = _district == d;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: FilterChip(
+                              label: Text(d == 'all' ? 'All districts' : d),
+                              selected: selected,
+                              onSelected: (_) =>
+                                  setState(() => _district = d),
+                              selectedColor: AppColors.electricViolet
+                                  .withValues(alpha: 0.25),
+                              labelStyle: TextStyle(
+                                color: selected
+                                    ? Colors.white
+                                    : Colors.white60,
+                                fontSize: 11.5,
                               ),
-                              boxShadow: <BoxShadow>[
-                                BoxShadow(
-                                  color: const Color(
-                                    0xFFFF9933,
-                                  ).withValues(alpha: 0.4),
-                                  blurRadius: 16,
-                                  spreadRadius: 2,
-                                ),
-                              ],
+                              backgroundColor:
+                                  AppColors.surfaceContainerHighest,
+                              side: BorderSide(
+                                color: selected
+                                    ? AppColors.electricViolet
+                                    : Colors.white10,
+                              ),
                             ),
-                            child: const Icon(
-                              Icons.cell_tower_rounded,
-                              color: Colors.white,
-                              size: 28,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Row(
-                                  children: <Widget>[
-                                    Text(
-                                      'ALL INDIA RADIO',
-                                      style: TextStyle(
-                                        color: AppColors.neonCyan,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: 1.1,
-                                      ),
-                                    ),
-                                    SizedBox(width: 6),
-                                    Icon(
-                                      Icons.fiber_manual_record_rounded,
-                                      color: Colors.redAccent,
-                                      size: 10,
-                                    ),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      'LIVE',
-                                      style: TextStyle(
-                                        color: Colors.redAccent,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                SizedBox(height: 3),
-                                Text(
-                                  'Akashvani Public Broadcasts',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                SizedBox(height: 2),
-                                Text(
-                                  'Free 24/7 National, News & Regional Cultural Streams',
-                                  style: TextStyle(
-                                    color: AppColors.onSurfaceVariant,
-                                    fontSize: 11.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                          );
+                        }).toList(),
                       ),
                     ),
                   ),
                 ),
-
-                // Station Cards
+              const SliverToBoxAdapter(child: SizedBox(height: 12)),
+              if (stations.isEmpty)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Text(
+                      'No stations in this filter',
+                      style: TextStyle(color: Colors.white54),
+                    ),
+                  ),
+                )
+              else
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((
-                      BuildContext context,
-                      int index,
-                    ) {
-                      final RadioStation station = RadioStation.stations[index];
-                      final bool isThisPlaying =
-                          currentTrack?.id == 'radio:${station.id}' &&
-                          isPlaying;
-                      final bool isThisLoaded =
-                          currentTrack?.id == 'radio:${station.id}';
+                    delegate: SliverChildBuilderDelegate(
+                      (BuildContext context, int index) {
+                        final RadioStation station = stations[index];
+                        final bool playing =
+                            currentTrack?.id == 'radio:${station.id}' &&
+                            isPlaying;
+                        final bool loaded =
+                            currentTrack?.id == 'radio:${station.id}';
+                        final String meta = <String>[
+                          if (station.district.isNotEmpty) station.district,
+                          if (station.state.isNotEmpty) station.state,
+                          station.language.toUpperCase(),
+                        ].join(' • ');
 
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: EchoGlassCard(
-                          padding: const EdgeInsets.all(12),
-                          borderRadius: 16,
-                          borderColor: isThisLoaded
-                              ? AppColors.neonCyan.withValues(alpha: 0.6)
-                              : Colors.white.withValues(alpha: 0.08),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: () {
-                              if (isThisPlaying) {
-                                playback.pause();
-                              } else {
-                                playback.playTrack(station.toTrack());
-                              }
-                            },
-                            child: Row(
-                              children: <Widget>[
-                                // Station Artwork
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: SizedBox(
-                                    width: 58,
-                                    height: 58,
-                                    child: Stack(
-                                      fit: StackFit.expand,
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: EchoGlassCard(
+                            padding: const EdgeInsets.all(12),
+                            borderRadius: 16,
+                            borderColor: loaded
+                                ? AppColors.neonCyan.withValues(alpha: 0.55)
+                                : Colors.white.withValues(alpha: 0.06),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: () {
+                                if (playing) {
+                                  playback.pause();
+                                } else {
+                                  playback.playTrack(station.toTrack());
+                                }
+                              },
+                              child: Row(
+                                children: <Widget>[
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Artwork(
+                                      url: station.artworkUrl,
+                                      size: 56,
+                                      radius: 12,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: <Widget>[
-                                        Artwork(
-                                          url: station.artworkUrl,
-                                          size: 58,
-                                          radius: 12,
-                                        ),
-                                        if (isThisPlaying)
-                                          Container(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.45,
-                                            ),
-                                            child: const Center(
-                                              child: Icon(
-                                                Icons.graphic_eq_rounded,
-                                                color: AppColors.neonCyan,
-                                                size: 26,
-                                              ),
-                                            ),
+                                        Text(
+                                          station.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: loaded
+                                                ? AppColors.neonCyan
+                                                : Colors.white,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
                                           ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          meta,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: AppColors.onSurfaceVariant,
+                                            fontSize: 12,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 14),
-
-                                // Station Details
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      Row(
-                                        children: <Widget>[
-                                          Flexible(
-                                            child: Text(
-                                              station.name,
-                                              style: TextStyle(
-                                                color: isThisLoaded
-                                                    ? AppColors.neonCyan
-                                                    : Colors.white,
-                                                fontSize: 15,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: AppColors
-                                                  .surfaceContainerHighest,
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
-                                              station.frequency,
-                                              style: const TextStyle(
-                                                color:
-                                                    AppColors.onSurfaceVariant,
-                                                fontSize: 9.5,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 3),
-                                      Text(
-                                        station.tagline,
-                                        style: const TextStyle(
-                                          color: AppColors.onSurfaceVariant,
-                                          fontSize: 12,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        station.state,
-                                        style: TextStyle(
-                                          color: isThisLoaded
-                                              ? AppColors.electricViolet
-                                              : AppColors.outline,
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: playing
+                                          ? AppColors.neonCyan
+                                          : AppColors.surfaceContainerHighest,
+                                    ),
+                                    child: Icon(
+                                      playing
+                                          ? Icons.pause_rounded
+                                          : Icons.play_arrow_rounded,
+                                      color: playing
+                                          ? Colors.black
+                                          : Colors.white,
+                                    ),
                                   ),
-                                ),
-
-                                // Play/Pause Action Button
-                                Container(
-                                  width: 42,
-                                  height: 42,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: isThisPlaying
-                                        ? AppColors.neonCyan
-                                        : AppColors.surfaceContainerHighest,
-                                    boxShadow: isThisPlaying
-                                        ? <BoxShadow>[
-                                            BoxShadow(
-                                              color: AppColors.neonCyan
-                                                  .withValues(alpha: 0.4),
-                                              blurRadius: 10,
-                                            ),
-                                          ]
-                                        : null,
-                                  ),
-                                  child: Icon(
-                                    isThisPlaying
-                                        ? Icons.pause_rounded
-                                        : Icons.play_arrow_rounded,
-                                    color: isThisPlaying
-                                        ? Colors.black
-                                        : Colors.white,
-                                    size: 24,
-                                  ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    }, childCount: RadioStation.stations.length),
+                        );
+                      },
+                      childCount: stations.length,
+                    ),
                   ),
                 ),
+              const SliverToBoxAdapter(child: SizedBox(height: 120)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-                const SliverToBoxAdapter(child: SizedBox(height: 120)),
-              ],
+  Widget _tierChip(String label, String value) {
+    final bool selected = _tier == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() {
+          _tier = value;
+          if (value == 'private') {
+            _state = 'all';
+            _district = 'all';
+          }
+        }),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: selected
+                ? AppColors.neonCyan.withValues(alpha: 0.18)
+                : AppColors.surfaceContainerHighest,
+            border: Border.all(
+              color: selected ? AppColors.neonCyan : Colors.white10,
             ),
           ),
-        ],
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? AppColors.neonCyan : Colors.white70,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
+        ),
       ),
     );
   }

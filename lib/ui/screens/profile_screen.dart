@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -12,6 +13,7 @@ import '../../core/storage/settings_store.dart';
 import '../../core/utils/auth_utils.dart';
 import '../../data/services/supabase_service.dart';
 import '../../domain/models/audio_quality.dart';
+import '../../domain/models/history_entry.dart';
 import '../../state/downloads_controller.dart';
 import '../../state/library_controller.dart';
 import '../theme/app_colors.dart';
@@ -232,8 +234,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   const SizedBox(height: AppSpacing.lg),
 
-                  // Daily Listening Activity & Playing Time Bar
-                  _buildDailyPlayingTimeCard(context, isDark: isDark),
+                  // Daily Listening Activity & Playing Time Bar (live from history)
+                  _buildDailyPlayingTimeCard(
+                    context,
+                    isDark: isDark,
+                    library: library,
+                  ),
+
+                  const SizedBox(height: AppSpacing.lg),
+
+                  _buildMembershipCard(context, isDark: isDark),
 
                   const SizedBox(height: AppSpacing.lg),
 
@@ -1586,16 +1596,136 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildDailyPlayingTimeCard(BuildContext context, {required bool isDark}) {
-    final List<Map<String, dynamic>> dailyActivity = <Map<String, dynamic>>[
-      <String, dynamic>{'day': 'Mon', 'mins': 45, 'label': '45m', 'ratio': 0.45},
-      <String, dynamic>{'day': 'Tue', 'mins': 70, 'label': '1h 10m', 'ratio': 0.70},
-      <String, dynamic>{'day': 'Wed', 'mins': 35, 'label': '35m', 'ratio': 0.35},
-      <String, dynamic>{'day': 'Thu', 'mins': 105, 'label': '1h 45m', 'ratio': 1.0, 'isToday': true},
-      <String, dynamic>{'day': 'Fri', 'mins': 60, 'label': '1h', 'ratio': 0.60},
-      <String, dynamic>{'day': 'Sat', 'mins': 90, 'label': '1h 30m', 'ratio': 0.90},
-      <String, dynamic>{'day': 'Sun', 'mins': 50, 'label': '50m', 'ratio': 0.50},
-    ];
+  String _formatListenMins(int mins) {
+    if (mins <= 0) return '0m';
+    if (mins < 60) return '${mins}m';
+    final int h = mins ~/ 60;
+    final int m = mins % 60;
+    return m == 0 ? '${h}h' : '${h}h ${m}m';
+  }
+
+  int _estimateEntryMinutes(HistoryEntry entry) {
+    final int baseSec = entry.track.duration.inSeconds > 0
+        ? entry.track.duration.inSeconds
+        : 180;
+    final double completion = entry.completion.clamp(0.0, 1.0);
+    final int recent = (baseSec * (completion > 0 ? completion : 0.55)).round();
+    final int prior = baseSec * (entry.playCount - 1).clamp(0, 40);
+    return ((recent + prior) / 60).round().clamp(1, 24 * 60);
+  }
+
+  Widget _buildMembershipCard(BuildContext context, {required bool isDark}) {
+    return EchoGlassCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      borderRadius: AppSpacing.radiusXl,
+      backgroundColor: isDark ? null : AppColors.lightSurface,
+      borderColor: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.workspace_premium_rounded,
+                    color: AppColors.secondary, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Kalpkrut Beats Free',
+                      style: TextStyle(
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: context.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      'Unlimited streaming • No subscription required',
+                      style: TextStyle(fontSize: 11, color: context.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  '₹0',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.success,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Premium plans (ad-free / downloads+) will appear here when launched — Amazon-style plan picker.',
+            style: TextStyle(fontSize: 12, color: context.textMuted, height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDailyPlayingTimeCard(
+    BuildContext context, {
+    required bool isDark,
+    required LibraryController library,
+  }) {
+    final DateTime now = DateTime.now();
+    final List<DateTime> days = List<DateTime>.generate(7, (int i) {
+      final DateTime d = now.subtract(Duration(days: 6 - i));
+      return DateTime(d.year, d.month, d.day);
+    });
+    final Map<DateTime, int> minsByDay = <DateTime, int>{
+      for (final DateTime d in days) d: 0,
+    };
+    for (final HistoryEntry entry in library.history) {
+      final DateTime day = DateTime(
+        entry.lastPlayed.year,
+        entry.lastPlayed.month,
+        entry.lastPlayed.day,
+      );
+      if (!minsByDay.containsKey(day)) continue;
+      minsByDay[day] = (minsByDay[day] ?? 0) + _estimateEntryMinutes(entry);
+    }
+    final int maxMins = minsByDay.values.fold<int>(0, math.max).clamp(1, 24 * 60);
+    int streak = 0;
+    for (int i = days.length - 1; i >= 0; i--) {
+      if ((minsByDay[days[i]] ?? 0) > 0) {
+        streak++;
+      } else if (i < days.length - 1) {
+        break;
+      }
+    }
+    final int todayMins = minsByDay[days.last] ?? 0;
+    final int weekMins = minsByDay.values.fold<int>(0, (int a, int b) => a + b);
+    final int avgMins = (weekMins / 7).round();
+    const List<String> labels = <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final List<Map<String, dynamic>> dailyActivity = days.map((DateTime d) {
+      final int mins = minsByDay[d] ?? 0;
+      return <String, dynamic>{
+        'day': labels[d.weekday - 1],
+        'mins': mins,
+        'label': _formatListenMins(mins),
+        'ratio': (mins / maxMins).clamp(0.08, 1.0),
+        'isToday': d == days.last,
+      };
+    }).toList();
 
     return EchoGlassCard(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -1667,7 +1797,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const Icon(Icons.local_fire_department_rounded, size: 14, color: Colors.orangeAccent),
                     const SizedBox(width: 4),
                     Text(
-                      '5-Day Streak',
+                      streak > 0 ? '$streak-Day Streak' : 'No streak yet',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -1782,15 +1912,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 14),
 
-          // Activity Summary Footers
+          // Activity Summary Footers (live)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: <Widget>[
-              _buildMiniMetric(context, 'Today', '1h 45m', Icons.timer_outlined, AppColors.secondary),
+              _buildMiniMetric(context, 'Today', _formatListenMins(todayMins), Icons.timer_outlined, AppColors.secondary),
               Container(width: 1, height: 24, color: isDark ? AppColors.borderSubtle : AppColors.lightBorder),
-              _buildMiniMetric(context, 'Weekly Total', '7h 35m', Icons.date_range_rounded, AppColors.primaryLight),
+              _buildMiniMetric(context, 'Weekly Total', _formatListenMins(weekMins), Icons.date_range_rounded, AppColors.primaryLight),
               Container(width: 1, height: 24, color: isDark ? AppColors.borderSubtle : AppColors.lightBorder),
-              _buildMiniMetric(context, 'Daily Average', '1h 05m', Icons.trending_up_rounded, AppColors.success),
+              _buildMiniMetric(context, 'Daily Average', _formatListenMins(avgMins), Icons.trending_up_rounded, AppColors.success),
             ],
           ),
         ],

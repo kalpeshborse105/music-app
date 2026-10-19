@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -613,10 +615,18 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showNotificationCenter(BuildContext context) {
+  Future<void> _showNotificationCenter(BuildContext context) async {
     final bool isDark = context.isDarkMode;
+    final MusicRepository repo = context.read<MusicRepository>();
+    List<Map<String, dynamic>> notes = <Map<String, dynamic>>[];
+    try {
+      notes = await repo.fetchNotifications(limit: 40);
+    } catch (_) {}
+
+    if (!context.mounted) return;
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: isDark
           ? AppColors.surfaceContainerHigh
           : AppColors.lightSurface,
@@ -636,31 +646,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: AppColors.secondary.withValues(alpha: 0.15),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.notifications_active_rounded,
-                            color: AppColors.secondary,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Notification Center',
-                          style: TextStyle(
-                            fontFamily: 'Plus Jakarta Sans',
-                            fontWeight: FontWeight.w700,
-                            fontSize: 18,
-                            color: context.textPrimary,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      'Notifications',
+                      style: TextStyle(
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                        color: context.textPrimary,
+                      ),
                     ),
                     IconButton(
                       icon: const Icon(Icons.close_rounded, size: 20),
@@ -668,43 +661,117 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                _buildNotificationTile(
-                  context,
-                  title: 'Welcome to Kalpkrut Beats',
-                  message:
-                      'Stream millions of tracks in crystal-clear studio sound anytime, anywhere.',
-                  timestamp: 'Just now',
-                  icon: Icons.graphic_eq_rounded,
-                  color: AppColors.secondary,
-                ),
-                const SizedBox(height: 10),
-                _buildNotificationTile(
-                  context,
-                  title: 'Your Daily Mix is Ready',
-                  message:
-                      'Personalized recommendations and trending hits curated for your mood.',
-                  timestamp: '1h ago',
-                  icon: Icons.auto_awesome_rounded,
-                  color: AppColors.primary,
-                ),
-                const SizedBox(height: 10),
-                _buildNotificationTile(
-                  context,
-                  title: 'Offline Music Ready',
-                  message:
-                      'Download your favorite songs and playlists to listen seamlessly without internet.',
-                  timestamp: 'Today',
-                  icon: Icons.download_done_rounded,
-                  color: AppColors.success,
-                ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
+                if (notes.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text(
+                        'No new notifications',
+                        style: TextStyle(color: context.textSecondary),
+                      ),
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: notes.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (BuildContext _, int i) {
+                        final Map<String, dynamic> n = notes[i];
+                        final int ts = (n['created_at'] as num?)?.toInt() ?? 0;
+                        final String when = ts > 0
+                            ? _formatNotifTime(ts)
+                            : '';
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _openNotificationTarget(context, n);
+                          },
+                          child: _buildNotificationTile(
+                            context,
+                            title: '${n['title'] ?? 'Update'}',
+                            message: '${n['body'] ?? ''}',
+                            timestamp: when,
+                            icon: Icons.campaign_rounded,
+                            color: AppColors.secondary,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 8),
               ],
             ),
           ),
         );
       },
     );
+  }
+
+  String _formatNotifTime(int unix) {
+    final DateTime dt =
+        DateTime.fromMillisecondsSinceEpoch(unix * 1000).toLocal();
+    final Duration diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
+
+  void _openNotificationTarget(
+    BuildContext context,
+    Map<String, dynamic> n,
+  ) {
+    final String type = '${n['target_type'] ?? 'none'}'.toLowerCase();
+    final String id = '${n['target_id'] ?? ''}'.trim();
+    if (id.isEmpty || type == 'none') return;
+    if (type == 'url' && id.startsWith('http')) {
+      // leave as no-op in-app; deep links can be wired later
+      return;
+    }
+    if (type == 'artist') {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ArtistScreen(
+            artist: Artist(
+              id: 'custom_api:artist:$id',
+              providerId: 'custom_api',
+              providerArtistId: id,
+              name: '${n['title'] ?? 'Artist'}',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+    if (type == 'album') {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => AlbumScreen(
+            album: Album(
+              id: 'custom_api:album:$id',
+              providerId: 'custom_api',
+              providerAlbumId: id,
+              title: '${n['title'] ?? 'Album'}',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+    if (type == 'playlist' || type == 'catalog' || type == 'song') {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => TrackListScreen(
+            title: '${n['title'] ?? 'Playlist'}',
+            tracks: const <Track>[],
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildNotificationTile(
@@ -1387,6 +1454,28 @@ class _HomeScreenState extends State<HomeScreen> {
     return FutureBuilder<List<CatalogSection>>(
       future: _catalogSectionsFuture,
       builder: (BuildContext context, AsyncSnapshot<List<CatalogSection>> snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: Column(
+                children: <Widget>[
+                  SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    'Loading music shelves…',
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
         final List<CatalogSection> sections =
             snapshot.data ?? <CatalogSection>[];
         if (sections.isEmpty) {
@@ -1503,34 +1592,28 @@ class _HomeScreenState extends State<HomeScreen> {
                           actionLabel: 'See all (${sec.items.length})',
                           onAction: () => openSection(sec),
                         ),
-                        SizedBox(
-                          height: 200,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.lg,
-                            ),
-                            itemCount: sec.items.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(width: AppSpacing.md),
-                            itemBuilder: (BuildContext cardCtx, int i) {
-                              final Track track = sec.items[i];
-                              return MediaCard.forTrack(
-                                track: track,
-                                onTap: () => TrackActions.play(
-                                  context,
-                                  track,
-                                  queue: sec.items,
-                                ),
-                                onPlay: () => TrackActions.play(
-                                  context,
-                                  track,
-                                  queue: sec.items,
-                                ),
-                                width: 136,
-                              );
-                            },
-                          ),
+                        _buildDoubleRowShelf(
+                          context: context,
+                          itemCount: sec.items.length,
+                          rowHeight: 200,
+                          itemWidth: 136,
+                          itemBuilder: (BuildContext cardCtx, int i) {
+                            final Track track = sec.items[i];
+                            return MediaCard.forTrack(
+                              track: track,
+                              onTap: () => TrackActions.play(
+                                context,
+                                track,
+                                queue: sec.items,
+                              ),
+                              onPlay: () => TrackActions.play(
+                                context,
+                                track,
+                                queue: sec.items,
+                              ),
+                              width: 136,
+                            );
+                          },
                         ),
                       ],
                     );
@@ -1542,6 +1625,49 @@ class _HomeScreenState extends State<HomeScreen> {
                     (CatalogSection s) => s.sourceType == 'artist',
                   );
                   final double shelfHeight = isArtistGroup ? 185 : 215;
+                  final double cardWidth = isArtistGroup ? 130 : 148;
+
+                  Widget cardFor(CatalogSection sec) {
+                    final int count = sec.itemCount > 0
+                        ? sec.itemCount
+                        : sec.items.length;
+                    return MediaCard(
+                      title: sec.displayTitle,
+                      subtitle: sec.subtitle ??
+                          (sec.sourceType == 'artist'
+                              ? 'Artist'
+                              : '$count songs'),
+                      imageUrl: sec.effectiveArtworkUrl ??
+                          (sec.items.isNotEmpty
+                              ? sec.items.first.artworkUrl
+                              : null),
+                      fallbackIcon: sec.sourceType == 'artist'
+                          ? Icons.person_rounded
+                          : (sec.sourceType == 'album'
+                              ? Icons.album_rounded
+                              : Icons.queue_music_rounded),
+                      circle: sec.sourceType == 'artist',
+                      badgeText: sec.isBanner
+                          ? 'SPECIAL'
+                          : (sec.sourceType == 'artist'
+                              ? 'ARTIST'
+                              : (sec.sourceType == 'album'
+                                  ? 'ALBUM'
+                                  : 'PLAYLIST')),
+                      badgeColor: sec.isBanner
+                          ? AppColors.primaryLight
+                          : AppColors.secondary,
+                      width: cardWidth,
+                      onTap: () => openSection(sec),
+                      onPlay: sec.items.isNotEmpty
+                          ? () => TrackActions.play(
+                              context,
+                              sec.items.first,
+                              queue: sec.items,
+                            )
+                          : null,
+                    );
+                  }
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1557,62 +1683,31 @@ class _HomeScreenState extends State<HomeScreen> {
                             ? 'See all'
                             : null,
                       ),
-                      SizedBox(
-                        height: shelfHeight,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.lg,
+                      // Artists stay single-row horizontal; other shelves use 2 rows
+                      if (isArtistGroup)
+                        SizedBox(
+                          height: shelfHeight,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.lg,
+                            ),
+                            itemCount: groupSections.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: AppSpacing.md),
+                            itemBuilder: (BuildContext cardCtx, int i) =>
+                                cardFor(groupSections[i]),
                           ),
+                        )
+                      else
+                        _buildDoubleRowShelf(
+                          context: context,
                           itemCount: groupSections.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(width: AppSpacing.md),
-                          itemBuilder: (BuildContext cardCtx, int i) {
-                            final CatalogSection sec = groupSections[i];
-                            final int count = sec.itemCount > 0
-                                ? sec.itemCount
-                                : sec.items.length;
-                            return MediaCard(
-                              title: sec.displayTitle,
-                              subtitle:
-                                  sec.subtitle ??
-                                  (sec.sourceType == 'artist'
-                                      ? 'Artist'
-                                      : '$count songs'),
-                              imageUrl:
-                                  sec.effectiveArtworkUrl ??
-                                  (sec.items.isNotEmpty
-                                      ? sec.items.first.artworkUrl
-                                      : null),
-                              fallbackIcon: sec.sourceType == 'artist'
-                                  ? Icons.person_rounded
-                                  : (sec.sourceType == 'album'
-                                        ? Icons.album_rounded
-                                        : Icons.queue_music_rounded),
-                              circle: sec.sourceType == 'artist',
-                              badgeText: sec.isBanner
-                                  ? 'SPECIAL'
-                                  : (sec.sourceType == 'artist'
-                                        ? 'ARTIST'
-                                        : (sec.sourceType == 'album'
-                                              ? 'ALBUM'
-                                              : 'PLAYLIST')),
-                              badgeColor: sec.isBanner
-                                  ? AppColors.primaryLight
-                                  : AppColors.secondary,
-                              width: sec.sourceType == 'artist' ? 130 : 148,
-                              onTap: () => openSection(sec),
-                              onPlay: sec.items.isNotEmpty
-                                  ? () => TrackActions.play(
-                                      context,
-                                      sec.items.first,
-                                      queue: sec.items,
-                                    )
-                                  : null,
-                            );
-                          },
+                          rowHeight: shelfHeight,
+                          itemWidth: cardWidth,
+                          itemBuilder: (BuildContext cardCtx, int i) =>
+                              cardFor(groupSections[i]),
                         ),
-                      ),
                     ],
                   );
                 },
@@ -1621,6 +1716,46 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         );
       },
+    );
+  }
+
+  /// Two-row horizontal shelf: short screens 5/row, large 10/row (max 2 rows).
+  Widget _buildDoubleRowShelf({
+    required BuildContext context,
+    required int itemCount,
+    required double rowHeight,
+    required double itemWidth,
+    required NullableIndexedWidgetBuilder itemBuilder,
+  }) {
+    final double width = MediaQuery.sizeOf(context).width;
+    final int perRow = width >= 700 ? 10 : 5;
+    final int visible = math.min(itemCount, perRow * 2);
+    final int row1Count = math.min(perRow, visible);
+    final int row2Count = math.max(0, visible - row1Count);
+
+    Widget row(int start, int count) {
+      return SizedBox(
+        height: rowHeight,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          itemCount: count,
+          separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+          itemBuilder: (BuildContext ctx, int i) =>
+              itemBuilder(ctx, start + i) ?? const SizedBox.shrink(),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        row(0, row1Count),
+        if (row2Count > 0) ...<Widget>[
+          const SizedBox(height: AppSpacing.sm),
+          row(row1Count, row2Count),
+        ],
+      ],
     );
   }
 

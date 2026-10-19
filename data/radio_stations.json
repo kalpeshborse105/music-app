@@ -1,112 +1,638 @@
 [
   {
-    "id": "air_vividh_bharati",
-    "name": "AIR Vividh Bharati",
-    "tagline": "Classic Hindi Songs & Golden Era Melodies",
-    "frequency": "102.8 FM",
-    "state": "Mumbai / National",
-    "stream_url": "https://air.pc.cdn.bitgravity.com/air/live/pbaudio001/playlist.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
-    "category": "AIR National",
-    "is_live": true
-  },
-  {
-    "id": "air_fm_gold",
-    "name": "AIR FM Gold Delhi",
-    "tagline": "Retro Bollywood, News & Melodious Classics",
-    "frequency": "106.4 FM",
-    "state": "Delhi / National",
-    "stream_url": "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio005/hlspbaudio00564kbps.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80",
-    "category": "AIR National",
-    "is_live": true
-  },
-  {
-    "id": "air_fm_rainbow_mumbai",
-    "name": "AIR FM Rainbow Mumbai",
-    "tagline": "Mumbai 107.1 FM live melodies and youth programming",
-    "frequency": "107.1 FM",
-    "state": "Mumbai / Western",
-    "stream_url": "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio002/hlspbaudio00264kbps.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=500&q=80",
-    "category": "AIR Regional",
-    "is_live": true
-  },
-  {
-    "id": "air_marathi_asmita",
-    "name": "Akashvani Mumbai Asmita",
-    "tagline": "Prasar Bharati Marathi broadcasts, Natyasangeet & Bhavgeete",
-    "frequency": "100.1 FM",
-    "state": "Maharashtra",
-    "stream_url": "https://air.pc.cdn.bitgravity.com/air/live/pbaudio024/playlist.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&q=80",
-    "category": "AIR Regional",
-    "is_live": true
-  },
-  {
-    "id": "air_pune",
-    "name": "Akashvani Pune",
-    "tagline": "Akashvani Pune Marathi programming, news & classical recitals",
-    "frequency": "101.0 FM",
-    "state": "Pune / Maharashtra",
-    "stream_url": "https://air.pc.cdn.bitgravity.com/air/live/pbaudio025/playlist.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=500&q=80",
-    "category": "AIR Regional",
-    "is_live": true
-  },
-  {
-    "id": "air_nagpur",
-    "name": "Akashvani Nagpur",
-    "tagline": "Vidarbha regional broadcasts, Marathi folk & news",
-    "frequency": "102.2 FM",
-    "state": "Nagpur / Vidarbha",
-    "stream_url": "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio026/hlspbaudio02664kbps.m3u8",
-    "artwork_url": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500&q=80",
-    "category": "AIR Regional",
-    "is_live": true
-  },
-  {
     "id": "hindi_gold_classics",
-    "name": "Radio City Hindi Classics",
-    "tagline": "Evergreen 60s, 70s, 80s & 90s Golden Melodies",
-    "frequency": "Online 24/7",
-    "state": "National",
-    "stream_url": "https://cast1.asurahosting.com/proxy/radiocity/stream",
-    "artwork_url": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&q=80",
-    "category": "Retro Melodies",
-    "is_live": true
-  },
-  {
-    "id": "vividh_bharati_retro",
-    "name": "Vividh Bharati Retro",
-    "tagline": "Non-stop Kishore Kumar, Lata Mangeshkar, and R.D. Burman gems",
-    "frequency": "Web HD 24/7",
-    "state": "National",
-    "stream_url": "https://stream.zeno.fm/f3wvbbqmdg8uv",
-    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
-    "category": "Retro Melodies",
-    "is_live": true
-  },
-  {
-    "id": "bhakti_sagar_divine",
-    "name": "Akashvani Bhakti Sagar",
-    "tagline": "Divine morning Bhajans, sacred mantras, Aarti & Hanuman Chalisa",
-    "frequency": "Devotional 24/7",
-    "state": "National",
-    "stream_url": "https://stream.zeno.fm/m9w6q1k5y1zuv",
-    "artwork_url": "https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=500&q=80",
-    "category": "Devotional",
-    "is_live": true
-  },
-  {
-    "id": "marathi_sangeet_live",
-    "name": "Radio Marathi Sangeet",
-    "tagline": "Marathi Bhavgeete, Lavani, Natyasangeet & evergreen classics",
-    "frequency": "Regional 24/7",
+    "name": "Hindi Gold Classics",
+    "tagline": "Evergreen Bollywood classics 24/7",
+    "frequency": "Online",
     "state": "Maharashtra",
-    "stream_url": "https://stream.zeno.fm/0r0xa792kwzuv",
+    "district": "Mumbai",
+    "language": "hindi",
+    "languages": [
+      "hindi"
+    ],
+    "stream_url": "https://azuracast.vibesounds.in:8010/radio.mp3",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Private Popular",
+    "tier": "private",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "bhakti_sagar_live",
+    "name": "Bhakti Sagar",
+    "tagline": "Bhajans & aarti 24/7",
+    "frequency": "Online",
+    "state": "National",
+    "district": "",
+    "language": "hindi",
+    "languages": [
+      "hindi"
+    ],
+    "stream_url": "http://millenniumhits.out.airtime.pro:8000/millenniumhits_a",
+    "artwork_url": "https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=500&q=80",
+    "category": "Private Popular",
+    "tier": "private",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "india_hits_radiojar",
+    "name": "India Hits Live",
+    "tagline": "Popular Hindi hits stream",
+    "frequency": "Online",
+    "state": "Maharashtra",
+    "district": "Mumbai",
+    "language": "hindi",
+    "languages": [
+      "hindi"
+    ],
+    "stream_url": "https://stream.radiojar.com/4ywdgup3bnzuv",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Private Popular",
+    "tier": "private",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "lofi_chill_live",
+    "name": "Lo-Fi Chill",
+    "tagline": "Study & focus beats",
+    "frequency": "Online",
+    "state": "International",
+    "district": "",
+    "language": "english",
+    "languages": [
+      "english"
+    ],
+    "stream_url": "https://streams.ilovemusic.de/iloveradio17.mp3",
     "artwork_url": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80",
-    "category": "Regional",
-    "is_live": true
+    "category": "Private Popular",
+    "tier": "private",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "vividh_bharati",
+    "name": "Vividh Bharati",
+    "tagline": "Akashvani live • Hindi",
+    "frequency": "AIR Live",
+    "state": "National",
+    "district": "National",
+    "language": "hindi",
+    "languages": [
+      "hindi"
+    ],
+    "stream_url": "https://radio.wavespb.com/live/146ed6ec6dea5a24/146ed6ec6dea5a24.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "raagam",
+    "name": "Raagam",
+    "tagline": "Akashvani live • Hindi, Tamil, Telugu, Malayalam",
+    "frequency": "AIR Live",
+    "state": "National",
+    "district": "National",
+    "language": "hindi",
+    "languages": [
+      "hindi",
+      "tamil",
+      "telugu",
+      "malayalam"
+    ],
+    "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airbang04/air036_Auto.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "fm_gold_delhi",
+    "name": "FM Gold Delhi",
+    "tagline": "Akashvani live • Hindi",
+    "frequency": "AIR Live",
+    "state": "Delhi",
+    "district": "Delhi",
+    "language": "hindi",
+    "languages": [
+      "hindi"
+    ],
+    "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airdelhi03/air003_Auto.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "fm_rainbow_delhi",
+    "name": "FM Rainbow Delhi",
+    "tagline": "Akashvani live • Hindi",
+    "frequency": "AIR Live",
+    "state": "Delhi",
+    "district": "Delhi",
+    "language": "hindi",
+    "languages": [
+      "hindi"
+    ],
+    "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airdelhi02/air002_Auto.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "akashvani_aaradhana",
+    "name": "Akashvani Aaradhana",
+    "tagline": "Akashvani live • Hindi",
+    "frequency": "AIR Live",
+    "state": "Delhi",
+    "district": "Delhi",
+    "language": "hindi",
+    "languages": [
+      "hindi"
+    ],
+    "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airdelhi05/air005_Auto.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "live_news_24x7",
+    "name": "Live News 24x7",
+    "tagline": "Akashvani live • Hindi, English",
+    "frequency": "AIR Live",
+    "state": "National",
+    "district": "National",
+    "language": "hindi",
+    "languages": [
+      "hindi",
+      "english"
+    ],
+    "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airdelhi01/air001_Auto.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "akashvani_marathi_mumbai_asmita",
+    "name": "Akashvani Marathi Mumbai Asmita",
+    "tagline": "Akashvani live • Marathi, Hindi, English",
+    "frequency": "AIR Live",
+    "state": "Maharashtra",
+    "district": "Mumbai",
+    "language": "marathi",
+    "languages": [
+      "marathi",
+      "hindi",
+      "english"
+    ],
+    "stream_url": "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio010/hlspbaudio010_Auto.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "fm_gold_mumbai",
+    "name": "FM Gold Mumbai",
+    "tagline": "Akashvani live • Marathi, Hindi, English",
+    "frequency": "AIR Live",
+    "state": "Maharashtra",
+    "district": "Mumbai",
+    "language": "marathi",
+    "languages": [
+      "marathi",
+      "hindi",
+      "english"
+    ],
+    "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airmum01/air049_Auto.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "fm_rainbow_mumbai",
+    "name": "FM Rainbow Mumbai",
+    "tagline": "Akashvani live • Marathi, Hindi, English",
+    "frequency": "AIR Live",
+    "state": "Maharashtra",
+    "district": "Mumbai",
+    "language": "marathi",
+    "languages": [
+      "marathi",
+      "hindi",
+      "english"
+    ],
+    "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airmum02/air050_Auto.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "akashvani_pune",
+    "name": "Akashvani Pune",
+    "tagline": "Akashvani live • Marathi, Hindi, English",
+    "frequency": "AIR Live",
+    "state": "Maharashtra",
+    "district": "Pune",
+    "language": "marathi",
+    "languages": [
+      "marathi",
+      "hindi",
+      "english"
+    ],
+    "stream_url": "https://radio.wavespb.com/live/39d650ca0476a1fe/39d650ca0476a1fe.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "akashvani_dhule",
+    "name": "Akashvani Dhule",
+    "tagline": "Akashvani live • Marathi, Hindi, English",
+    "frequency": "AIR Live",
+    "state": "Maharashtra",
+    "district": "Dhule",
+    "language": "marathi",
+    "languages": [
+      "marathi",
+      "hindi",
+      "english"
+    ],
+    "stream_url": "https://radio.wavespb.com/live/c0040b54233d76a1/c0040b54233d76a1.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "akashvani_jalgaon",
+    "name": "Akashvani Jalgaon",
+    "tagline": "Akashvani live • Marathi, Hindi, English",
+    "frequency": "AIR Live",
+    "state": "Maharashtra",
+    "district": "Jalgaon",
+    "language": "marathi",
+    "languages": [
+      "marathi",
+      "hindi",
+      "english"
+    ],
+    "stream_url": "https://radio.wavespb.com/live/bd41e24a31710397/bd41e24a31710397.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "akashvani_akola",
+    "name": "Akashvani Akola",
+    "tagline": "Akashvani live • Marathi, Hindi, English",
+    "frequency": "AIR Live",
+    "state": "Maharashtra",
+    "district": "Akola",
+    "language": "marathi",
+    "languages": [
+      "marathi",
+      "hindi",
+      "english"
+    ],
+    "stream_url": "https://radio.wavespb.com/live/5dd27f81c839f0f5/5dd27f81c839f0f5.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "akashvani_nagpur",
+    "name": "Akashvani Nagpur",
+    "tagline": "Akashvani live • Marathi, Hindi, English",
+    "frequency": "AIR Live",
+    "state": "Maharashtra",
+    "district": "Nagpur",
+    "language": "marathi",
+    "languages": [
+      "marathi",
+      "hindi",
+      "english"
+    ],
+    "stream_url": "https://radio.wavespb.com/live/84ad8273437552d7/84ad8273437552d7.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "vbs_nagpur",
+    "name": "VBS Nagpur",
+    "tagline": "Akashvani live • Marathi, Hindi, English",
+    "frequency": "AIR Live",
+    "state": "Maharashtra",
+    "district": "Nagpur",
+    "language": "marathi",
+    "languages": [
+      "marathi",
+      "hindi",
+      "english"
+    ],
+    "stream_url": "https://radio.wavespb.com/live/019f90c3d79daeb9/019f90c3d79daeb9.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "akashvani_satara",
+    "name": "Akashvani Satara",
+    "tagline": "Akashvani live • Marathi, Hindi, English",
+    "frequency": "AIR Live",
+    "state": "Maharashtra",
+    "district": "Satara",
+    "language": "marathi",
+    "languages": [
+      "marathi",
+      "hindi",
+      "english"
+    ],
+    "stream_url": "https://radio.wavespb.com/live/6878cc031c86befd/6878cc031c86befd.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "akashvani_solapur",
+    "name": "Akashvani Solapur",
+    "tagline": "Akashvani live • Marathi, Hindi, English",
+    "frequency": "AIR Live",
+    "state": "Maharashtra",
+    "district": "Solapur",
+    "language": "marathi",
+    "languages": [
+      "marathi",
+      "hindi",
+      "english"
+    ],
+    "stream_url": "https://radio.wavespb.com/live/2792d5e06dbdc800/2792d5e06dbdc800.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "akashvani_kolhapur",
+    "name": "Akashvani Kolhapur",
+    "tagline": "Akashvani live • Marathi, Hindi, English",
+    "frequency": "AIR Live",
+    "state": "Maharashtra",
+    "district": "Kolhapur",
+    "language": "marathi",
+    "languages": [
+      "marathi",
+      "hindi",
+      "english"
+    ],
+    "stream_url": "https://air.pc.cdn.bitgravity.com/air/live/pbaudio063/playlist.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "akashvani_punjabi",
+    "name": "Akashvani Punjabi",
+    "tagline": "Akashvani live • Punjabi, Hindi",
+    "frequency": "AIR Live",
+    "state": "Punjab",
+    "district": "",
+    "language": "punjabi",
+    "languages": [
+      "punjabi",
+      "hindi"
+    ],
+    "stream_url": "https://radio.wavespb.com/live/5adc4acbbdd1f6cf/5adc4acbbdd1f6cf.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "akashvani_tamil_nadu",
+    "name": "Akashvani Tamil Nadu",
+    "tagline": "Akashvani live • Tamil, English",
+    "frequency": "AIR Live",
+    "state": "Tamil Nadu",
+    "district": "",
+    "language": "tamil",
+    "languages": [
+      "tamil",
+      "english"
+    ],
+    "stream_url": "https://radio.wavespb.com/live/d533f2af4f49bd6f/d533f2af4f49bd6f.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "fm_rainbow_chennai",
+    "name": "FM Rainbow Chennai",
+    "tagline": "Akashvani live • Tamil, English",
+    "frequency": "AIR Live",
+    "state": "Tamil Nadu",
+    "district": "Chennai",
+    "language": "tamil",
+    "languages": [
+      "tamil",
+      "english"
+    ],
+    "stream_url": "https://radio.wavespb.com/live/b20ff2fc0bb34b3d/b20ff2fc0bb34b3d.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "vb_tamil_chennai",
+    "name": "VB Tamil Chennai",
+    "tagline": "Akashvani live • Tamil, English",
+    "frequency": "AIR Live",
+    "state": "Tamil Nadu",
+    "district": "Chennai",
+    "language": "tamil",
+    "languages": [
+      "tamil",
+      "english"
+    ],
+    "stream_url": "https://radio.wavespb.com/live/f893db91dedcb4ab/f893db91dedcb4ab.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "fm_rainbow_hyderabad",
+    "name": "FM Rainbow Hyderabad",
+    "tagline": "Akashvani live • Telugu, Urdu, Hindi",
+    "frequency": "AIR Live",
+    "state": "Telangana",
+    "district": "Hyderabad",
+    "language": "telugu",
+    "languages": [
+      "telugu",
+      "urdu",
+      "hindi"
+    ],
+    "stream_url": "https://radio.wavespb.com/live/3a02c5c035815bb9/3a02c5c035815bb9.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "vb_telugu_hyderabad",
+    "name": "VB Telugu Hyderabad",
+    "tagline": "Akashvani live • Telugu, Urdu, Hindi",
+    "frequency": "AIR Live",
+    "state": "Telangana",
+    "district": "Hyderabad",
+    "language": "telugu",
+    "languages": [
+      "telugu",
+      "urdu",
+      "hindi"
+    ],
+    "stream_url": "https://radio.wavespb.com/live/89969ad91f106dde/89969ad91f106dde.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "akashwani_gujarati",
+    "name": "Akashwani Gujarati",
+    "tagline": "Akashvani live • Gujarati, Hindi",
+    "frequency": "AIR Live",
+    "state": "Gujarat",
+    "district": "",
+    "language": "gujarati",
+    "languages": [
+      "gujarati",
+      "hindi"
+    ],
+    "stream_url": "https://radio.wavespb.com/live/8a1bb2ca9d2a6741/8a1bb2ca9d2a6741.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "akashvani_bangla",
+    "name": "Akashvani Bangla",
+    "tagline": "Akashvani live • Bengali",
+    "frequency": "AIR Live",
+    "state": "West Bengal",
+    "district": "",
+    "language": "bengali",
+    "languages": [
+      "bengali"
+    ],
+    "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airkol07/air071_Auto.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "fm_rainbow_kolkata",
+    "name": "FM Rainbow Kolkata",
+    "tagline": "Akashvani live • Bengali, Hindi, English",
+    "frequency": "AIR Live",
+    "state": "West Bengal",
+    "district": "Kolkata",
+    "language": "bengali",
+    "languages": [
+      "bengali",
+      "hindi",
+      "english"
+    ],
+    "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airkol05/air069_Auto.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "vb_malayalam",
+    "name": "VB MALAYALAM",
+    "tagline": "Akashvani live • Malayalam, English",
+    "frequency": "AIR Live",
+    "state": "Kerala",
+    "district": "",
+    "language": "malayalam",
+    "languages": [
+      "malayalam",
+      "english"
+    ],
+    "stream_url": "https://radio.wavespb.com/live/ad3a8436a329e2d6/ad3a8436a329e2d6.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
+  },
+  {
+    "id": "vb_kannada",
+    "name": "VB KANNADA",
+    "tagline": "Akashvani live • Kannada, Hindi, English",
+    "frequency": "AIR Live",
+    "state": "Karnataka",
+    "district": "",
+    "language": "kannada",
+    "languages": [
+      "kannada",
+      "hindi",
+      "english"
+    ],
+    "stream_url": "https://d3r9rhourdc02u.cloudfront.net/assets/radio/airbang03/air035_Auto.m3u8",
+    "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+    "category": "Akashvani AIR",
+    "tier": "government",
+    "is_live": true,
+    "verified": true
   }
 ]

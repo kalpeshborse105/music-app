@@ -849,10 +849,40 @@ class MusicRepository {
   // ---------------------------------------------------------------------------
   // Radio & Library Category Admin Operations
   // ---------------------------------------------------------------------------
-  Future<List<Map<String, dynamic>>> fetchRadioStations() async {
+  Future<List<Map<String, dynamic>>> fetchRadioStations({
+    String? lang,
+    String? tier,
+    String? state,
+    String? district,
+  }) async {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) return <Map<String, dynamic>>[];
-    return provider.fetchRadioStations();
+    return provider.fetchRadioStations(
+      lang: lang,
+      tier: tier,
+      state: state,
+      district: district,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> fetchNotifications({int limit = 50}) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return <Map<String, dynamic>>[];
+    return provider.fetchNotifications(limit: limit);
+  }
+
+  Future<Map<String, dynamic>> createNotification(Map<String, dynamic> data) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) {
+      throw const ProviderException('custom_api', message: 'Custom API provider not configured');
+    }
+    return provider.createNotification(data);
+  }
+
+  Future<bool> deleteNotification(String notifId) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return false;
+    return provider.deleteNotification(notifId);
   }
 
   Future<Map<String, dynamic>> createRadioStation(Map<String, dynamic> data) async {

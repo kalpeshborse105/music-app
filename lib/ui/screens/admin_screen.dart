@@ -109,9 +109,13 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     <String, dynamic>{'title': 'Users', 'icon': Icons.people_alt_rounded},
     <String, dynamic>{'title': 'Providers', 'icon': Icons.hub_rounded},
     <String, dynamic>{'title': 'Licenses', 'icon': Icons.gavel_rounded},
+    <String, dynamic>{'title': 'Notify', 'icon': Icons.notifications_active_rounded},
     <String, dynamic>{'title': 'Reports', 'icon': Icons.report_problem_rounded},
     <String, dynamic>{'title': 'Settings', 'icon': Icons.tune_rounded},
   ];
+
+  bool _isLoadingNotifications = false;
+  List<Map<String, dynamic>> _adminNotifications = <Map<String, dynamic>>[];
 
   @override
   void initState() {
@@ -133,7 +137,25 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     if (index == 3) _loadLibraryCategories();
     if (index == 4) _loadAds();
     if (index == 5) _loadUsers();
-    if (index == 8) _loadReports();
+    if (index == 8) _loadAdminNotifications();
+    if (index == 9) _loadReports();
+  }
+
+  Future<void> _loadAdminNotifications() async {
+    setState(() => _isLoadingNotifications = true);
+    try {
+      final MusicRepository repo = context.read<MusicRepository>();
+      final List<Map<String, dynamic>> items =
+          await repo.fetchNotifications(limit: 100);
+      if (!mounted) return;
+      setState(() {
+        _adminNotifications = items;
+        _isLoadingNotifications = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoadingNotifications = false);
+    }
   }
 
   Future<void> _loadAds() async {
@@ -488,6 +510,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 ),
                 SingleChildScrollView(
                   padding: const EdgeInsets.all(AppSpacing.md),
+                  child: _buildNotificationsTab(context),
+                ),
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   child: _buildReportsTab(context),
                 ),
                 SingleChildScrollView(
@@ -518,10 +544,195 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       case 7:
         return _buildLicensesTab(context);
       case 8:
-        return _buildReportsTab(context);
+        return _buildNotificationsTab(context);
       case 9:
+        return _buildReportsTab(context);
+      case 10:
       default:
         return _buildSettingsTab(context);
+    }
+  }
+
+  Widget _buildNotificationsTab(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                'Broadcast Notifications',
+                style: TextStyle(
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: context.textPrimary,
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: _loadAdminNotifications,
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+            FilledButton.icon(
+              onPressed: _showCreateNotificationDialog,
+              icon: const Icon(Icons.campaign_rounded, size: 18),
+              label: const Text('Send'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Amazon-style push to all app users. Tap opens song / playlist / artist.',
+          style: TextStyle(fontSize: 13, color: context.textSecondary),
+        ),
+        const SizedBox(height: 16),
+        if (_isLoadingNotifications)
+          const Center(child: CircularProgressIndicator())
+        else if (_adminNotifications.isEmpty)
+          Text('No notifications yet.', style: TextStyle(color: context.textMuted))
+        else
+          ..._adminNotifications.map((Map<String, dynamic> n) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: EchoGlassCard(
+                padding: const EdgeInsets.all(12),
+                borderRadius: 14,
+                child: Row(
+                  children: <Widget>[
+                    const Icon(Icons.notifications_active_rounded,
+                        color: AppColors.secondary),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            '${n['title'] ?? ''}',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          Text(
+                            '${n['body'] ?? ''}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: context.textSecondary,
+                            ),
+                          ),
+                          Text(
+                            '${n['target_type'] ?? 'none'} → ${n['target_id'] ?? '-'}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: context.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded,
+                          color: Colors.redAccent),
+                      onPressed: () async {
+                        final MusicRepository repo =
+                            context.read<MusicRepository>();
+                        await repo.deleteNotification('${n['id']}');
+                        _loadAdminNotifications();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  Future<void> _showCreateNotificationDialog() async {
+    final TextEditingController titleCtrl = TextEditingController();
+    final TextEditingController bodyCtrl = TextEditingController();
+    final TextEditingController targetCtrl = TextEditingController();
+    String targetType = 'playlist';
+    final bool? ok = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext context, void Function(void Function()) setLocal) {
+            return AlertDialog(
+              title: const Text('Send notification'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    TextField(
+                      controller: titleCtrl,
+                      decoration: const InputDecoration(labelText: 'Title'),
+                    ),
+                    TextField(
+                      controller: bodyCtrl,
+                      decoration: const InputDecoration(labelText: 'Message'),
+                      maxLines: 3,
+                    ),
+                    DropdownButtonFormField<String>(
+                      value: targetType,
+                      items: const <DropdownMenuItem<String>>[
+                        DropdownMenuItem(value: 'playlist', child: Text('Playlist')),
+                        DropdownMenuItem(value: 'song', child: Text('Song')),
+                        DropdownMenuItem(value: 'album', child: Text('Album')),
+                        DropdownMenuItem(value: 'artist', child: Text('Artist')),
+                        DropdownMenuItem(value: 'catalog', child: Text('Catalog section')),
+                        DropdownMenuItem(value: 'radio', child: Text('Radio')),
+                        DropdownMenuItem(value: 'none', child: Text('None')),
+                      ],
+                      onChanged: (String? v) =>
+                          setLocal(() => targetType = v ?? 'playlist'),
+                      decoration: const InputDecoration(labelText: 'Open target'),
+                    ),
+                    TextField(
+                      controller: targetCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Target ID / URL',
+                        hintText: 'playlist id, song id, section key…',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Broadcast'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (ok != true || !mounted) return;
+    try {
+      final MusicRepository repo = context.read<MusicRepository>();
+      await repo.createNotification(<String, dynamic>{
+        'title': titleCtrl.text.trim(),
+        'body': bodyCtrl.text.trim(),
+        'target_type': targetType,
+        'target_id': targetCtrl.text.trim(),
+      });
+      _loadAdminNotifications();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Notification sent to users')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed: $e')),
+      );
     }
   }
 

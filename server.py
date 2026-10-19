@@ -186,6 +186,9 @@ _CACHE_MAX = 800
 _STREAM_CACHE = {}
 _TRACK_CACHE = {}
 _LAST_REFRESH = {"at": int(time.time())}
+# Catalog caches (section list + per-section songs) — declared early for refresh workers
+_CATALOG_ITEMS_CACHE = {}
+_CATALOG_SECTIONS_MEM = {"at": 0, "synced_at": 0, "data": None}
 
 
 def cached(key, ttl, producer):
@@ -280,51 +283,34 @@ SESSIONS = [
      "moods": ["lofi", "sad"]},
 ]
 
-RADIO_STATIONS = [
-    {"id": "air_vividh_bharati", "name": "AIR Vividh Bharati", "category": "Golden Era / Retro Classics",
-     "stream_url": "https://air.pc.cdn.bitgravity.com/air/live/pbaudio001/playlist.m3u8",
-     "description": "Immortal Bollywood classics & golden era memories from Akashvani Mumbai.",
-     "bitrate": "192 kbps HD", "is_live": True},
-    {"id": "air_marathi_asmita", "name": "Akashvani Marathi Samvad", "category": "Akashvani Maharashtra / News & Culture",
-     "stream_url": "https://air.pc.cdn.bitgravity.com/air/live/pbaudio024/playlist.m3u8",
-     "description": "Prasar Bharati Marathi broadcasts, Natyasangeet, Bhavgeete & state news.",
-     "bitrate": "128 kbps", "is_live": True},
-    {"id": "air_pune", "name": "Akashvani Pune", "category": "Akashvani Maharashtra / Western Region",
-     "stream_url": "https://air.pc.cdn.bitgravity.com/air/live/pbaudio025/playlist.m3u8",
-     "description": "Akashvani Pune live Marathi programming, classical recitals & cultural talks.",
-     "bitrate": "128 kbps", "is_live": True},
-    {"id": "air_nagpur", "name": "Akashvani Nagpur", "category": "Akashvani Maharashtra / Vidarbha",
-     "stream_url": "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio026/hlspbaudio02664kbps.m3u8",
-     "description": "Akashvani Nagpur Marathi and regional folk, news & devotional programming.",
-     "bitrate": "64 kbps", "is_live": True},
-    {"id": "air_fm_rainbow_mumbai", "name": "AIR FM Rainbow Mumbai", "category": "Mumbai Retro & Contemporary",
-     "stream_url": "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio002/hlspbaudio00264kbps.m3u8",
-     "description": "AIR FM Rainbow Mumbai 107.1 FM live melodies and city youth programming.",
-     "bitrate": "64 kbps", "is_live": True},
-    {"id": "air_fm_gold", "name": "AIR FM Gold Delhi", "category": "Retro Melodies & News",
-     "stream_url": "https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio005/hlspbaudio00564kbps.m3u8",
-     "description": "National broadcast of timeless retro songs and midday melodies.",
-     "bitrate": "192 kbps HD", "is_live": True},
-    {"id": "hindi_gold_retro", "name": "Hindi Gold Classics", "category": "Evergreen Retro MP3",
-     "stream_url": "https://azuracast.vibesounds.in:8010/radio.mp3",
-     "description": "Non-stop Kishore Kumar, Lata Mangeshkar, and R.D. Burman gems.",
-     "bitrate": "128 kbps", "is_live": True},
-    {"id": "lofi_chill_live", "name": "Lo-Fi Chillhop Radio", "category": "Lo-Fi / Study & Focus",
-     "stream_url": "https://streams.ilovemusic.de/iloveradio17.mp3",
-     "description": "Peaceful lo-fi beats and chillhop 24/7.", "bitrate": "192 kbps HD", "is_live": True},
-    {"id": "top_charts_live", "name": "Today Top Chartbusters", "category": "Trending Chart Hits",
-     "stream_url": "https://streams.ilovemusic.de/iloveradio1.mp3",
-     "description": "Non-stop trending chart hits and party beats.", "bitrate": "192 kbps HD", "is_live": True},
-    {"id": "bhakti_sagar_live", "name": "Bhakti Sagar Divine", "category": "Devotional / Mantras",
-     "stream_url": "http://millenniumhits.out.airtime.pro:8000/millenniumhits_a",
-     "description": "Divine morning Bhajans, sacred mantras, and Aarti.", "bitrate": "128 kbps", "is_live": True},
-    {"id": "classical_symphonies", "name": "Classical Symphonies", "category": "Classical & Instrumental",
-     "stream_url": "https://stream.srg-ssr.ch/m/rsc_de/mp3_128",
-     "description": "Timeless symphonies from Mozart, Beethoven, Chopin and Bach.", "bitrate": "128 kbps", "is_live": True},
-    {"id": "indie_groove_live", "name": "SomaFM Groove Salad", "category": "Indie / Acoustic Groove",
-     "stream_url": "https://ice2.somafm.com/groovesalad-128-mp3",
-     "description": "Chilled ambient beats, grooves and indie pop.", "bitrate": "128 kbps", "is_live": True},
-]
+def _load_builtin_radio_stations():
+    """Verified AIR/online stations from data/radio_stations.json (name ↔ stream matched)."""
+    path = os.path.join(BASE_DIR, "data", "radio_stations.json")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, list) and data:
+                return data
+    except Exception as exc:
+        print(f"[Radio] builtin load failed: {exc}")
+    # Minimal safe fallback if JSON missing
+    return [{
+        "id": "vividh_bharati",
+        "name": "Vividh Bharati",
+        "tagline": "Classic Hindi songs & golden-era melodies",
+        "frequency": "AIR Live",
+        "state": "NATIONAL",
+        "language": "hindi",
+        "languages": ["hindi"],
+        "stream_url": "https://radio.wavespb.com/live/146ed6ec6dea5a24/146ed6ec6dea5a24.m3u8",
+        "artwork_url": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+        "category": "AIR National",
+        "is_live": True,
+        "verified": True,
+    }]
+
+
+RADIO_STATIONS = _load_builtin_radio_stations()
 
 
 def parse_languages(raw):
@@ -1221,11 +1207,13 @@ def refresh_catalog():
         return 0.0
     try:
         started = time.time()
-        # Invalidate all discovery caches (v2 keys included)
-        prefixes = ("trending", "new", "newrel", "charts", "featured", "home", "pool", "session", "spotify")
+        # Invalidate all discovery caches (v2 keys included) + catalog section song caches
+        prefixes = ("trending", "new", "newrel", "charts", "featured", "home", "pool", "session", "spotify", "playlist", "album", "catpl")
         with _CACHE_LOCK:
             for key in [k for k in list(_CACHE.keys()) if k.split(":")[0] in prefixes]:
                 _CACHE.pop(key, None)
+        _CATALOG_ITEMS_CACHE.clear()
+        _CATALOG_SECTIONS_MEM["at"] = 0
         groups = [DEFAULT_LANGUAGES, ["hindi"], ["punjabi"], LANGUAGE_GROUPS["south"]]
         for langs in groups:
             try:
@@ -2496,66 +2484,129 @@ def delete_catalog_section_from_supabase(section_key, section_id=None):
         print(f"[Catalog Supabase Delete] error: {e}")
 
 
-def load_catalog_sections():
-    with CATALOG_LOCK:
-        # 1. Attempt to load from Supabase cloud database first (Single Source of Truth)
+_CATALOG_MEM_TTL = 45          # serve section list from RAM for 45s
+_CATALOG_SUPABASE_TTL = 180    # pull Supabase at most every 3 minutes (background)
+_CATALOG_ITEMS_TTL = 1800      # fresh playlist songs for 30 minutes
+_CATALOG_ITEMS_STALE = 7200    # serve stale songs up to 2h while refreshing
+
+
+def _read_local_catalog_sections():
+    if not os.path.exists(CATALOG_STORAGE_FILE):
+        return None
+    try:
+        with open(CATALOG_STORAGE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, list) and data:
+                return sorted(data, key=lambda x: x.get("position", 999))
+    except Exception as e:
+        print(f"[Catalog] Failed to load {CATALOG_STORAGE_FILE}: {e}")
+    return None
+
+
+def _write_local_catalog_sections(sections):
+    try:
+        with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
+            json.dump(sections, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"[Catalog] Failed to write {CATALOG_STORAGE_FILE}: {e}")
+
+
+def _bg_sync_catalog_from_supabase():
+    """Non-blocking Supabase → local disk sync so home feed never waits on DB."""
+    try:
         remote_rows = sync_catalog_from_supabase()
-        if remote_rows and len(remote_rows) > 0:
+        if not remote_rows:
+            return
+        remote_rows.sort(key=lambda x: x.get("position", 999))
+        with CATALOG_LOCK:
+            _write_local_catalog_sections(remote_rows)
+            _CATALOG_SECTIONS_MEM["data"] = remote_rows
+            _CATALOG_SECTIONS_MEM["at"] = time.time()
+            _CATALOG_SECTIONS_MEM["synced_at"] = time.time()
+        print(f"[Catalog] background Supabase sync ok ({len(remote_rows)} sections)")
+    except Exception as e:
+        print(f"[Catalog] background Supabase sync failed: {e}")
+
+
+def load_catalog_sections():
+    """
+    Fast path: memory → local JSON (instant).
+    Slow path: Supabase only on cold start, otherwise background refresh.
+    This fixes the 'music stuck loading' UX caused by blocking DB fetches.
+    """
+    now = time.time()
+    mem = _CATALOG_SECTIONS_MEM.get("data")
+    if mem and now - _CATALOG_SECTIONS_MEM.get("at", 0) < _CATALOG_MEM_TTL:
+        if now - _CATALOG_SECTIONS_MEM.get("synced_at", 0) > _CATALOG_SUPABASE_TTL:
+            _CATALOG_SECTIONS_MEM["synced_at"] = now
+            threading.Thread(target=_bg_sync_catalog_from_supabase, daemon=True).start()
+        return list(mem)
+
+    with CATALOG_LOCK:
+        now = time.time()
+        mem = _CATALOG_SECTIONS_MEM.get("data")
+        if mem and now - _CATALOG_SECTIONS_MEM.get("at", 0) < _CATALOG_MEM_TTL:
+            local = mem
+        else:
+            local = _read_local_catalog_sections()
+            if local:
+                _CATALOG_SECTIONS_MEM["data"] = local
+                _CATALOG_SECTIONS_MEM["at"] = now
+
+        if local:
+            if now - _CATALOG_SECTIONS_MEM.get("synced_at", 0) > _CATALOG_SUPABASE_TTL:
+                _CATALOG_SECTIONS_MEM["synced_at"] = now
+                threading.Thread(target=_bg_sync_catalog_from_supabase, daemon=True).start()
+            return list(local)
+
+        # Cold start only — block once to seed from Supabase / defaults
+        remote_rows = sync_catalog_from_supabase()
+        if remote_rows:
             remote_rows.sort(key=lambda x: x.get("position", 999))
-            try:
-                with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
-                    json.dump(remote_rows, f, indent=2, ensure_ascii=False)
-            except Exception:
-                pass
-            return remote_rows
+            _write_local_catalog_sections(remote_rows)
+            _CATALOG_SECTIONS_MEM.update({"data": remote_rows, "at": now, "synced_at": now})
+            return list(remote_rows)
 
-        # 2. Fallback to local storage if cloud is unreachable
-        if os.path.exists(CATALOG_STORAGE_FILE):
-            try:
-                with open(CATALOG_STORAGE_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if isinstance(data, list) and len(data) > 0:
-                        return sorted(data, key=lambda x: x.get("position", 999))
-            except Exception as e:
-                print(f"[Catalog] Failed to load {CATALOG_STORAGE_FILE}: {e}")
-
-        # 3. Fallback to default sections (with Kishore Kumar) and save to Supabase
         default_sections = _generate_default_catalog_sections()
-        try:
-            with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
-                json.dump(default_sections, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"[Catalog] Failed to write default {CATALOG_STORAGE_FILE}: {e}")
-
-        sync_catalog_to_supabase(default_sections)
-        return default_sections
+        _write_local_catalog_sections(default_sections)
+        _CATALOG_SECTIONS_MEM.update({"data": default_sections, "at": now, "synced_at": now})
+        threading.Thread(target=sync_catalog_to_supabase, args=(default_sections,), daemon=True).start()
+        return list(default_sections)
 
 
-_CATALOG_ITEMS_CACHE = {}
+def _resolve_section_base_items(section):
+    items, _is_mock, _status, _title, _art = resolve_catalog_items(
+        section.get("source_type"),
+        section.get("source_id"),
+        section.get("slug"),
+        section.get("language", "all"),
+    )
+    key = section.get("key") or section.get("id") or section.get("slug")
+    _CATALOG_ITEMS_CACHE[key] = (time.time(), items)
+    return items
 
 
 def get_section_items(section, force_refresh=False):
-    """Dynamically resolves items for a catalog section with in-memory caching and track exclusion."""
+    """Resolves playlist/artist songs with TTL cache + stale-while-revalidate."""
     key = section.get("key") or section.get("id") or section.get("slug")
     now = time.time()
     excluded_ids = set(str(x) for x in (section.get("excluded_track_ids") or []))
     custom_tracks = section.get("custom_tracks") or []
 
     base_items = []
-    if not force_refresh and key in _CATALOG_ITEMS_CACHE:
-        ts, items = _CATALOG_ITEMS_CACHE[key]
-        if now - ts < 1800:  # 30 minutes in-memory cache
+    cached = _CATALOG_ITEMS_CACHE.get(key) if key else None
+    if not force_refresh and cached:
+        ts, items = cached
+        age = now - ts
+        if age < _CATALOG_ITEMS_TTL:
             base_items = items
+        elif age < _CATALOG_ITEMS_STALE:
+            # Serve stale songs immediately; refresh Jio playlist in background
+            base_items = items
+            threading.Thread(target=_resolve_section_base_items, args=(section,), daemon=True).start()
 
     if not base_items:
-        items, is_mock, status, title, art = resolve_catalog_items(
-            section.get("source_type"),
-            section.get("source_id"),
-            section.get("slug"),
-            section.get("language", "all")
-        )
-        base_items = items
-        _CATALOG_ITEMS_CACHE[key] = (now, items)
+        base_items = _resolve_section_base_items(section)
 
     # Combine custom tracks + base items, then filter out excluded_track_ids
     combined = []
@@ -2582,7 +2633,10 @@ def save_catalog_sections(sections):
                 disk_sections.append(clean_s)
             with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
                 json.dump(disk_sections, f, indent=2)
-            sync_catalog_to_supabase(disk_sections)
+            _CATALOG_SECTIONS_MEM["data"] = disk_sections
+            _CATALOG_SECTIONS_MEM["at"] = time.time()
+            _CATALOG_SECTIONS_MEM["synced_at"] = time.time()
+            threading.Thread(target=sync_catalog_to_supabase, args=(disk_sections,), daemon=True).start()
             return True
         except Exception as e:
             print(f"[Catalog] Failed to save {CATALOG_STORAGE_FILE}: {e}")
@@ -2640,7 +2694,13 @@ def api_catalog_sections():
     with ThreadPoolExecutor(max_workers=8) as executor:
         enriched = list(executor.map(enrich_single, sections))
 
-    return ok({"sections": enriched, "total": len(enriched), "source": "admin_catalog"}, 0)
+    # Short CDN/browser cache — songs inside still refresh via stale-while-revalidate
+    return ok({
+        "sections": enriched,
+        "total": len(enriched),
+        "source": "admin_catalog",
+        "cache": "local_first",
+    }, 60)
 
 
 @app.route("/api/catalog/sections/<section_key>", methods=["GET"])
@@ -3020,23 +3080,64 @@ def api_radio_stations():
         if any(s.get("id") == station_id for s in stations):
             station_id = f"{station_id}_{int(time.time())}"
 
+        language = str(body.get("language") or "hindi").strip().lower()
+        languages = body.get("languages") or [language]
+        if isinstance(languages, str):
+            languages = [x.strip().lower() for x in languages.split(",") if x.strip()]
         new_station = {
             "id": station_id,
             "name": name,
             "tagline": str(body.get("tagline") or "").strip(),
             "frequency": str(body.get("frequency") or "Live FM").strip(),
             "state": str(body.get("state") or "National / Regional").strip(),
+            "language": language,
+            "languages": languages,
             "stream_url": stream_url,
             "artwork_url": str(body.get("artwork_url") or "").strip() or "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
             "category": str(body.get("category") or "National").strip(),
             "is_live": bool(body.get("is_live", True)),
+            "verified": bool(body.get("verified", False)),
         }
         stations.append(new_station)
         save_radio_stations(stations)
         return jsonify(new_station), 201
 
     stations = load_radio_stations()
-    return ok({"stations": stations, "count": len(stations)}, 60)
+    lang = (request.args.get("lang") or request.args.get("language") or "").strip().lower()
+    tier = (request.args.get("tier") or "").strip().lower()  # private | government | air
+    state = (request.args.get("state") or "").strip().lower()
+    district = (request.args.get("district") or "").strip().lower()
+    if lang and lang not in ("all", "india"):
+        stations = [
+            s for s in stations
+            if lang == (s.get("language") or "").lower()
+            or lang in [x.lower() for x in (s.get("languages") or [])]
+        ]
+    if tier in ("private", "popular"):
+        stations = [s for s in stations if (s.get("tier") or "").lower() == "private"]
+    elif tier in ("government", "air", "akashvani"):
+        stations = [s for s in stations if (s.get("tier") or "").lower() == "government"]
+    if state and state != "all":
+        stations = [s for s in stations if state in (s.get("state") or "").lower()]
+    if district and district != "all":
+        stations = [s for s in stations if district in (s.get("district") or "").lower()]
+
+    # Private / popular first, then AIR grouped by state → district
+    def _radio_sort_key(s):
+        tier_rank = 0 if (s.get("tier") or "") == "private" else 1
+        return (tier_rank, (s.get("state") or ""), (s.get("district") or ""), (s.get("name") or ""))
+
+    stations = sorted(stations, key=_radio_sort_key)
+    states = sorted({(s.get("state") or "").strip() for s in stations if s.get("state")})
+    districts = sorted({(s.get("district") or "").strip() for s in stations if s.get("district")})
+    return ok({
+        "stations": stations,
+        "count": len(stations),
+        "lang": lang or "all",
+        "tier": tier or "all",
+        "states": states,
+        "districts": districts,
+    }, 120)
 
 
 @app.route("/api/radio/stations/<station_id>", methods=["PUT", "DELETE"])
@@ -3072,6 +3173,15 @@ def api_radio_station_detail(station_id):
         st["category"] = str(body["category"]).strip()
     if "is_live" in body:
         st["is_live"] = bool(body["is_live"])
+    if "language" in body:
+        st["language"] = str(body["language"]).strip().lower()
+    if "languages" in body:
+        langs = body["languages"]
+        if isinstance(langs, str):
+            langs = [x.strip().lower() for x in langs.split(",") if x.strip()]
+        st["languages"] = langs
+    if "verified" in body:
+        st["verified"] = bool(body["verified"])
 
     save_radio_stations(stations)
     return jsonify(st)
@@ -3082,6 +3192,99 @@ def api_radio_stream(station_id):
     stations = load_radio_stations()
     station = next((s for s in stations if s["id"] == station_id), None)
     return redirect(station["stream_url"], code=302) if station else not_found("Station not found")
+
+
+# ─── Push / in-app notifications (Amazon-style admin broadcast) ─────────────────
+NOTIFICATION_STORAGE_FILE = os.path.join(DATA_DIR, "notifications.json")
+NOTIFICATION_LOCK = threading.Lock()
+
+
+def load_notifications():
+    with NOTIFICATION_LOCK:
+        if os.path.exists(NOTIFICATION_STORAGE_FILE):
+            try:
+                with open(NOTIFICATION_STORAGE_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        return data
+            except Exception as e:
+                print(f"[Notify] load error: {e}")
+        return []
+
+
+def save_notifications(items):
+    with NOTIFICATION_LOCK:
+        try:
+            with open(NOTIFICATION_STORAGE_FILE, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=2, ensure_ascii=False)
+            return True
+        except Exception as e:
+            print(f"[Notify] save error: {e}")
+            return False
+
+
+@app.route("/api/notifications", methods=["GET", "POST"])
+def api_notifications():
+    """
+    GET  — list active notifications for the app (newest first)
+    POST — admin create (title, body, target_type, target_id, image_url)
+           target_type: song | playlist | album | artist | radio | catalog | url | none
+    """
+    if request.method == "POST":
+        if not is_admin_request(request):
+            return jsonify({"error": "Admin privileges required"}), 403
+        body = request.get_json(silent=True) or {}
+        title = str(body.get("title") or "").strip()
+        message = str(body.get("body") or body.get("message") or "").strip()
+        if not title:
+            return jsonify({"error": "title is required"}), 400
+        item = {
+            "id": str(body.get("id") or uuid.uuid4()),
+            "title": title,
+            "body": message,
+            "target_type": str(body.get("target_type") or "none").strip().lower(),
+            "target_id": str(body.get("target_id") or body.get("target_url") or "").strip(),
+            "image_url": str(body.get("image_url") or "").strip(),
+            "is_active": bool(body.get("is_active", True)),
+            "created_at": int(time.time()),
+        }
+        items = load_notifications()
+        items.insert(0, item)
+        items = items[:200]
+        save_notifications(items)
+        return jsonify(item), 201
+
+    include_inactive = request.args.get("include_inactive", "").lower() in ("1", "true", "yes")
+    items = load_notifications()
+    if not include_inactive:
+        items = [n for n in items if n.get("is_active", True)]
+    limit = arg_int("limit", 50, 1, 200)
+    return ok({"notifications": items[:limit], "count": min(len(items), limit)}, 30)
+
+
+@app.route("/api/notifications/<notif_id>", methods=["DELETE", "PUT"])
+def api_notification_detail(notif_id):
+    if not is_admin_request(request):
+        return jsonify({"error": "Admin privileges required"}), 403
+    items = load_notifications()
+    idx = next((i for i, n in enumerate(items) if str(n.get("id")) == str(notif_id)), None)
+    if idx is None:
+        return not_found("Notification not found")
+    if request.method == "DELETE":
+        removed = items.pop(idx)
+        save_notifications(items)
+        return jsonify({"success": True, "deleted": removed})
+    body = request.get_json(silent=True) or {}
+    n = items[idx]
+    for key in ("title", "body", "target_type", "target_id", "image_url"):
+        if key in body:
+            n[key] = str(body[key]).strip()
+    if "message" in body and "body" not in body:
+        n["body"] = str(body["message"]).strip()
+    if "is_active" in body:
+        n["is_active"] = bool(body["is_active"])
+    save_notifications(items)
+    return jsonify(n)
 
 
 # ─── Library Categories Endpoints ───────────────────────────────────────────────

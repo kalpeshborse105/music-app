@@ -446,7 +446,7 @@ class CustomApiProvider extends BaseMusicProvider {
       final http.Response res = await http.get(
         uri,
         headers: _buildHeaders(),
-      ).timeout(const Duration(seconds: 30));
+      ).timeout(const Duration(seconds: 18));
       if (res.statusCode == 200) {
         final dynamic data = jsonDecode(res.body);
         if (data is Map && data['sections'] is List) {
@@ -738,8 +738,28 @@ class CustomApiProvider extends BaseMusicProvider {
   // ---------------------------------------------------------------------------
   // Radio Stations Admin Management
   // ---------------------------------------------------------------------------
-  Future<List<Map<String, dynamic>>> fetchRadioStations() async {
-    final Uri uri = Uri.parse('$_baseUrl/api/radio/stations');
+  Future<List<Map<String, dynamic>>> fetchRadioStations({
+    String? lang,
+    String? tier,
+    String? state,
+    String? district,
+  }) async {
+    final Map<String, String> query = <String, String>{};
+    if (lang != null && lang.isNotEmpty && lang.toLowerCase() != 'all') {
+      query['lang'] = lang.toLowerCase();
+    }
+    if (tier != null && tier.isNotEmpty && tier.toLowerCase() != 'all') {
+      query['tier'] = tier.toLowerCase();
+    }
+    if (state != null && state.isNotEmpty && state.toLowerCase() != 'all') {
+      query['state'] = state;
+    }
+    if (district != null && district.isNotEmpty && district.toLowerCase() != 'all') {
+      query['district'] = district;
+    }
+    final Uri uri = Uri.parse('$_baseUrl/api/radio/stations').replace(
+      queryParameters: query.isEmpty ? null : query,
+    );
     final http.Response res = await http.get(uri).timeout(const Duration(seconds: 10));
     if (res.statusCode == 200) {
       final Map<String, dynamic> body = jsonDecode(res.body) as Map<String, dynamic>;
@@ -777,6 +797,45 @@ class CustomApiProvider extends BaseMusicProvider {
 
   Future<bool> deleteRadioStation(String stationId) async {
     final Uri uri = Uri.parse('$_baseUrl/api/radio/stations/$stationId');
+    final http.Response res = await http.delete(
+      uri,
+      headers: _buildHeaders(),
+    ).timeout(const Duration(seconds: 10));
+    return res.statusCode >= 200 && res.statusCode < 300;
+  }
+
+  // ---------------------------------------------------------------------------
+  // In-app notifications (admin broadcast → user inbox)
+  // ---------------------------------------------------------------------------
+  Future<List<Map<String, dynamic>>> fetchNotifications({int limit = 50}) async {
+    if (_baseUrl.isEmpty) return <Map<String, dynamic>>[];
+    final Uri uri = Uri.parse('$_baseUrl/api/notifications').replace(
+      queryParameters: <String, String>{'limit': '$limit'},
+    );
+    final http.Response res = await http.get(uri).timeout(const Duration(seconds: 10));
+    if (res.statusCode == 200) {
+      final Map<String, dynamic> body = jsonDecode(res.body) as Map<String, dynamic>;
+      final List<dynamic> list = (body['notifications'] as List<dynamic>?) ?? <dynamic>[];
+      return list.whereType<Map<String, dynamic>>().toList();
+    }
+    return <Map<String, dynamic>>[];
+  }
+
+  Future<Map<String, dynamic>> createNotification(Map<String, dynamic> data) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/notifications');
+    final http.Response res = await http.post(
+      uri,
+      headers: _buildHeaders(),
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 10));
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    }
+    throw ProviderException(id, message: 'Failed to create notification (${res.statusCode})');
+  }
+
+  Future<bool> deleteNotification(String notifId) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/notifications/$notifId');
     final http.Response res = await http.delete(
       uri,
       headers: _buildHeaders(),
