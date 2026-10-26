@@ -88,6 +88,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   final TextEditingController _catalogArtworkController = TextEditingController();
   String _catalogLanguage = 'all';
   String _catalogGroupFilter = 'all';
+  String _catalogStatusFilter = 'all'; // all | live | mock | disabled | banners | mixes
+  final TextEditingController _catalogSearchController = TextEditingController();
+  final Set<String> _refreshingSectionKeys = <String>{};
   bool _catalogIsEnabled = true;
   bool _catalogIsBanner = false;
   DateTime? _campaignStart;
@@ -1083,7 +1086,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         'send_fcm': sendFcm,
       };
       final Map<String, dynamic> result = isEdit
-          ? await repo.updateNotification('${existing!['id']}', payload)
+          ? await repo.updateNotification('${existing['id']}', payload)
           : await repo.createNotification(payload);
       _loadAdminNotifications();
       if (!mounted) return;
@@ -1135,6 +1138,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   String _inferSourceType(String url) {
     final String lower = url.toLowerCase();
     if (lower.contains('/artist/')) return 'artist';
+    if (lower.contains('/mix/') || lower.contains('/s/mix/')) return 'mix';
     if (lower.contains('/featured/') || lower.contains('/playlist/')) return 'playlist';
     if (lower.contains('/album/')) return 'album';
     if (lower.contains('/new-releases')) return 'new_releases';
@@ -1201,6 +1205,8 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           if (_catalogGroupController.text.trim().isEmpty) {
             if (detectedType == 'artist') {
               _catalogGroupController.text = 'Featured Artists';
+            } else if (detectedType == 'mix') {
+              _catalogGroupController.text = 'Personalized Mixes';
             } else if (detectedType == 'playlist') {
               _catalogGroupController.text = 'Top Charts';
             } else if (detectedType == 'album') {
@@ -1288,6 +1294,44 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       return;
     }
 
+    // Guard: Block saving live sections when parsing fails, returns mock data, or has no resolved items
+    if (_catalogIsEnabled && (_previewItems.isEmpty || _previewIsMock || _previewError != null)) {
+      final bool? proceedAsDraft = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext ctx) => AlertDialog(
+          title: Row(
+            children: const <Widget>[
+              Icon(Icons.warning_amber_rounded, color: AppColors.secondary),
+              SizedBox(width: 8),
+              Text('Unverified Source Content'),
+            ],
+          ),
+          content: Text(
+            _previewItems.isEmpty
+                ? 'This section returned 0 playable tracks from JioSaavn.\n\nActive catalogue sections must have live resolved tracks. Would you like to save it as a DISABLED DRAFT instead?'
+                : (_previewIsMock
+                    ? 'This section resolved using MOCK fallback tracks.\n\nTo prevent mock data on production, would you like to save it as a DISABLED DRAFT instead?'
+                    : 'This section encountered preview errors.\n\nSave as a DISABLED DRAFT instead?'),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.tonal(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Save as Disabled Draft'),
+            ),
+          ],
+        ),
+      );
+      if (proceedAsDraft != true) {
+        return;
+      }
+      _catalogIsEnabled = false;
+    }
+
+    if (!mounted) return;
     setState(() => _isSavingCatalog = true);
     final MusicRepository repo = context.read<MusicRepository>();
 
@@ -1530,6 +1574,80 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     }
   }
 
+  Future<void> _refreshCatalogSection(CatalogSection section) async {
+    final String key = section.sectionKey;
+    if (_refreshingSectionKeys.contains(key)) return;
+    setState(() => _refreshingSectionKeys.add(key));
+    try {
+      final MusicRepository repo = context.read<MusicRepository>();
+      final CatalogSection? updated = await repo.refreshCatalogSection(key);
+      if (mounted && updated != null) {
+        setState(() {
+          final int idx = _catalogSections.indexWhere((CatalogSection s) => s.key == key || s.id == updated.id);
+          if (idx != -1) {
+            _catalogSections[idx] = updated;
+          }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Refreshed "${section.displayTitle}" (${updated.items.length} tracks, ${updated.providerStatus.toUpperCase()})'),
+            backgroundColor: updated.isMock ? AppColors.secondary : AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to refresh section: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _refreshingSectionKeys.remove(key));
+      }
+    }
+  }
+
+  Future<void> _refreshAllCatalogSections() async {
+    setState(() => _isLoadingCatalog = true);
+    try {
+      final MusicRepository repo = context.read<MusicRepository>();
+      final List<CatalogSection> list = await repo.getCatalogSections(
+        includeDisabled: true,
+        forceRefresh: true,
+      );
+      if (mounted) {
+        setState(() {
+          _catalogSections = list;
+          _isLoadingCatalog = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Successfully refreshed all ${list.length} sections from provider'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingCatalog = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Refresh all failed: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
+  String _formatLastRefresh(int ts) {
+    if (ts <= 0) return 'Never';
+    final int now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final int diff = now - ts;
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return '${diff ~/ 60}m ago';
+    if (diff < 86400) return '${diff ~/ 3600}h ago';
+    return '${diff ~/ 86400}d ago';
+  }
+
   Widget _buildQuickUrlChip(String label, String url) {
     return ActionChip(
       avatar: const Icon(Icons.bolt_rounded, size: 14, color: AppColors.secondary),
@@ -1546,6 +1664,8 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
   Widget _buildCatalogSectionCard(BuildContext context, CatalogSection section, int index) {
     final bool isDark = context.isDarkMode;
+    final bool isRefreshing = _refreshingSectionKeys.contains(section.sectionKey);
+    final bool isMix = section.sourceType == 'mix' || section.sourceType == 'jiosaavn_mix';
 
     return LayoutBuilder(
       builder: (BuildContext ctx, BoxConstraints constraints) {
@@ -1629,15 +1749,15 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: AppColors.secondary.withValues(alpha: 0.15),
+                        color: (isMix ? AppColors.electricViolet : AppColors.secondary).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         section.sourceType.toUpperCase(),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 9.5,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.secondary,
+                          color: isMix ? AppColors.electricViolet : AppColors.secondary,
                         ),
                       ),
                     ),
@@ -1676,18 +1796,47 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: (section.isMock ? AppColors.secondary : AppColors.success).withValues(alpha: 0.15),
+                        color: (section.isMock
+                                ? AppColors.secondary
+                                : (section.providerStatus == 'stale'
+                                    ? Colors.orange
+                                    : AppColors.success))
+                            .withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        section.isMock ? 'MOCK' : 'LIVE',
+                        section.isMock
+                            ? 'MOCK'
+                            : (section.providerStatus == 'stale' ? 'STALE' : 'LIVE'),
                         style: TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
-                          color: section.isMock ? AppColors.secondary : AppColors.success,
+                          color: section.isMock
+                              ? AppColors.secondary
+                              : (section.providerStatus == 'stale'
+                                  ? Colors.orange
+                                  : AppColors.success),
                         ),
                       ),
                     ),
+                    if (section.lastError != null && section.lastError!.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'ERR: ${section.lastError}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.error,
+                          ),
+                        ),
+                      ),
                     if (section.campaignStart != null || section.campaignEnd != null)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1710,7 +1859,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
                 // Metadata row
                 Text(
-                  '${section.items.length} tracks • Lang: ${section.language.toUpperCase()}',
+                  '${section.items.length} tracks • Lang: ${section.language.toUpperCase()} • Refreshed: ${_formatLastRefresh(section.lastRefresh)}',
                   style: TextStyle(fontSize: 10.5, color: context.textMuted),
                 ),
                 const SizedBox(height: 10),
@@ -1748,6 +1897,17 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                           : null,
                     ),
                     const Spacer(),
+                    IconButton(
+                      icon: isRefreshing
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.refresh_rounded, size: 18),
+                      tooltip: 'Refresh Section from Provider',
+                      onPressed: isRefreshing ? null : () => _refreshCatalogSection(section),
+                    ),
                     TextButton.icon(
                       icon: const Icon(Icons.edit_rounded, size: 18),
                       label: const Text('Edit'),
@@ -1862,15 +2022,15 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: AppColors.secondary.withValues(alpha: 0.15),
+                            color: (isMix ? AppColors.electricViolet : AppColors.secondary).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             section.sourceType.toUpperCase(),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 9.5,
                               fontWeight: FontWeight.w800,
-                              color: AppColors.secondary,
+                              color: isMix ? AppColors.electricViolet : AppColors.secondary,
                             ),
                           ),
                         ),
@@ -1909,6 +2069,26 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                             ),
                           ),
                         ],
+                        if (section.lastError != null && section.lastError!.isNotEmpty) ...<Widget>[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.error.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'ERR: ${section.lastError}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.error,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -1928,15 +2108,26 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: (section.isMock ? AppColors.secondary : AppColors.success).withValues(alpha: 0.15),
+                            color: (section.isMock
+                                    ? AppColors.secondary
+                                    : (section.providerStatus == 'stale'
+                                        ? Colors.orange
+                                        : AppColors.success))
+                                .withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            section.isMock ? 'MOCK' : 'LIVE',
+                            section.isMock
+                                ? 'MOCK'
+                                : (section.providerStatus == 'stale' ? 'STALE' : 'LIVE'),
                             style: TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.w800,
-                              color: section.isMock ? AppColors.secondary : AppColors.success,
+                              color: section.isMock
+                                  ? AppColors.secondary
+                                  : (section.providerStatus == 'stale'
+                                      ? Colors.orange
+                                      : AppColors.success),
                             ),
                           ),
                         ),
@@ -1960,7 +2151,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                         ],
                         const SizedBox(width: 8),
                         Text(
-                          '${section.items.length} tracks • Lang: ${section.language.toUpperCase()}',
+                          '${section.items.length} tracks • Lang: ${section.language.toUpperCase()} • Refreshed: ${_formatLastRefresh(section.lastRefresh)}',
                           style: TextStyle(fontSize: 10.5, color: context.textMuted),
                         ),
                       ],
@@ -1970,10 +2161,21 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               ),
               const SizedBox(width: 8),
 
-              // Actions: Enabled Switch, Edit, Delete
+              // Actions: Refresh Now, Enabled Switch, Edit, Delete
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
+                  IconButton(
+                    icon: isRefreshing
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.refresh_rounded, size: 20),
+                    tooltip: 'Refresh Section Now',
+                    onPressed: isRefreshing ? null : () => _refreshCatalogSection(section),
+                  ),
                   Switch(
                     value: section.isEnabled,
                     onChanged: (_) => _toggleCatalogSection(section),
@@ -2026,10 +2228,26 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 ),
               ],
             ),
-            IconButton.filledTonal(
-              icon: const Icon(Icons.refresh_rounded),
-              tooltip: 'Refresh Catalogue Sections',
-              onPressed: _loadCatalogSections,
+            Row(
+              children: <Widget>[
+                FilledButton.tonalIcon(
+                  onPressed: _isLoadingCatalog ? null : _refreshAllCatalogSections,
+                  icon: _isLoadingCatalog
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.sync_rounded, size: 18),
+                  label: const Text('Refresh All', style: TextStyle(fontSize: 12)),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filledTonal(
+                  icon: const Icon(Icons.refresh_rounded),
+                  tooltip: 'Reload Sections List',
+                  onPressed: _loadCatalogSections,
+                ),
+              ],
             ),
           ],
         ),
@@ -2131,6 +2349,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                   _buildQuickUrlChip(
                     'Hindi Top 50',
                     'https://www.jiosaavn.com/featured/hindi-india-superhits-top-50/zlJfJYVuyjpxWb5,FqsjKg__',
+                  ),
+                  _buildQuickUrlChip(
+                    'Daily Mix 2',
+                    'https://www.jiosaavn.com/s/mix/daily_mix_2/gqr026sjjg5EycPt65hWSv9qnJHMxyN4MeBKaZmPvCCAFfS7n,cswwZHpEuo2hRsPnpS-,sujNQ4ntm,PDU0YLdZVNQiypBe',
                   ),
                   _buildQuickUrlChip(
                     'Kishore Kumar',
@@ -2904,12 +3126,46 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     final int totalSections = _catalogSections.length;
     final int artistCount = _catalogSections.where((CatalogSection s) => s.sourceType == 'artist').length;
     final int playlistCount = _catalogSections.where((CatalogSection s) => s.sourceType == 'playlist').length;
+    final int mixCount = _catalogSections.where((CatalogSection s) => s.sourceType == 'mix' || s.sourceType == 'jiosaavn_mix').length;
     final int albumCount = _catalogSections.where((CatalogSection s) => s.sourceType == 'album').length;
-    final int activeCount = _catalogSections.where((CatalogSection s) => s.isEnabled).length;
+    final int liveActiveCount = _catalogSections.where((CatalogSection s) => s.isEnabled && !s.isMock && s.providerStatus != 'stale').length;
+    final int mockCount = _catalogSections.where((CatalogSection s) => s.isMock).length;
+    final int disabledCount = _catalogSections.where((CatalogSection s) => !s.isEnabled).length;
+    final int bannerCount = _catalogSections.where((CatalogSection s) => s.isBanner).length;
 
-    // Distinct display groups present in the data
+    // Filter by search query & status filter
+    final String query = _catalogSearchController.text.trim().toLowerCase();
+    final List<CatalogSection> filteredSections = _catalogSections.where((CatalogSection s) {
+      if (query.isNotEmpty) {
+        final bool matchesTitle = s.displayTitle.toLowerCase().contains(query);
+        final bool matchesUrl = s.sourceUrl.toLowerCase().contains(query);
+        final bool matchesGroup = s.displayGroup.toLowerCase().contains(query);
+        final bool matchesKey = s.key.toLowerCase().contains(query);
+        final bool matchesId = s.sourceId.toLowerCase().contains(query);
+        if (!matchesTitle && !matchesUrl && !matchesGroup && !matchesKey && !matchesId) {
+          return false;
+        }
+      }
+      switch (_catalogStatusFilter) {
+        case 'live':
+          return s.isEnabled && !s.isMock && s.providerStatus != 'stale';
+        case 'mock':
+          return s.isMock;
+        case 'disabled':
+          return !s.isEnabled;
+        case 'banners':
+          return s.isBanner;
+        case 'mixes':
+          return s.sourceType == 'mix' || s.sourceType == 'jiosaavn_mix';
+        case 'all':
+        default:
+          return true;
+      }
+    }).toList();
+
+    // Distinct display groups present in the filtered data
     final Set<String> groupKeys = <String>{};
-    for (final CatalogSection s in _catalogSections) {
+    for (final CatalogSection s in filteredSections) {
       groupKeys.add(s.displayGroup.isNotEmpty ? s.displayGroup : 'other');
     }
     final List<String> sortedGroups = groupKeys.toList()..sort();
@@ -2924,6 +3180,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         case 'featured_albums':
         case 'albums':
           return 'Featured Albums';
+        case 'personalized_mixes':
+        case 'mixes':
+          return 'Personalized Mixes';
         case 'trending_now':
           return 'Trending Now';
         case 'festival_specials':
@@ -2945,6 +3204,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         case 'featured_albums':
         case 'albums':
           return Icons.album_rounded;
+        case 'personalized_mixes':
+        case 'mixes':
+          return Icons.auto_awesome_rounded;
         case 'trending_now':
           return Icons.local_fire_department_rounded;
         case 'festival_specials':
@@ -2978,10 +3240,17 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                   isDark: isDark,
                 ),
                 _buildCatalogMetricChip(
-                  icon: Icons.mic_rounded,
-                  label: 'Artists Added',
-                  value: '$artistCount',
-                  color: AppColors.secondary,
+                  icon: Icons.check_circle_rounded,
+                  label: 'Live Verified',
+                  value: '$liveActiveCount / $totalSections',
+                  color: AppColors.success,
+                  isDark: isDark,
+                ),
+                _buildCatalogMetricChip(
+                  icon: Icons.auto_awesome_rounded,
+                  label: 'Mixes & Daily',
+                  value: '$mixCount',
+                  color: AppColors.electricViolet,
                   isDark: isDark,
                 ),
                 _buildCatalogMetricChip(
@@ -2999,10 +3268,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                   isDark: isDark,
                 ),
                 _buildCatalogMetricChip(
-                  icon: Icons.check_circle_rounded,
-                  label: 'Live Active',
-                  value: '$activeCount / $totalSections',
-                  color: AppColors.success,
+                  icon: Icons.mic_rounded,
+                  label: 'Artists',
+                  value: '$artistCount',
+                  color: AppColors.secondary,
                   isDark: isDark,
                 ),
               ],
@@ -3011,6 +3280,92 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         ),
         const SizedBox(height: 18),
 
+        // Search Bar for Sections
+        TextField(
+          controller: _catalogSearchController,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: 'Search configured sections by title, group, URL, or ID...',
+            prefixIcon: const Icon(Icons.search_rounded, size: 20),
+            suffixIcon: _catalogSearchController.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear_rounded, size: 18),
+                    onPressed: () {
+                      _catalogSearchController.clear();
+                      setState(() {});
+                    },
+                  )
+                : null,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            filled: true,
+            fillColor: isDark ? AppColors.surfaceContainerHigh : AppColors.lightInputBackground,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Status Control Chips (All, Live, Mixes, Mock, Disabled Drafts, Banners)
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: <Widget>[
+              ChoiceChip(
+                selected: _catalogStatusFilter == 'all',
+                label: Text('All (${_catalogSections.length})'),
+                onSelected: (bool selected) {
+                  if (selected) setState(() => _catalogStatusFilter = 'all');
+                },
+              ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                selected: _catalogStatusFilter == 'live',
+                avatar: const Icon(Icons.verified_rounded, size: 16, color: AppColors.success),
+                label: Text('Live Verified ($liveActiveCount)'),
+                onSelected: (bool selected) {
+                  if (selected) setState(() => _catalogStatusFilter = 'live');
+                },
+              ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                selected: _catalogStatusFilter == 'mixes',
+                avatar: const Icon(Icons.auto_awesome_rounded, size: 16, color: AppColors.electricViolet),
+                label: Text('Mixes & Daily ($mixCount)'),
+                onSelected: (bool selected) {
+                  if (selected) setState(() => _catalogStatusFilter = 'mixes');
+                },
+              ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                selected: _catalogStatusFilter == 'mock',
+                avatar: const Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.secondary),
+                label: Text('Mock Data ($mockCount)'),
+                onSelected: (bool selected) {
+                  if (selected) setState(() => _catalogStatusFilter = 'mock');
+                },
+              ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                selected: _catalogStatusFilter == 'disabled',
+                avatar: const Icon(Icons.pause_circle_outline_rounded, size: 16),
+                label: Text('Disabled Drafts ($disabledCount)'),
+                onSelected: (bool selected) {
+                  if (selected) setState(() => _catalogStatusFilter = 'disabled');
+                },
+              ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                selected: _catalogStatusFilter == 'banners',
+                avatar: const Icon(Icons.view_carousel_rounded, size: 16),
+                label: Text('Banners ($bannerCount)'),
+                onSelected: (bool selected) {
+                  if (selected) setState(() => _catalogStatusFilter = 'banners');
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
         // Section / Group Filter Chips
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -3018,7 +3373,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             children: <Widget>[
               ChoiceChip(
                 selected: _catalogGroupFilter == 'all',
-                label: Text('All Sections ($totalSections)'),
+                label: Text('All Groups (${filteredSections.length})'),
                 onSelected: (bool selected) {
                   if (selected) setState(() => _catalogGroupFilter = 'all');
                 },
@@ -3027,7 +3382,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               for (final String group in sortedGroups) ...<Widget>[
                 Builder(
                   builder: (BuildContext context) {
-                    final int count = _catalogSections
+                    final int count = filteredSections
                         .where((CatalogSection s) => (s.displayGroup.isNotEmpty ? s.displayGroup : 'other') == group)
                         .length;
                     return Padding(
@@ -3049,11 +3404,40 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         ),
         const SizedBox(height: 18),
 
+        if (filteredSections.isEmpty && !_isLoadingCatalog)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 36),
+              child: Column(
+                children: <Widget>[
+                  const Icon(Icons.search_off_rounded, size: 40, color: AppColors.secondary),
+                  const SizedBox(height: 8),
+                  Text(
+                    'No sections match the current search or status filter.',
+                    style: TextStyle(color: context.textMuted),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.clear_all_rounded, size: 16),
+                    label: const Text('Reset Filters'),
+                    onPressed: () {
+                      _catalogSearchController.clear();
+                      setState(() {
+                        _catalogStatusFilter = 'all';
+                        _catalogGroupFilter = 'all';
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
         // Render each Group neatly
         for (final String group in activeFilterGroups) ...<Widget>[
           Builder(
             builder: (BuildContext context) {
-              final List<CatalogSection> groupSections = _catalogSections
+              final List<CatalogSection> groupSections = filteredSections
                   .where((CatalogSection s) => (s.displayGroup.isNotEmpty ? s.displayGroup : 'other') == group)
                   .toList();
               if (groupSections.isEmpty) return const SizedBox.shrink();

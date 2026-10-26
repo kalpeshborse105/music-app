@@ -72,6 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   late Future<List<Track>> _trendingFuture;
   late Future<List<CatalogSection>> _catalogSectionsFuture;
+  late Future<List<Map<String, dynamic>>> _homeModulesFuture;
   bool _initialized = false;
 
   final ScrollController _scrollController = ScrollController();
@@ -115,6 +116,10 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _trendingFuture = repo.trending(limit: 20, language: lang);
       _catalogSectionsFuture = repo.getCatalogSections(
+        lang: lang,
+        forceRefresh: true,
+      );
+      _homeModulesFuture = repo.getHomeModules(
         lang: lang,
         forceRefresh: true,
       );
@@ -225,6 +230,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final String? lang = _activeLang;
       _trendingFuture = repo.trending(limit: 20, language: lang);
       _catalogSectionsFuture = repo.getCatalogSections(lang: lang);
+      _homeModulesFuture = repo.getHomeModules(lang: lang);
       _loadInitialTracks();
     }
   }
@@ -236,6 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final String? lang = _activeLang;
       _trendingFuture = repo.trending(limit: 20, language: lang);
       _catalogSectionsFuture = repo.getCatalogSections(lang: lang);
+      _homeModulesFuture = repo.getHomeModules(lang: lang);
     });
     _loadInitialTracks();
   }
@@ -337,6 +344,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     // Dynamic Admin-Managed Catalogue Sections (All from DB catalogue)
                     SliverToBoxAdapter(
                       child: _buildAdminCatalogSections(context, repo),
+                    ),
+
+                    // Dynamic JioSaavn Discovery Modules (Live Home)
+                    SliverToBoxAdapter(
+                      child: _buildDynamicDiscoveryModules(context, repo),
                     ),
 
                     // Followed Artists Quick Shelf (auto-suggestions from followed artists)
@@ -1672,6 +1684,105 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildDynamicDiscoveryModules(
+    BuildContext context,
+    MusicRepository repo,
+  ) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _homeModulesFuture,
+      builder: (
+        BuildContext context,
+        AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
+      ) {
+        final List<Map<String, dynamic>> modules =
+            snapshot.data ?? <Map<String, dynamic>>[];
+        if (modules.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            for (final Map<String, dynamic> mod in modules)
+              Builder(
+                builder: (BuildContext ctx) {
+                  final String title = mod['title']?.toString() ?? '';
+                  final String? subtitle = mod['subtitle']?.toString();
+                  final List<dynamic> rawItems =
+                      (mod['items'] as List<dynamic>?) ?? <dynamic>[];
+                  if (title.isEmpty || rawItems.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final List<Track> tracks = <Track>[];
+                  for (final dynamic item in rawItems) {
+                    if (item is Map<String, dynamic>) {
+                      try {
+                        tracks.add(Track.fromJson(item));
+                      } catch (_) {}
+                    }
+                  }
+
+                  if (tracks.isEmpty) return const SizedBox.shrink();
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      SectionHeader(
+                        title: title,
+                        subtitle: subtitle,
+                        topPadding: AppSpacing.sm,
+                        actionLabel: tracks.length > 5 ? 'See all' : null,
+                        onAction: tracks.length > 5
+                            ? () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => TrackListScreen(
+                                      title: title,
+                                      tracks: tracks,
+                                    ),
+                                  ),
+                                );
+                              }
+                            : null,
+                      ),
+                      SizedBox(
+                        height: 196,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.lg,
+                          ),
+                          itemCount: tracks.take(15).length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: AppSpacing.md),
+                          itemBuilder: (BuildContext cardCtx, int i) {
+                            final Track track = tracks[i];
+                            return MediaCard.forTrack(
+                              track: track,
+                              onTap: () => TrackActions.play(
+                                context,
+                                track,
+                                queue: tracks,
+                              ),
+                              onPlay: () => TrackActions.play(
+                                context,
+                                track,
+                                queue: tracks,
+                              ),
+                              width: 136,
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+          ],
+        );
+      },
+    );
+  }
+
   /// Two-row horizontal shelf: short screens 5/row, large 10/row (max 2 rows).
   Widget _buildDoubleRowShelf({
     required BuildContext context,
@@ -1880,7 +1991,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBottomTrendingBlast(BuildContext context, PlaybackController playback) {
-    final bool isDark = context.isDarkMode;
     final List<Track> tracks = _infiniteTracks;
 
     return Padding(

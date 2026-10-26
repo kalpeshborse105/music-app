@@ -1398,14 +1398,16 @@ def api_home():
         spotify_f = pool.submit(spotify_new_releases_india) if spotify_enabled() else None
         home_data, session_data = home_f.result(), session_f.result()
         spotify_tracks = spotify_f.result() if spotify_f else []
-    sections = list(home_data.get("sections", []))
+    discovery_modules = list(home_data.get("sections", []))
     if session_data.get("playlists"):
-        sections.insert(0, {"key": "session", "title": session_data["session"]["label"],
-                            "subtitle": f"Picked for {session_data['local_time']} IST", "position": 0,
-                            "items": session_data["playlists"]})
+        discovery_modules.insert(0, {"key": "session", "title": session_data["session"]["label"],
+                                     "subtitle": f"Picked for {session_data['local_time']} IST", "position": 0,
+                                     "items": session_data["playlists"]})
     if spotify_tracks:
-        sections.insert(1, {"key": "spotify_new_india", "title": "New in India (Spotify)",
-                            "subtitle": "Fresh releases, playable now", "position": 0, "items": spotify_tracks})
+        discovery_modules.insert(1, {"key": "spotify_new_india", "title": "New in India (Spotify)",
+                                     "subtitle": "Fresh releases, playable now", "position": 0, "items": spotify_tracks})
+
+    catalog_sections_list = []
     try:
         now = int(time.time())
         catalog_secs = [
@@ -1414,8 +1416,8 @@ def api_home():
             and (not s.get("campaign_start") or now >= s["campaign_start"])
             and (not s.get("campaign_end") or now <= s["campaign_end"])
         ]
-        for cs in reversed(catalog_secs):
-            sections.insert(0, {
+        for cs in catalog_secs:
+            catalog_sections_list.append({
                 "key": cs["key"],
                 "title": cs["display_title"],
                 "subtitle": cs.get("subtitle") or cs.get("display_group", ""),
@@ -1427,10 +1429,20 @@ def api_home():
                 "source": "catalog_admin"
             })
     except Exception as e:
-        print(f"[Catalog] Error adding catalog sections to /api/home: {e}")
+        print(f"[Catalog] Error loading catalog sections in /api/home: {e}")
 
-    return ok({"languages": languages, "session": session_data["session"], "sections": sections,
-               "updated_at": int(time.time())})
+    # Combined sections for legacy consumers
+    combined_sections = catalog_sections_list + discovery_modules
+
+    return ok({
+        "languages": languages,
+        "session": session_data["session"],
+        "modules": discovery_modules,
+        "catalog_sections": catalog_sections_list,
+        "sections": combined_sections,
+        "genres": home_data.get("genres", []),
+        "updated_at": int(time.time())
+    })
 
 
 @app.route("/api/trending")
@@ -1961,7 +1973,20 @@ def parse_catalog_url(raw_url: str):
             "default_group": "Featured Artists"
         }, None
 
-    # 7. Playlist or Featured: /featured/<slug>/<token> or /playlist/<slug>/<token> or /s/playlist/...
+    # 7. Mix / Daily Mix: /mix/<slug>/<token> or /s/mix/<slug>/<token>
+    m_mix = re.match(r"^/(?:s/)?mix/([^/]+)/([^/?#]+)$", path)
+    if m_mix:
+        slug, token = m_mix.groups()
+        title = slug.replace("-", " ").replace("_", " ").title()
+        return {
+            "source_type": "mix",
+            "source_id": token,
+            "slug": slug,
+            "default_title": title,
+            "default_group": "Daily Mixes & Radio"
+        }, None
+
+    # 8. Playlist or Featured: /featured/<slug>/<token> or /playlist/<slug>/<token> or /s/playlist/...
     m_playlist = re.match(r"^/(?:s/)?(?:featured|playlist)/([^/]+)/([^/?#]+)$", path)
     if m_playlist:
         slug, token = m_playlist.groups()
@@ -1975,7 +2000,7 @@ def parse_catalog_url(raw_url: str):
             "default_group": "Top Charts" if is_top else "Featured Playlists"
         }, None
 
-    # 8. Album: /album/<slug>/<token> or /s/album/...
+    # 9. Album: /album/<slug>/<token> or /s/album/...
     m_album = re.match(r"^/(?:s/)?album/([^/]+)/([^/?#]+)$", path)
     if m_album:
         slug, token = m_album.groups()
@@ -1989,7 +2014,7 @@ def parse_catalog_url(raw_url: str):
             "default_group": "Festival Specials" if is_festive else "Featured Albums"
         }, None
 
-    # 9. Song: /song/<slug>/<token> or /s/song/...
+    # 10. Song: /song/<slug>/<token> or /s/song/...
     m_song = re.match(r"^/(?:s/)?song/([^/]+)/([^/?#]+)$", path)
     if m_song:
         slug, token = m_song.groups()
@@ -2003,20 +2028,29 @@ def parse_catalog_url(raw_url: str):
             "default_group": "Devotional & Bhakti" if is_bhakti else "Special Releases"
         }, None
 
-    # 10. General fallback for any other JioSaavn category (e.g. /s/<kind>/<slug>/<token>)
+    # 11. General fallback for any other JioSaavn category (e.g. /s/<kind>/<slug>/<token>)
     m_generic = re.match(r"^/(?:s/)?([^/]+)/([^/]+)/([^/?#]+)$", path)
     if m_generic:
         kind, slug, token = m_generic.groups()
-        st = "playlist" if kind in ("featured", "playlist", "channel") else ("artist" if kind == "artist" else ("album" if kind == "album" else "song"))
+        if kind in ("featured", "playlist", "channel"):
+            st = "playlist"
+        elif kind == "mix":
+            st = "mix"
+        elif kind == "artist":
+            st = "artist"
+        elif kind == "album":
+            st = "album"
+        else:
+            st = "song"
         return {
             "source_type": st,
             "source_id": token,
             "slug": slug,
-            "default_title": slug.replace("-", " ").title(),
-            "default_group": "Top Charts" if st == "playlist" else ("Featured Artists" if st == "artist" else "Featured Albums")
+            "default_title": slug.replace("-", " ").replace("_", " ").title(),
+            "default_group": "Top Charts" if st == "playlist" else ("Daily Mixes & Radio" if st == "mix" else ("Featured Artists" if st == "artist" else "Featured Albums"))
         }, None
 
-    return None, f"Unsupported path: '{path}'. Supported formats: /new-releases/<language>, /radio, /artist/<slug>/<id>, /featured/<slug>/<id>, /album/<slug>/<id>, /song/<slug>/<id>, /charts, /top-artists or Network API URLs"
+    return None, f"Unsupported path: '{path}'. Supported formats: /new-releases/<language>, /radio, /mix/<slug>/<id>, /artist/<slug>/<id>, /featured/<slug>/<id>, /album/<slug>/<id>, /song/<slug>/<id>, /charts, /top-artists or Network API URLs"
 
 
 def get_mock_catalog_items(source_type, source_id, slug, language="all"):
@@ -2142,6 +2176,29 @@ def get_mock_catalog_items(source_type, source_id, slug, language="all"):
             })
         return items
 
+    elif source_type in ("mix", "jiosaavn_mix"):
+        titles = [
+            ("Daily Mix Signature 1", "Daily Mix Hits", "Arijit Singh"),
+            ("Daily Mix Signature 2", "Daily Mix Hits", "Shreya Ghoshal"),
+            ("Daily Mix Signature 3", "Daily Mix Classics", "Pritam"),
+            ("Daily Mix Signature 4", "Daily Mix Classics", "Atif Aslam"),
+            ("Daily Mix Signature 5", "Daily Mix Live", "A.R. Rahman")
+        ]
+        items = []
+        for i, (t, alb, art) in enumerate(titles, 1):
+            items.append({
+                "id": f"mock_mix_{source_id[:8]}_{i}",
+                "title": f"[MOCK] {t}",
+                "artist": art,
+                "album": alb,
+                "duration_ms": 215000 + (i * 10000),
+                "artwork_url": art_placeholder,
+                "language": language if language != "all" else "hindi",
+                "year": "2026",
+                "is_mock": True
+            })
+        return items
+
     elif source_type == "song":
         return [{
             "id": f"mock_song_{source_id}",
@@ -2167,7 +2224,23 @@ def resolve_catalog_items(source_type, source_id, slug, language="all"):
     langs = [language] if (language and language != "all") else ["hindi", "punjabi", "marathi", "bhojpuri", "gujarati"]
     detected_artwork = None
     try:
-        if source_type == "song" and source_id:
+        if source_type in ("mix", "jiosaavn_mix") and source_id:
+            # JioSaavn Daily Mix / Dynamic Mix via webapi.get with type='mix'
+            res = jio_call("webapi.get", {"token": source_id, "type": "mix", "n": "50", "p": "1"}, langs)
+            raw_songs = []
+            detected_title = slug.replace("-", " ").replace("_", " ").title()
+            detected_artwork = None
+            if isinstance(res, dict):
+                detected_title = res.get("title") or res.get("name") or detected_title
+                detected_artwork = res.get("image") or res.get("artwork_url") or res.get("header_image")
+                raw_songs = res.get("list") or res.get("songs") or res.get("tracks") or []
+            if raw_songs:
+                tracks = dedupe(_tracks(raw_songs))
+                if tracks:
+                    detected_artwork = detected_artwork or tracks[0].get("artwork_url")
+                    return tracks, False, "ok", detected_title, detected_artwork
+
+        elif source_type == "song" and source_id:
             # 1. Try resolving via token first
             res = jio_call("webapi.get", {"token": source_id, "type": "song"}, langs)
             raw_songs = res.get("songs") if isinstance(res, dict) else []
@@ -2486,8 +2559,135 @@ def delete_catalog_section_from_supabase(section_key, section_id=None):
 
 _CATALOG_MEM_TTL = 45          # serve section list from RAM for 45s
 _CATALOG_SUPABASE_TTL = 180    # pull Supabase at most every 3 minutes (background)
-_CATALOG_ITEMS_TTL = 1800      # fresh playlist songs for 30 minutes
-_CATALOG_ITEMS_STALE = 7200    # serve stale songs up to 2h while refreshing
+_CATALOG_ITEMS_TTL = int(os.environ.get("CATALOG_ITEMS_TTL", 3600))         # Fresh for 1 hour (3600s)
+_CATALOG_ITEMS_STALE = int(os.environ.get("CATALOG_ITEMS_STALE", 604800))   # Retain stale up to 7 days (604800s)
+
+CATALOG_ITEMS_CACHE_FILE = os.path.join(DATA_DIR, "catalog_items_cache.json")
+_CATALOG_ITEMS_DISK_LOCK = threading.Lock()
+_CATALOG_ITEMS_DISK_LOADED = False
+_CATALOG_ITEMS_DISK_DIRTY = False
+_CATALOG_ITEMS_PERSIST_SCHEDULED = False
+
+_SECTION_RESOLVE_LOCKS = {}
+_SECTION_LOCKS_GUARD = threading.Lock()
+
+
+def _get_section_lock(key):
+    with _SECTION_LOCKS_GUARD:
+        if key not in _SECTION_RESOLVE_LOCKS:
+            _SECTION_RESOLVE_LOCKS[key] = threading.Lock()
+        return _SECTION_RESOLVE_LOCKS[key]
+
+
+def _get_cached_section_entry(key):
+    entry = _CATALOG_ITEMS_CACHE.get(key)
+    if not entry:
+        return None
+    if isinstance(entry, tuple):
+        ts = entry[0]
+        items = entry[1]
+        meta = entry[2] if len(entry) > 2 and isinstance(entry[2], dict) else {}
+        return ts, list(items), dict(meta)
+    return None
+
+
+def _ensure_catalog_items_disk_loaded():
+    """Hydrate RAM song cache from disk once — survives API restarts / blank home."""
+    global _CATALOG_ITEMS_DISK_LOADED
+    if _CATALOG_ITEMS_DISK_LOADED:
+        return
+    with _CATALOG_ITEMS_DISK_LOCK:
+        if _CATALOG_ITEMS_DISK_LOADED:
+            return
+        _CATALOG_ITEMS_DISK_LOADED = True
+        if not os.path.exists(CATALOG_ITEMS_CACHE_FILE):
+            return
+        try:
+            with open(CATALOG_ITEMS_CACHE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                return
+            loaded = 0
+            for key, row in data.items():
+                if not isinstance(row, dict):
+                    continue
+                items = row.get("items")
+                ts = float(row.get("ts") or 0)
+                meta = row.get("meta") or {
+                    "is_mock": row.get("is_mock", False),
+                    "provider_status": row.get("provider_status", "ok"),
+                    "last_error": row.get("last_error"),
+                    "is_stale": row.get("is_stale", False)
+                }
+                if isinstance(items, list):
+                    _CATALOG_ITEMS_CACHE[str(key)] = (ts or time.time(), items, meta)
+                    loaded += 1
+            print(f"[Catalog] loaded {loaded} section song caches from disk")
+        except Exception as e:
+            print(f"[Catalog] items disk load failed: {e}")
+
+
+def _persist_catalog_items_disk():
+    """Write RAM song cache to disk atomically."""
+    global _CATALOG_ITEMS_DISK_DIRTY
+    with _CATALOG_ITEMS_DISK_LOCK:
+        if not _CATALOG_ITEMS_DISK_DIRTY and os.path.exists(CATALOG_ITEMS_CACHE_FILE):
+            try:
+                if os.path.getsize(CATALOG_ITEMS_CACHE_FILE) > 2:
+                    return
+            except Exception:
+                pass
+        payload = {}
+        for key, entry in list(_CATALOG_ITEMS_CACHE.items()):
+            if not key or not isinstance(entry, tuple):
+                continue
+            ts = entry[0]
+            items = entry[1]
+            meta = entry[2] if len(entry) > 2 else {}
+            payload[str(key)] = {
+                "ts": ts,
+                "items": items or [],
+                "meta": meta
+            }
+        if not payload:
+            return
+        tmp = CATALOG_ITEMS_CACHE_FILE + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False)
+            os.replace(tmp, CATALOG_ITEMS_CACHE_FILE)
+            _CATALOG_ITEMS_DISK_DIRTY = False
+            print(f"[Catalog] saved {len(payload)} section song caches to disk")
+        except Exception as e:
+            print(f"[Catalog] items disk save failed: {e}")
+            try:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+            except Exception:
+                pass
+
+
+def _mark_catalog_items_dirty():
+    """Mark dirty and coalesce disk writes (avoid thrashing on every section)."""
+    global _CATALOG_ITEMS_DISK_DIRTY, _CATALOG_ITEMS_PERSIST_SCHEDULED
+    with _CATALOG_ITEMS_DISK_LOCK:
+        _CATALOG_ITEMS_DISK_DIRTY = True
+        if _CATALOG_ITEMS_PERSIST_SCHEDULED:
+            return
+        _CATALOG_ITEMS_PERSIST_SCHEDULED = True
+
+    def _delayed():
+        global _CATALOG_ITEMS_PERSIST_SCHEDULED
+        time.sleep(1.2)
+        try:
+            _persist_catalog_items_disk()
+        finally:
+            with _CATALOG_ITEMS_DISK_LOCK:
+                _CATALOG_ITEMS_PERSIST_SCHEDULED = False
+                if _CATALOG_ITEMS_DISK_DIRTY:
+                    _mark_catalog_items_dirty()
+
+    threading.Thread(target=_delayed, daemon=True).start()
 
 
 def _read_local_catalog_sections():
@@ -2574,44 +2774,114 @@ def load_catalog_sections():
         return list(default_sections)
 
 
-def _resolve_section_base_items(section):
-    items, _is_mock, _status, _title, _art = resolve_catalog_items(
-        section.get("source_type"),
-        section.get("source_id"),
-        section.get("slug"),
-        section.get("language", "all"),
-    )
-    key = section.get("key") or section.get("id") or section.get("slug")
-    _CATALOG_ITEMS_CACHE[key] = (time.time(), items)
-    return items
+def _resolve_section_base_items(section, force_fetch=False):
+    """
+    Thread-safe resolution of section items with coalescing locks.
+    If upstream fails and we already have cached items:
+    Retains the existing cached items and sets is_stale=True, last_error=...
+    Never destroys good content with an empty/mock list on upstream failure!
+    """
+    _ensure_catalog_items_disk_loaded()
+    key = str(section.get("key") or section.get("id") or section.get("slug"))
+    lock = _get_section_lock(key)
+
+    with lock:
+        now = time.time()
+        existing = _get_cached_section_entry(key)
+
+        # If another thread resolved it freshly while we waited on the lock, reuse it!
+        if not force_fetch and existing:
+            ts, items, meta = existing
+            if now - ts < _CATALOG_ITEMS_TTL and items:
+                return items
+
+        # Perform live resolution
+        try:
+            items, is_mock, provider_status, detected_title, detected_art = resolve_catalog_items(
+                section.get("source_type"),
+                section.get("source_id"),
+                section.get("slug"),
+                section.get("language", "all"),
+            )
+        except Exception as exc:
+            print(f"[Catalog] resolve_catalog_items exception for {key}: {exc}")
+            items, is_mock, provider_status, detected_title, detected_art = [], True, "error", None, None
+
+        is_success = bool(items and not is_mock and provider_status == "ok")
+
+        if is_success:
+            meta = {
+                "is_mock": False,
+                "provider_status": "ok",
+                "last_error": None,
+                "is_stale": False,
+                "detected_title": detected_title,
+                "detected_artwork": detected_art,
+                "item_count": len(items)
+            }
+            _CATALOG_ITEMS_CACHE[key] = (now, items, meta)
+            _mark_catalog_items_dirty()
+            return items
+        else:
+            # Resolution failed or returned mock. Check if we have prior good cached data:
+            if existing and existing[1]:
+                # PRESERVE STALE RESULTS! Flag source as stale.
+                prev_ts, prev_items, prev_meta = existing
+                stale_meta = dict(prev_meta)
+                stale_meta["is_stale"] = True
+                stale_meta["provider_status"] = "stale"
+                stale_meta["last_error"] = f"Upstream refresh failed ({provider_status})"
+                _CATALOG_ITEMS_CACHE[key] = (prev_ts, prev_items, stale_meta)
+                _mark_catalog_items_dirty()
+                print(f"[Catalog] Upstream failed for {key}; preserved {len(prev_items)} stale items")
+                return prev_items
+            else:
+                meta = {
+                    "is_mock": is_mock,
+                    "provider_status": provider_status or "offline_mock",
+                    "last_error": None if not is_mock else "Offline fallback",
+                    "is_stale": False,
+                    "detected_title": detected_title,
+                    "detected_artwork": detected_art,
+                    "item_count": len(items)
+                }
+                _CATALOG_ITEMS_CACHE[key] = (now, items, meta)
+                _mark_catalog_items_dirty()
+                return items
 
 
 def get_section_items(section, force_refresh=False):
-    """Resolves playlist/artist songs with TTL cache + stale-while-revalidate."""
-    key = section.get("key") or section.get("id") or section.get("slug")
+    """
+    Resolves playlist/artist/mix songs with TTL cache + stale-while-revalidate.
+    - If fresh (< _CATALOG_ITEMS_TTL): serve immediately from memory.
+    - If stale (< _CATALOG_ITEMS_STALE): serve immediately from memory, trigger background revalidation.
+    - If force_refresh=True: synchronously re-fetch from upstream.
+    - Combines custom_tracks and applies excluded_track_ids.
+    """
+    _ensure_catalog_items_disk_loaded()
+    key = str(section.get("key") or section.get("id") or section.get("slug"))
     now = time.time()
     excluded_ids = set(str(x) for x in (section.get("excluded_track_ids") or []))
     custom_tracks = section.get("custom_tracks") or []
 
-    base_items = []
-    cached = _CATALOG_ITEMS_CACHE.get(key) if key else None
-    if not force_refresh and cached:
-        ts, items = cached
+    base_items = None
+    existing = _get_cached_section_entry(key)
+
+    if not force_refresh and existing:
+        ts, items, meta = existing
         age = now - ts
-        if age < _CATALOG_ITEMS_TTL:
+        if items:
             base_items = items
-        elif age < _CATALOG_ITEMS_STALE:
-            # Serve stale songs immediately; refresh Jio playlist in background
-            base_items = items
-            threading.Thread(target=_resolve_section_base_items, args=(section,), daemon=True).start()
+            if age >= _CATALOG_ITEMS_TTL:
+                # Expired or Stale: serve cached immediately, revalidate in background!
+                threading.Thread(target=_resolve_section_base_items, args=(section, True), daemon=True).start()
 
-    if not base_items:
-        base_items = _resolve_section_base_items(section)
+    if base_items is None:
+        base_items = _resolve_section_base_items(section, force_fetch=force_refresh)
 
-    # Combine custom tracks + base items, then filter out excluded_track_ids
     combined = []
     seen_ids = set()
-    for t in (custom_tracks + base_items):
+    for t in (custom_tracks + (base_items or [])):
         tid = str(t.get("id") or t.get("token") or "")
         clean_tid = tid.replace("custom_api:track:", "")
         if clean_tid in excluded_ids or tid in excluded_ids:
@@ -2682,25 +2952,126 @@ def api_catalog_sections():
     if lang_filter and lang_filter != "all":
         sections = [s for s in sections if s.get("language") in ("all", lang_filter)]
 
-    # Attach live items dynamically in-memory with parallel execution
-    def enrich_single(s):
+    _ensure_catalog_items_disk_loaded()
+    lite = request.args.get("lite", "").lower() in ("1", "true", "yes")
+    do_refresh = request.args.get("refresh", "").lower() in ("1", "true", "yes") or request.args.get("force", "").lower() in ("1", "true", "yes")
+    had_any_cache = any(
+        isinstance(v, tuple) and len(v) > 1 and v[1] for v in _CATALOG_ITEMS_CACHE.values()
+    )
+
+    enriched = []
+    to_resolve = []
+    for s in sections:
         sec_copy = dict(s)
-        sec_copy["items"] = get_section_items(s)
-        sec_copy["item_count"] = len(sec_copy["items"])
+        key = str(s.get("key") or s.get("id") or s.get("slug"))
+        cached = _get_cached_section_entry(key)
+
+        if lite:
+            items = []
+        elif do_refresh:
+            # Force refresh requested: queue section for bounded concurrent re-fetch
+            items = list(s.get("custom_tracks") or [])
+            to_resolve.append((len(enriched), s))
+        elif cached and cached[1]:
+            # Serve fresh/stale cached items immediately (fast path)
+            items = get_section_items(s, force_refresh=False)
+        elif not had_any_cache:
+            # Cold boot with zero cache: resolve initially
+            items = list(s.get("custom_tracks") or [])
+            to_resolve.append((len(enriched), s))
+        else:
+            # Uncached section: return custom tracks and resolve in background
+            items = list(s.get("custom_tracks") or [])
+            threading.Thread(target=get_section_items, args=(s, False), daemon=True).start()
+
+        sec_copy["items"] = items
+        sec_copy["item_count"] = len(items) or int(s.get("item_count") or 0)
         sec_copy["excluded_track_ids"] = s.get("excluded_track_ids") or []
         sec_copy["custom_tracks"] = s.get("custom_tracks") or []
-        return sec_copy
 
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        enriched = list(executor.map(enrich_single, sections))
+        if cached:
+            ts, _, meta = cached
+            sec_copy["last_refresh"] = int(ts)
+            sec_copy["provider_status"] = meta.get("provider_status", s.get("provider_status", "ok"))
+            sec_copy["is_mock"] = meta.get("is_mock", s.get("is_mock", False))
+            sec_copy["is_stale"] = meta.get("is_stale", False)
+            sec_copy["last_error"] = meta.get("last_error", s.get("last_error"))
 
-    # Short CDN/browser cache — songs inside still refresh via stale-while-revalidate
+        enriched.append(sec_copy)
+
+    # Resolve queued sections concurrently with bounded concurrency & timeouts
+    if to_resolve and not lite:
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            futs = {
+                ex.submit(get_section_items, sec, True): (idx, sec)
+                for idx, sec in to_resolve
+            }
+            for fut, (idx, sec) in list(futs.items()):
+                try:
+                    items = fut.result(timeout=15)
+                except Exception as err:
+                    print(f"[Catalog] Refresh error for section {idx}: {err}")
+                    items = enriched[idx].get("items") or []
+                enriched[idx]["items"] = items
+                enriched[idx]["item_count"] = len(items) or enriched[idx].get("item_count") or 0
+                sec_k = str(sec.get("key") or sec.get("id") or sec.get("slug"))
+                cached_now = _get_cached_section_entry(sec_k)
+                if cached_now:
+                    ts, _, meta = cached_now
+                    enriched[idx]["last_refresh"] = int(ts)
+                    enriched[idx]["provider_status"] = meta.get("provider_status", "ok")
+                    enriched[idx]["is_mock"] = meta.get("is_mock", False)
+                    enriched[idx]["is_stale"] = meta.get("is_stale", False)
+                    enriched[idx]["last_error"] = meta.get("last_error")
+
+        _mark_catalog_items_dirty()
+
     return ok({
         "sections": enriched,
         "total": len(enriched),
         "source": "admin_catalog",
         "cache": "local_first",
-    }, 60)
+    }, 0 if do_refresh else 60)
+
+
+@app.route("/api/catalog/sections/<section_key>/refresh", methods=["POST"])
+def api_catalog_refresh_single_section(section_key):
+    if not is_admin_request(request):
+        return jsonify({"error": "Admin privileges required to refresh catalog sections"}), 403
+
+    sec = find_catalog_section(section_key)
+    if not sec:
+        return not_found(f"Catalog section '{section_key}' not found")
+
+    items = get_section_items(sec, force_refresh=True)
+    key = str(sec.get("key") or sec.get("id") or sec.get("slug"))
+
+    sec_copy = dict(sec)
+    sec_copy["items"] = items
+    sec_copy["item_count"] = len(items)
+    sec_copy["last_refresh"] = int(time.time())
+
+    existing = _get_cached_section_entry(key)
+    if existing:
+        _, _, meta = existing
+        sec_copy["provider_status"] = meta.get("provider_status", "ok")
+        sec_copy["is_mock"] = meta.get("is_mock", False)
+        sec_copy["is_stale"] = meta.get("is_stale", False)
+        sec_copy["last_error"] = meta.get("last_error")
+
+    # Persist updated status into sections storage
+    sections = load_catalog_sections()
+    for s in sections:
+        if matches_section_key(s, section_key):
+            s["last_refresh"] = sec_copy["last_refresh"]
+            s["provider_status"] = sec_copy["provider_status"]
+            s["item_count"] = sec_copy["item_count"]
+            s["is_mock"] = sec_copy["is_mock"]
+            s["last_error"] = sec_copy["last_error"]
+            break
+    save_catalog_sections(sections)
+
+    return jsonify(sec_copy)
 
 
 @app.route("/api/catalog/sections/<section_key>", methods=["GET"])

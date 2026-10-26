@@ -140,3 +140,54 @@ class TestCatalogEndpoints:
         assert data["valid"] is True
         assert "track" in data
         assert "title" in data["track"]
+
+    def test_daily_mix_url_parsing(self):
+        url = "https://www.jiosaavn.com/s/mix/daily_mix_2/gqr026sjjg5EycPt65hWSv9qnJHMxyN4MeBKaZmPvCCAFfS7n,cswwZHpEuo2hRsPnpS-,sujNQ4ntm,PDU0YLdZVNQiypBe"
+        parsed, err = parse_catalog_url(url)
+        assert err is None
+        assert parsed["source_type"] == "mix"
+        assert parsed["source_id"] == "gqr026sjjg5EycPt65hWSv9qnJHMxyN4MeBKaZmPvCCAFfS7n,cswwZHpEuo2hRsPnpS-,sujNQ4ntm,PDU0YLdZVNQiypBe"
+        assert parsed["slug"] == "daily_mix_2"
+        assert parsed["default_title"] == "Daily Mix 2"
+        assert parsed["default_group"] == "Daily Mixes & Radio"
+
+    def test_comma_token_preservation(self):
+        url = "https://www.jiosaavn.com/mix/punjabi_mix_1/token1,token2,token3"
+        parsed, err = parse_catalog_url(url)
+        assert err is None
+        assert parsed["source_type"] == "mix"
+        assert parsed["source_id"] == "token1,token2,token3"
+        assert "," in parsed["source_id"]
+
+    def test_mix_mock_provider(self):
+        items = get_mock_catalog_items("mix", "sample_token", "daily_mix_2")
+        assert len(items) > 0
+        for item in items:
+            assert item["is_mock"] is True
+            assert "[MOCK]" in item["title"]
+
+    def test_daily_mix_preview(self, client):
+        url = "https://www.jiosaavn.com/s/mix/daily_mix_2/gqr026sjjg5EycPt65hWSv9qnJHMxyN4MeBKaZmPvCCAFfS7n,cswwZHpEuo2hRsPnpS-,sujNQ4ntm,PDU0YLdZVNQiypBe"
+        resp = client.post("/api/catalog/preview", json={"url": url})
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["valid"] is True
+        assert data["source_type"] == "mix"
+        assert data["source_id"] == "gqr026sjjg5EycPt65hWSv9qnJHMxyN4MeBKaZmPvCCAFfS7n,cswwZHpEuo2hRsPnpS-,sujNQ4ntm,PDU0YLdZVNQiypBe"
+        assert "preview_items" in data
+        assert isinstance(data["preview_items"], list)
+        assert data["detected_title"] == "Daily Mix 2"
+
+    def test_single_section_refresh_endpoint(self, client):
+        resp = client.get("/api/catalog/sections")
+        sections = resp.get_json()["sections"]
+        assert len(sections) > 0
+        first_key = sections[0]["key"]
+
+        resp_ref = client.post(f"/api/catalog/sections/{first_key}/refresh")
+        assert resp_ref.status_code == 200
+        ref_data = resp_ref.get_json()
+        assert ref_data["key"] == first_key
+        assert "items" in ref_data
+        assert ref_data["last_refresh"] > 0
+

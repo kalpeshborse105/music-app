@@ -629,6 +629,7 @@ class MusicRepository {
 
   // ─── Catalogue Management ──────────────────────────────────────────────────
   CustomApiProvider? get _customApiProvider => _registry.byId('custom_api') as CustomApiProvider?;
+  final Map<String, DateTime> _catalogLastFetched = <String, DateTime>{};
 
   String _catalogCacheKey({
     required bool includeDisabled,
@@ -693,8 +694,15 @@ class MusicRepository {
         : _readCatalogCache(cacheKey);
     final bool cacheOk = cached != null && _catalogLooksHealthy(cached);
 
-    // Instant reopen — no network, no bg refresh (pull-to-refresh sets forceRefresh).
+    // Instant reopen from healthy cache
     if (cacheOk && !forceRefresh) {
+      // 30-minute SWR background revalidation policy
+      final DateTime? lastFetched = _catalogLastFetched[cacheKey];
+      final bool isStale = lastFetched == null ||
+          DateTime.now().difference(lastFetched) > const Duration(minutes: 30);
+      if (isStale) {
+        _revalidateCatalogSections(cacheKey, includeDisabled, lang, group);
+      }
       return cached;
     }
 
@@ -712,6 +720,7 @@ class MusicRepository {
               .map((Map<String, dynamic> m) => CatalogSection.fromJson(m))
               .toList();
           if (_catalogLooksHealthy(fresh)) {
+            _catalogLastFetched[cacheKey] = DateTime.now();
             if (!includeDisabled) {
               await _writeCatalogCache(cacheKey, raw);
             }
@@ -721,6 +730,7 @@ class MusicRepository {
           if (!includeDisabled) {
             await _writeCatalogCache(cacheKey, raw);
           }
+          _catalogLastFetched[cacheKey] = DateTime.now();
           return fresh;
         }
       } catch (e) {
@@ -738,6 +748,58 @@ class MusicRepository {
       );
     }
     return cached ?? <CatalogSection>[];
+  }
+
+  void _revalidateCatalogSections(
+    String cacheKey,
+    bool includeDisabled,
+    String? lang,
+    String? group,
+  ) {
+    Future<void>.microtask(() async {
+      final CustomApiProvider? provider = _customApiProvider;
+      if (provider == null) return;
+      try {
+        final List<Map<String, dynamic>> raw = await provider.getCatalogSections(
+          includeDisabled: includeDisabled,
+          lang: lang,
+          group: group,
+          refresh: false,
+        );
+        if (raw.isNotEmpty) {
+          final List<CatalogSection> fresh = raw
+              .map((Map<String, dynamic> m) => CatalogSection.fromJson(m))
+              .toList();
+          if (_catalogLooksHealthy(fresh)) {
+            _catalogLastFetched[cacheKey] = DateTime.now();
+            if (!includeDisabled) {
+              await _writeCatalogCache(cacheKey, raw);
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('[MusicRepository] background revalidate error: $e');
+      }
+    });
+  }
+
+  Future<CatalogSection?> refreshCatalogSection(String key) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) {
+      throw const ProviderException('custom_api', message: 'Custom API provider unavailable.');
+    }
+    final Map<String, dynamic> res = await provider.refreshCatalogSection(key);
+    final CatalogSection section = CatalogSection.fromJson(res);
+    return section;
+  }
+
+  Future<List<Map<String, dynamic>>> getHomeModules({
+    String? lang,
+    bool forceRefresh = false,
+  }) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return <Map<String, dynamic>>[];
+    return provider.getHomeModules(lang: lang, refresh: forceRefresh);
   }
 
   Future<List<CatalogSection>> _getCatalogSectionsFromSupabase({

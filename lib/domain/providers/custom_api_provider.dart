@@ -608,6 +608,57 @@ class CustomApiProvider extends BaseMusicProvider {
     throw const ProviderException('custom_api', message: 'Invalid response format from catalogue server');
   }
 
+  Future<Map<String, dynamic>> refreshCatalogSection(String key) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/$key/refresh');
+    final http.Response res = await http.post(
+      uri,
+      headers: _buildHeaders(),
+    ).timeout(const Duration(seconds: 25));
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      String msg = 'Failed to refresh section (${res.statusCode})';
+      try {
+        final dynamic b = jsonDecode(res.body);
+        if (b is Map && b['error'] != null) msg = b['error'].toString();
+      } catch (_) {}
+      throw ProviderException('custom_api', message: msg);
+    }
+    final dynamic body = jsonDecode(res.body);
+    if (body is Map<String, dynamic>) return body;
+    throw const ProviderException('custom_api', message: 'Invalid response format from refresh endpoint');
+  }
+
+  Future<List<Map<String, dynamic>>> getHomeModules({
+    String? lang,
+    bool refresh = false,
+  }) async {
+    if (_baseUrl.isEmpty) return <Map<String, dynamic>>[];
+    try {
+      final Map<String, String> queryParams = <String, String>{};
+      if (lang != null && lang.isNotEmpty && lang.toLowerCase() != 'all') {
+        queryParams['lang'] = lang;
+      }
+      if (refresh) queryParams['refresh'] = '1';
+      final Uri uri = Uri.parse('$_baseUrl/api/home').replace(
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      );
+      final http.Response res = await http.get(
+        uri,
+        headers: _buildHeaders(),
+      ).timeout(Duration(seconds: refresh ? 30 : 12));
+      if (res.statusCode == 200) {
+        final dynamic data = jsonDecode(res.body);
+        if (data is Map && data['modules'] is List) {
+          return List<Map<String, dynamic>>.from(
+            (data['modules'] as List<dynamic>).whereType<Map<String, dynamic>>(),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[CustomApiProvider] getHomeModules error: $e');
+    }
+    return <Map<String, dynamic>>[];
+  }
+
   @override
   Future<Lyrics> getLyrics(Track track) async => Lyrics.unavailable;
 
