@@ -645,20 +645,46 @@ def autocomplete(query, languages=None):
 
 
 def song_details(song_id, quality="320"):
-    if quality == "320" and song_id in _TRACK_CACHE:
-        return _TRACK_CACHE[song_id]
-    data = jio_call("song.getDetails", {"pids": song_id})
+    clean_id = str(song_id or "").strip()
+    if not clean_id:
+        return {}
+    if quality == "320" and clean_id in _TRACK_CACHE:
+        return _TRACK_CACHE[clean_id]
+    data = jio_call("song.getDetails", {"pids": clean_id})
     songs = data.get("songs") if isinstance(data, dict) else None
-    item = songs[0] if songs else (data.get(song_id) if isinstance(data, dict) else None)
-    return format_track(item, quality) if item else {}
+    item = songs[0] if songs else (data.get(clean_id) if isinstance(data, dict) else None)
+    if not item or not isinstance(item, dict) or not item.get("id"):
+        data2 = jio_call("webapi.get", {"token": clean_id, "type": "song"})
+        if isinstance(data2, dict):
+            songs2 = data2.get("songs")
+            if songs2 and isinstance(songs2, list) and len(songs2) > 0:
+                item = songs2[0]
+            elif data2.get("id"):
+                item = data2
+    if item:
+        tr = format_track(item, quality)
+        if tr:
+            if quality == "320":
+                _TRACK_CACHE[clean_id] = tr
+            return tr
+    return {}
 
 
 def resolve_stream(song_id, quality="320"):
-    if quality == "320" and song_id in _STREAM_CACHE:
-        return _STREAM_CACHE[song_id]
-    track = song_details(song_id, quality)
+    clean_id = str(song_id or "").strip()
+    if not clean_id:
+        return ""
+    if quality == "320" and clean_id in _STREAM_CACHE:
+        cached_url = _STREAM_CACHE[clean_id]
+        if cached_url and cached_url.startswith("http"):
+            return cached_url
+    track = song_details(clean_id, quality)
     url = track.get("stream_url", "")
-    return url if url.startswith("http") else ""
+    if url and url.startswith("http"):
+        if quality == "320":
+            _STREAM_CACHE[clean_id] = url
+        return url
+    return ""
 
 
 def entity_details(kind, entity_id=None, token=None, limit=50, page=1, languages=None):
@@ -1212,8 +1238,22 @@ def refresh_catalog():
         with _CACHE_LOCK:
             for key in [k for k in list(_CACHE.keys()) if k.split(":")[0] in prefixes]:
                 _CACHE.pop(key, None)
-        _CATALOG_ITEMS_CACHE.clear()
         _CATALOG_SECTIONS_MEM["at"] = 0
+
+        # Background auto-refresh for all enabled configured catalogue sections
+        try:
+            sections = load_catalog_sections()
+            enabled_sections = [s for s in sections if s.get("is_enabled", True)]
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                futures = [executor.submit(_resolve_section_base_items, s, True) for s in enabled_sections]
+                for f in futures:
+                    try:
+                        f.result(timeout=25)
+                    except Exception as e:
+                        print(f"[refresh:catalog_section] {e}")
+            print(f"[refresh] re-resolved {len(enabled_sections)} configured catalogue sections")
+        except Exception as exc:
+            print(f"[refresh:catalog_sections] {exc}")
         groups = [DEFAULT_LANGUAGES, ["hindi"], ["punjabi"], LANGUAGE_GROUPS["south"]]
         for langs in groups:
             try:
@@ -1266,7 +1306,7 @@ def _hourly_refresher():
 def _keep_alive():
     base = os.environ.get("RENDER_EXTERNAL_URL", "").rstrip("/")
     if not base:
-        return
+        base = "https://music-api-tq5i.onrender.com"
     while True:
         time.sleep(600)
         try:
@@ -2575,7 +2615,7 @@ _SECTION_LOCKS_GUARD = threading.Lock()
 def _get_section_lock(key):
     with _SECTION_LOCKS_GUARD:
         if key not in _SECTION_RESOLVE_LOCKS:
-            _SECTION_RESOLVE_LOCKS[key] = threading.Lock()
+            _SECTION_RESOLVE_LOCKS[key] = threading.RLock()
         return _SECTION_RESOLVE_LOCKS[key]
 
 

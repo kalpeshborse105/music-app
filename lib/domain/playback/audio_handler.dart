@@ -57,6 +57,7 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
   Timer? _persistDebounce;
   AudioSession? _session;
   bool _advancing = false;
+  int _loadGeneration = 0;
 
   /// Optional hook so the app can record history when a track starts.
   void Function(Track track)? onTrackStarted;
@@ -247,6 +248,7 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
   // Loading
   // ---------------------------------------------------------------------------
   Future<void> _loadCurrent({Duration? position, bool autoplay = true}) async {
+    final int generation = ++_loadGeneration;
     final Track? track = queueModel.current;
     if (track == null) {
       await _player.stop();
@@ -256,6 +258,10 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
     try {
       _broadcastState(processingState: AudioProcessingState.loading);
       final StreamSource source = await _resolver(track);
+      if (generation != _loadGeneration) {
+        // A newer track was requested while resolving this one — cancel stale load.
+        return;
+      }
       final String rawUrl = source.url;
       final Uri uri;
       if (rawUrl.startsWith('file://')) {
@@ -276,6 +282,7 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
         ),
         preload: true,
       );
+      if (generation != _loadGeneration) return;
       if (position != null && position > Duration.zero) {
         await _player.seek(position);
       }
@@ -287,10 +294,11 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
       _broadcastState();
       _schedulePersist();
     } catch (e) {
-      Logger.warn('Playback load failed', error: e);
+      if (generation != _loadGeneration) return;
+      Logger.warn('Playback load failed for track ${track.id}', error: e);
       _broadcastState(
         processingState: AudioProcessingState.error,
-        errorMessage: 'Unable to play this track. Please retry or try another source.',
+        errorMessage: 'Playback error: Unable to stream "${track.title}". Please retry or check network.',
       );
     }
   }

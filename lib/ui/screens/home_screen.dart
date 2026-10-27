@@ -72,7 +72,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   late Future<List<Track>> _trendingFuture;
   late Future<List<CatalogSection>> _catalogSectionsFuture;
-  late Future<List<Map<String, dynamic>>> _homeModulesFuture;
   bool _initialized = false;
 
   final ScrollController _scrollController = ScrollController();
@@ -119,10 +118,6 @@ class _HomeScreenState extends State<HomeScreen> {
         lang: lang,
         forceRefresh: true,
       );
-      _homeModulesFuture = repo.getHomeModules(
-        lang: lang,
-        forceRefresh: true,
-      );
     });
     await Future.wait(<Future<dynamic>>[
       _loadInitialTracks(),
@@ -145,7 +140,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_isLoadingInitial) return;
     setState(() {
       _isLoadingInitial = true;
-      _infiniteTracks.clear();
       _currentOffset = 0;
       _hasMore = true;
     });
@@ -154,12 +148,13 @@ class _HomeScreenState extends State<HomeScreen> {
       final String? lang = _activeLang;
       final PagedResult<Track> paged = await repo.trendingPaged(
         limit: 20,
-        offset: _currentOffset,
+        offset: 0,
         language: lang,
       );
       if (mounted) {
         setState(() {
-          _currentOffset += paged.items.length;
+          _currentOffset = paged.items.length;
+          _infiniteTracks.clear();
           _infiniteTracks.addAll(paged.items);
           _hasMore = paged.hasMore || paged.items.isNotEmpty;
           if (paged.items.isEmpty) _hasMore = true;
@@ -230,7 +225,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final String? lang = _activeLang;
       _trendingFuture = repo.trending(limit: 20, language: lang);
       _catalogSectionsFuture = repo.getCatalogSections(lang: lang);
-      _homeModulesFuture = repo.getHomeModules(lang: lang);
       _loadInitialTracks();
     }
   }
@@ -242,7 +236,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final String? lang = _activeLang;
       _trendingFuture = repo.trending(limit: 20, language: lang);
       _catalogSectionsFuture = repo.getCatalogSections(lang: lang);
-      _homeModulesFuture = repo.getHomeModules(lang: lang);
     });
     _loadInitialTracks();
   }
@@ -346,10 +339,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: _buildAdminCatalogSections(context, repo),
                     ),
 
-                    // Dynamic JioSaavn Discovery Modules (Live Home)
-                    SliverToBoxAdapter(
-                      child: _buildDynamicDiscoveryModules(context, repo),
-                    ),
 
                     // Followed Artists Quick Shelf (auto-suggestions from followed artists)
                     if (library.followedArtists.isNotEmpty)
@@ -426,16 +415,43 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(width: 10),
-              Text(
-                'Kalpkrut Beats',
-                style: TextStyle(
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: FontWeight.w700,
-                  fontSize: 20,
-                  letterSpacing: -0.2,
-                  height: 1.15,
-                  color: context.textPrimary,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    'Kalpkrut Beats',
+                    style: TextStyle(
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                      letterSpacing: -0.4,
+                      color: context.textPrimary,
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        Icons.graphic_eq_rounded,
+                        size: 11,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? AppColors.secondary
+                            : AppColors.lightSecondaryAccent,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'JioSaavn Music',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: context.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),
@@ -1684,104 +1700,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildDynamicDiscoveryModules(
-    BuildContext context,
-    MusicRepository repo,
-  ) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _homeModulesFuture,
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
-      ) {
-        final List<Map<String, dynamic>> modules =
-            snapshot.data ?? <Map<String, dynamic>>[];
-        if (modules.isEmpty) return const SizedBox.shrink();
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            for (final Map<String, dynamic> mod in modules)
-              Builder(
-                builder: (BuildContext ctx) {
-                  final String title = mod['title']?.toString() ?? '';
-                  final String? subtitle = mod['subtitle']?.toString();
-                  final List<dynamic> rawItems =
-                      (mod['items'] as List<dynamic>?) ?? <dynamic>[];
-                  if (title.isEmpty || rawItems.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
-
-                  final List<Track> tracks = <Track>[];
-                  for (final dynamic item in rawItems) {
-                    if (item is Map<String, dynamic>) {
-                      try {
-                        tracks.add(Track.fromJson(item));
-                      } catch (_) {}
-                    }
-                  }
-
-                  if (tracks.isEmpty) return const SizedBox.shrink();
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      SectionHeader(
-                        title: title,
-                        subtitle: subtitle,
-                        topPadding: AppSpacing.sm,
-                        actionLabel: tracks.length > 5 ? 'See all' : null,
-                        onAction: tracks.length > 5
-                            ? () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => TrackListScreen(
-                                      title: title,
-                                      tracks: tracks,
-                                    ),
-                                  ),
-                                );
-                              }
-                            : null,
-                      ),
-                      SizedBox(
-                        height: 196,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.lg,
-                          ),
-                          itemCount: tracks.take(15).length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(width: AppSpacing.md),
-                          itemBuilder: (BuildContext cardCtx, int i) {
-                            final Track track = tracks[i];
-                            return MediaCard.forTrack(
-                              track: track,
-                              onTap: () => TrackActions.play(
-                                context,
-                                track,
-                                queue: tracks,
-                              ),
-                              onPlay: () => TrackActions.play(
-                                context,
-                                track,
-                                queue: tracks,
-                              ),
-                              width: 136,
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-          ],
-        );
-      },
-    );
-  }
 
   /// Two-row horizontal shelf: short screens 5/row, large 10/row (max 2 rows).
   Widget _buildDoubleRowShelf({
