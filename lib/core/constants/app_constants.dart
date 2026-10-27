@@ -3,7 +3,7 @@ class AppConstants {
   AppConstants._();
 
   static const String appName = 'Kalpkrut Beats';
-  static const String appVersion = '1.0.11';
+  static const String appVersion = '1.0.12';
   static const String companyName = 'Kalpkrut Infotech';
   static const String officialWebUrl = 'https://beats.kalpkrutinfotech.com/';
 
