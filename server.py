@@ -1240,20 +1240,7 @@ def refresh_catalog():
                 _CACHE.pop(key, None)
         _CATALOG_SECTIONS_MEM["at"] = 0
 
-        # Background auto-refresh for all enabled configured catalogue sections
-        try:
-            sections = load_catalog_sections()
-            enabled_sections = [s for s in sections if s.get("is_enabled", True)]
-            with ThreadPoolExecutor(max_workers=3) as executor:
-                futures = [executor.submit(_resolve_section_base_items, s, True) for s in enabled_sections]
-                for f in futures:
-                    try:
-                        f.result(timeout=25)
-                    except Exception as e:
-                        print(f"[refresh:catalog_section] {e}")
-            print(f"[refresh] re-resolved {len(enabled_sections)} configured catalogue sections")
-        except Exception as exc:
-            print(f"[refresh:catalog_sections] {exc}")
+        # Discovery cache rebuild
         groups = [DEFAULT_LANGUAGES, ["hindi"], ["punjabi"], LANGUAGE_GROUPS["south"]]
         for langs in groups:
             try:
@@ -2909,12 +2896,8 @@ def get_section_items(section, force_refresh=False):
 
     if not force_refresh and existing:
         ts, items, meta = existing
-        age = now - ts
         if items:
             base_items = items
-            if age >= _CATALOG_ITEMS_TTL:
-                # Expired or Stale: serve cached immediately, revalidate in background!
-                threading.Thread(target=_resolve_section_base_items, args=(section, True), daemon=True).start()
 
     if base_items is None:
         base_items = _resolve_section_base_items(section, force_fetch=force_refresh)
@@ -3008,21 +2991,16 @@ def api_catalog_sections():
 
         if lite:
             items = []
-        elif do_refresh:
-            # Force refresh requested: queue section for bounded concurrent re-fetch
-            items = list(s.get("custom_tracks") or [])
-            to_resolve.append((len(enriched), s))
         elif cached and cached[1]:
-            # Serve fresh/stale cached items immediately (fast path)
+            # Serve cached items immediately (fast path)
             items = get_section_items(s, force_refresh=False)
-        elif not had_any_cache:
-            # Cold boot with zero cache: resolve initially
+        elif do_refresh or not had_any_cache:
+            # Cold boot with zero cache or forced refresh: queue section for resolution
             items = list(s.get("custom_tracks") or [])
             to_resolve.append((len(enriched), s))
         else:
-            # Uncached section: return custom tracks and resolve in background
+            # Uncached section without refresh: return custom tracks (if any)
             items = list(s.get("custom_tracks") or [])
-            threading.Thread(target=get_section_items, args=(s, False), daemon=True).start()
 
         sec_copy["items"] = items
         sec_copy["item_count"] = len(items) or int(s.get("item_count") or 0)
@@ -3039,16 +3017,16 @@ def api_catalog_sections():
 
         enriched.append(sec_copy)
 
-    # Resolve queued sections concurrently with bounded concurrency & timeouts
-    if to_resolve and not lite:
-        with ThreadPoolExecutor(max_workers=8) as ex:
+    # Resolve queued sections only when forced refresh or cold start with zero cache
+    if to_resolve and not lite and (do_refresh or not had_any_cache):
+        with ThreadPoolExecutor(max_workers=4) as ex:
             futs = {
                 ex.submit(get_section_items, sec, True): (idx, sec)
                 for idx, sec in to_resolve
             }
             for fut, (idx, sec) in list(futs.items()):
                 try:
-                    items = fut.result(timeout=15)
+                    items = fut.result(timeout=10)
                 except Exception as err:
                     print(f"[Catalog] Refresh error for section {idx}: {err}")
                     items = enriched[idx].get("items") or []
@@ -3071,7 +3049,7 @@ def api_catalog_sections():
         "total": len(enriched),
         "source": "admin_catalog",
         "cache": "local_first",
-    }, 0 if do_refresh else 60)
+    }, 0 if do_refresh else 120)
 
 
 @app.route("/api/catalog/sections/<section_key>/refresh", methods=["POST"])

@@ -713,7 +713,7 @@ class MusicRepository {
           includeDisabled: includeDisabled,
           lang: lang,
           group: group,
-          refresh: forceRefresh || !cacheOk,
+          refresh: forceRefresh,
         );
         if (raw.isNotEmpty) {
           final List<CatalogSection> fresh = raw
