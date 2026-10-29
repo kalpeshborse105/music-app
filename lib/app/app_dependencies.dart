@@ -22,6 +22,7 @@ import '../state/library_controller.dart';
 import '../data/services/deep_link_service.dart';
 import '../data/services/fcm_service.dart';
 import '../data/services/supabase_service.dart';
+import '../data/services/admob_service.dart';
 
 /// Holds every long-lived dependency. Constructed once during bootstrap so the
 /// widget tree stays free of async initialization (fast, deterministic startup,
@@ -174,6 +175,10 @@ class AppDependencies {
     // 4. Share / App Links + FCM tap → open song/album/artist.
     await DeepLinkService.instance.start(repository).catchError((Object e) {
       Logger.warn('deep link warm-up skipped', error: e);
+    });
+    // 5. Initialize Google Mobile Ads SDK safely (isolated, non-blocking).
+    await AdMobService.instance.initialize().catchError((Object e) {
+      Logger.warn('AdMob warm-up skipped', error: e);
     });
   }
 

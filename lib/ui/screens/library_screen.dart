@@ -19,6 +19,7 @@ import '../widgets/app_sheets.dart';
 import '../widgets/artwork.dart';
 import '../widgets/cards.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/admob_banner_card.dart';
 import '../widgets/inline_ad_slot.dart';
 import '../widgets/state_views.dart';
 import '../widgets/track_tile.dart';
@@ -1073,13 +1074,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
       );
     }
 
-    // Admin mid-library ad (hidden when inactive)
+    // Admin mid-library ad (hidden when inactive) + AdMob banner (collapses if no fill)
     if (_selectedFilter == 'All') {
       slivers.add(
         const SliverToBoxAdapter(
           child: InlineAdSlot(
             placement: Advertisement.placementLibraryMid,
           ),
+        ),
+      );
+      slivers.add(
+        const SliverToBoxAdapter(
+          child: AdMobBannerCard(),
         ),
       );
     }

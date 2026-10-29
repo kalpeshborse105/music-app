@@ -84,3 +84,9 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Google Mobile Ads pulls an older work-runtime that breaks under AGP 9 R8
+    // full mode (WorkDatabase reflective init). Pin a fixed WorkManager.
+    implementation("androidx.work:work-runtime:2.10.3")
+}

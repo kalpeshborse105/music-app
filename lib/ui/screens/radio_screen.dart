@@ -6,6 +6,7 @@ import '../../domain/models/radio_station.dart';
 import '../../domain/models/track.dart';
 import '../../domain/playback/playback_controller.dart';
 import '../theme/app_colors.dart';
+import '../widgets/admob_banner_card.dart';
 import '../widgets/artwork.dart';
 import '../widgets/glass_card.dart';
 
@@ -449,6 +450,10 @@ class _RadioScreenState extends State<RadioScreen> {
                     ),
                   ),
                 ),
+              // Banner sits in the scroll feed above mini-player padding — never overlays playback.
+              const SliverToBoxAdapter(
+                child: AdMobBannerCard(),
+              ),
               const SliverToBoxAdapter(child: SizedBox(height: 120)),
             ],
           ),

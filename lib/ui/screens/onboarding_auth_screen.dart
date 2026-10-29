@@ -41,6 +41,7 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
   final _nameController = TextEditingController();
   String? _errorMessage;
   StreamSubscription<AuthState>? _authSub;
+  bool _waitingForGoogleOAuth = false;
 
   @override
   void initState() {
@@ -48,11 +49,31 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
     _showAuthForm = widget.initialShowAuthForm;
     _isSignUp = widget.initialSignUp;
 
-    // Reactively complete auth when returning from Google OAuth or deep link
-    _authSub = SupabaseService().authStateChanges.listen((AuthState data) {
-      if (data.session != null && mounted) {
-        widget.onComplete();
+    // Reactively complete auth when returning from Google OAuth deep link
+    // (browser → Continue → com.kalpkrut.beats://login-callback/).
+    _authSub = SupabaseService().authStateChanges.listen((AuthState data) async {
+      if (data.session == null || !mounted) return;
+      final bool fromGoogle = _waitingForGoogleOAuth;
+      _waitingForGoogleOAuth = false;
+      final SupabaseService supabase = SupabaseService();
+      try {
+        await supabase.ensureProfile();
+      } catch (_) {}
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = null;
+      });
+      if (fromGoogle) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Signed in with Google successfully'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
+      widget.onComplete();
     });
   }
 
@@ -70,19 +91,48 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _waitingForGoogleOAuth = true;
     });
 
     try {
       final SupabaseService supabase = SupabaseService();
-      await supabase.signInWithGoogle();
-      if (mounted && supabase.isAuthenticated) {
+      final bool started = await supabase.signInWithGoogle();
+      // Browser OAuth: session arrives later via deep link + authStateChanges.
+      if (!mounted) return;
+      if (supabase.isAuthenticated) {
+        _waitingForGoogleOAuth = false;
         await supabase.ensureProfile();
+        if (!mounted) return;
         setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Signed in with Google successfully'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
         widget.onComplete();
-      } else {
-        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+      setState(() {
+        // Keep spinner while user finishes in Chrome; deep link completes login.
+        _isLoading = started;
+        _waitingForGoogleOAuth = started;
+        if (!started) {
+          _errorMessage = 'Google sign-in was cancelled.';
+        }
+      });
+      if (started && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Choose your Google account in the browser…'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 3),
+          ),
+        );
       }
     } on AuthException catch (e) {
+      _waitingForGoogleOAuth = false;
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -90,6 +140,7 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
         });
       }
     } catch (_) {
+      _waitingForGoogleOAuth = false;
       if (mounted) {
         setState(() {
           _isLoading = false;

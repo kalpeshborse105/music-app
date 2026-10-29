@@ -66,6 +66,15 @@ class AppConfig {
     defaultValue: 'https://music-api-tq5i.onrender.com',
   );
 
+  /// Google Cloud **Web** OAuth Client ID (public, optional in app).
+  /// Supabase Dashboard holds Client ID + Secret for browser OAuth.
+  /// Client **secret** must never be shipped in the APK / .env used by mobile.
+  static String googleWebClientId = const String.fromEnvironment(
+    'GOOGLE_WEB_CLIENT_ID',
+    defaultValue:
+        '986422322069-su7f5uvackoutj3ar8679fbrrkmmqo7q.apps.googleusercontent.com',
+  );
+
   /// Load environment from .env if available
   static void loadFromEnv(Map<String, String> env) {
     if (env.containsKey('CUSTOM_API_URL') && env['CUSTOM_API_URL']!.isNotEmpty) {
@@ -89,6 +98,10 @@ class AppConfig {
     }
     if (env.containsKey('JAMENDO_CLIENT_ID') && env['JAMENDO_CLIENT_ID']!.isNotEmpty) {
       jamendoClientId = env['JAMENDO_CLIENT_ID']!;
+    }
+    if (env.containsKey('GOOGLE_WEB_CLIENT_ID') &&
+        env['GOOGLE_WEB_CLIENT_ID']!.isNotEmpty) {
+      googleWebClientId = env['GOOGLE_WEB_CLIENT_ID']!;
     }
   }
 

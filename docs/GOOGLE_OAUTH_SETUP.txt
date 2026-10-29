@@ -1,0 +1,53 @@
+Kalpkrut Beats — Google login (MahaTicket-style, ONE Web client)
+================================================================================
+
+SHORT ANSWER
+- Supabase needs only the **Web** Client ID + Client Secret.
+- Android does NOT need a separate client for browser OAuth.
+- Flow: App → Chrome → Continue with Google → deep link back → success + profile in DB.
+
+--------------------------------------------------------------------------------
+A) Google Cloud → Web application client
+--------------------------------------------------------------------------------
+Authorised JavaScript origins:
+  https://rotvxnnblkxbqhfcbynt.supabase.co
+  https://beats.kalpkrutinfotech.com
+
+Authorised redirect URIs:
+  https://rotvxnnblkxbqhfcbynt.supabase.co/auth/v1/callback
+
+Branding tab: App name = Kalpkrut Beats
+
+--------------------------------------------------------------------------------
+B) Supabase → Authentication → Providers → Google
+--------------------------------------------------------------------------------
+Enable: ON
+Client IDs:     <Web Client ID only is enough>
+Client Secret:  <Web Client Secret>
+Save.
+
+(Optional) If you later create an Android client, you may paste both as:
+  webClientId,androidClientId
+That is OPTIONAL. Web alone works for Android browser login.
+
+Redirect URLs (Auth → URL Configuration) must include:
+  com.kalpkrut.beats://login-callback/
+
+--------------------------------------------------------------------------------
+C) App .env (public only — NO secret)
+--------------------------------------------------------------------------------
+GOOGLE_WEB_CLIENT_ID=<Web Client ID>
+
+Never put Client Secret in the Flutter .env / APK.
+Secret stays in Supabase Dashboard only.
+
+--------------------------------------------------------------------------------
+D) Why Google may still show supabase.co
+--------------------------------------------------------------------------------
+Supabase browser OAuth always redirects through:
+  https://PROJECT.supabase.co/auth/v1/callback
+so Google’s “Continue to …” line shows that host.
+MahaTicket avoids this by using a custom backend domain as Google’s redirect.
+App name branding still comes from Google Cloud → Branding (“Kalpkrut Beats”).
+To hide supabase.co entirely you need a Supabase custom auth domain OR a
+MahaTicket-style custom OAuth backend.

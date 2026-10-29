@@ -1,7 +1,9 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../core/config/app_config.dart';
 import '../../domain/models/advertisement.dart';
 import '../../domain/models/album.dart';
@@ -120,23 +122,40 @@ class SupabaseService {
     return res;
   }
 
-  /// Official Supabase Google OAuth sign in
+  /// Google sign-in 
+  ///
+  /// Uses **one Web Client ID + Secret in Supabase only**. Opens the system
+  /// browser so the user can Continue with an existing Google account, then
+  /// returns to the app via `com.kalpkrut.beats://login-callback/` deep link.
+  /// No separate Android OAuth client is required for this flow.
+  ///
+  /// Session persistence + [ensureProfile] are handled by the auth-state
+  /// listener after the deep link is received.
   Future<bool> signInWithGoogle({String? redirectTo}) async {
     if (!_isInitialized) return false;
     try {
-      final String? redirect;
+      final String redirect;
       if (redirectTo != null && redirectTo.isNotEmpty) {
         redirect = redirectTo;
       } else if (kIsWeb) {
-        redirect = kReleaseMode ? 'https://beats.kalpkrutinfotech.com/' : Uri.base.origin;
+        redirect =
+            kReleaseMode ? 'https://beats.kalpkrutinfotech.com/' : Uri.base.origin;
       } else {
-        // HTTPS bridge page opens the app scheme, then tells user to close Chrome.
-        redirect = 'https://beats.kalpkrutinfotech.com/auth/callback';
+        // Must also be listed under Supabase Auth → Redirect URLs.
+        redirect = 'com.kalpkrut.beats://login-callback/';
       }
 
+      // Google on Android must use the external browser (Supabase forces this).
+      // Same UX as MahaTicket: pick account in Chrome → return to app.
       return await client.auth.signInWithOAuth(
         OAuthProvider.google,
         redirectTo: redirect,
+        authScreenLaunchMode: kIsWeb
+            ? LaunchMode.platformDefault
+            : LaunchMode.externalApplication,
+        queryParams: const <String, String>{
+          'prompt': 'select_account',
+        },
       );
     } catch (e) {
       debugPrint('[SupabaseService] Google sign-in failed: $e');

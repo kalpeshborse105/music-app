@@ -7,6 +7,7 @@ import '../../state/library_controller.dart';
 import '../services/track_actions.dart';
 import '../theme/app_spacing.dart';
 import '../../domain/models/advertisement.dart';
+import '../widgets/admob_banner_card.dart';
 import '../widgets/app_sheets.dart';
 import '../widgets/inline_ad_slot.dart';
 import '../widgets/mini_player.dart';
@@ -85,8 +86,14 @@ class TrackListScreen extends StatelessWidget {
                         itemCount: tracks.length + extra,
                         itemBuilder: (BuildContext c, int i) {
                           if (extra == 1 && i == mid) {
-                            return const InlineAdSlot(
-                              placement: Advertisement.placementPlaylistMid,
+                            return const Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                InlineAdSlot(
+                                  placement: Advertisement.placementPlaylistMid,
+                                ),
+                                AdMobBannerCard(),
+                              ],
                             );
                           }
                           final int trackIndex =
@@ -231,8 +238,14 @@ class PlaylistDetailScreen extends StatelessWidget {
                   itemCount: playlist.tracks.length + extra,
                   itemBuilder: (BuildContext c, int i) {
                     if (extra == 1 && i == mid) {
-                      return const InlineAdSlot(
-                        placement: Advertisement.placementPlaylistMid,
+                      return const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          InlineAdSlot(
+                            placement: Advertisement.placementPlaylistMid,
+                          ),
+                          AdMobBannerCard(),
+                        ],
                       );
                     }
                     final int trackIndex = (extra == 1 && i > mid) ? i - 1 : i;

@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart' hide SearchController;
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+
+import '../../data/services/admob_service.dart';
+import '../../domain/playback/playback_controller.dart';
 import '../theme/app_colors.dart';
 import '../widgets/ad_popup_dialog.dart';
 import '../widgets/mini_player.dart';
@@ -65,6 +69,16 @@ class _AppShellState extends State<AppShell> {
     // If switching to or leaving library tab, ensure filter and search are reset
     if (i == 1 || prevIndex == 1) {
       LibraryScreen.resetToDefault(context);
+    }
+
+    // Natural transitions only (Profile or Library) — never every tab change,
+    // and never while a song / radio stream is actively playing.
+    if ((i == 1 || i == 3) && prevIndex != i) {
+      final bool audioPlaying =
+          context.read<PlaybackController>().isPlaying;
+      AdMobService.instance.maybeShowInterstitialAtNaturalTransition(
+        audioIsPlaying: audioPlaying,
+      );
     }
   }
 

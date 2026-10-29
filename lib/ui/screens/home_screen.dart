@@ -19,6 +19,7 @@ import '../widgets/app_sheets.dart';
 import '../widgets/cards.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/inline_ad_slot.dart';
+import '../widgets/admob_banner_card.dart';
 import '../widgets/state_views.dart';
 import '../widgets/track_tile.dart';
 import '../../domain/models/advertisement.dart';
@@ -326,6 +327,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     SliverToBoxAdapter(
                       child: _buildCategoryView(context, repo, playback),
                     ),
+                    const SliverToBoxAdapter(
+                      child: AdMobBannerCard(),
+                    ),
                   ] else ...<Widget>[
                     // 3. Recently Played (if history exists) or Trending Right Now (no dead space!)
                     SliverToBoxAdapter(
@@ -352,6 +356,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       SliverToBoxAdapter(
                         child: _buildFollowedArtistsBar(context, library, repo),
                       ),
+
+                    // Google AdMob Adaptive Banner (only renders when loaded, non-intrusive)
+                    const SliverToBoxAdapter(
+                      child: AdMobBannerCard(),
+                    ),
 
                     // 4. Continuous Blast of Trending & Fresh Releases (Mixture Auto Suggestion)
                     SliverToBoxAdapter(

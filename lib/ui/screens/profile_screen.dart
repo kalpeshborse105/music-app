@@ -20,6 +20,7 @@ import '../../state/downloads_controller.dart';
 import '../../state/library_controller.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
+import '../widgets/admob_banner_card.dart';
 import '../widgets/glass_card.dart';
 import 'admin_screen.dart';
 import 'library_screen.dart';
@@ -428,6 +429,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () => _pickTheme(context, settings),
                     ),
+                  ),
+
+                  const AdMobBannerCard(
+                    margin: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                   ),
 
                   // About & Legal Compliance
