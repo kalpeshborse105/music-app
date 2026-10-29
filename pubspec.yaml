@@ -55,6 +55,7 @@ dependencies:
   flutter_dotenv: ^5.2.1
   image_picker: ^1.2.3
   url_launcher: ^6.3.3
+  app_links: ^6.3.2
   firebase_core: ^5.0.0
   firebase_messaging: ^17.0.0
 

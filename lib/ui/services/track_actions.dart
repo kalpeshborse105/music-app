@@ -99,7 +99,7 @@ class TrackActions {
     try {
       final String url = ShareLinks.song(track);
       final String text =
-          'Listening to “${track.title}” by ${track.artistNames} on Kalpkrut Beats\n\n$url';
+          'Listening to “${track.title}” by ${track.artistNames} on Kalpkrut Beats\n\n$url\n\nGet App on Google Play:\n${ShareLinks.playStoreUrl}';
       await Share.share(text, subject: track.title);
     } catch (_) {
       AppMessenger.show('Sharing is not available here');

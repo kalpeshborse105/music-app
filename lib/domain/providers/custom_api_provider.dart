@@ -140,7 +140,9 @@ class CustomApiProvider extends BaseMusicProvider {
 
   @override
   Future<StreamSource> getStream(Track track, {AudioQuality quality = AudioQuality.auto}) async {
-    final String trackId = track.providerTrackId;
+    final String trackId = track.providerTrackId.isNotEmpty
+        ? track.providerTrackId
+        : (track.id.contains(':') ? track.id.split(':').last : track.id);
     if (_baseUrl.isEmpty) {
       throw ProviderException(id, message: 'Custom API base URL is not configured');
     }

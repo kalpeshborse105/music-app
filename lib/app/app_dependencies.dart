@@ -109,8 +109,9 @@ class AppDependencies {
         config: const AudioServiceConfig(
           androidNotificationChannelId: 'com.kalpkrut.beats.audio',
           androidNotificationChannelName: AppConstants.appName,
-          androidNotificationOngoing: true,
-          androidStopForegroundOnPause: true,
+          androidNotificationOngoing: false,
+          androidStopForegroundOnPause: false,
+          androidNotificationIcon: 'drawable/ic_stat_notification',
         ),
       );
     } catch (e) {

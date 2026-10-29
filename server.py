@@ -30,7 +30,7 @@ import urllib.parse
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 
-from flask import Flask, request, jsonify, redirect, send_from_directory, render_template
+from flask import Flask, request, jsonify, redirect, send_from_directory, render_template, Response
 from flask_cors import CORS
 
 try:
@@ -1698,6 +1698,355 @@ def api_suggest():
                          "image": item.get("image") or item.get("artwork_url"), "subtitle": item.get("subtitle", item.get("artist", "")),
                          "token": item.get("token")})
     return ok({"query": query, "suggestions": flat, "grouped": data}, 600)
+
+
+
+# ─── Public Share Landing Pages & App Links ─────────────────────────────────────
+def render_share_page(title, subtitle, artwork, stream_url, intent_url, play_store_url, content_type="song"):
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{html.escape(title)} • Kalpkrut Beats</title>
+  
+  <!-- Open Graph Meta Tags for Rich Social Previews (WhatsApp, Telegram, X, Facebook) -->
+  <meta property="og:type" content="music.song">
+  <meta property="og:site_name" content="Kalpkrut Beats">
+  <meta property="og:title" content="{html.escape(title)}">
+  <meta property="og:description" content="Listen to {html.escape(title)} by {html.escape(subtitle)} on Kalpkrut Beats">
+  <meta property="og:image" content="{html.escape(artwork)}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{html.escape(title)}">
+  <meta name="twitter:description" content="{html.escape(subtitle)} • Kalpkrut Beats">
+  <meta name="twitter:image" content="{html.escape(artwork)}">
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <style>
+    :root {{
+      --bg: #0A0A14;
+      --card: rgba(22, 22, 36, 0.88);
+      --primary: #8C7CFF;
+      --accent: #5D50EE;
+      --text: #FFFFFF;
+      --text-muted: #A0A0B8;
+    }}
+    * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }}
+    body {{
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      position: relative;
+      overflow-x: hidden;
+    }}
+    .glow {{
+      position: absolute;
+      width: 340px;
+      height: 340px;
+      background: radial-gradient(circle, rgba(140, 124, 255, 0.25) 0%, rgba(10, 10, 20, 0) 70%);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -60%);
+      pointer-events: none;
+      z-index: 0;
+    }}
+    .card {{
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 420px;
+      background: var(--card);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 28px;
+      padding: 32px 24px;
+      text-align: center;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+    }}
+    .brand {{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 24px;
+      padding: 6px 14px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 30px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 13px;
+      font-weight: 700;
+      color: #D1D0F8;
+    }}
+    .art-wrap {{
+      width: 220px;
+      height: 220px;
+      margin: 0 auto 24px auto;
+      border-radius: 22px;
+      overflow: hidden;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5), 0 0 24px rgba(140, 124, 255, 0.25);
+    }}
+    .art-wrap img {{
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }}
+    h1 {{
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: var(--text);
+      line-height: 1.3;
+    }}
+    p.artist {{
+      font-size: 15px;
+      color: var(--text-muted);
+      margin-bottom: 22px;
+    }}
+    .audio-player {{
+      width: 100%;
+      margin-bottom: 22px;
+      border-radius: 12px;
+    }}
+    audio {{
+      width: 100%;
+      filter: invert(1) hue-rotate(180deg);
+      border-radius: 10px;
+    }}
+    .btn {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 15px 20px;
+      border-radius: 16px;
+      font-size: 15px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      border: none;
+      margin-bottom: 12px;
+    }}
+    .btn:active {{
+      transform: scale(0.98);
+    }}
+    .btn-primary {{
+      background: linear-gradient(135deg, #8C7CFF 0%, #5D50EE 100%);
+      color: #FFFFFF;
+      box-shadow: 0 8px 24px rgba(108, 99, 255, 0.35);
+    }}
+    .btn-secondary {{
+      background: rgba(255, 255, 255, 0.08);
+      color: #E2E2F0;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }}
+    .btn-secondary:hover {{
+      background: rgba(255, 255, 255, 0.12);
+    }}
+    .hint {{
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: 14px;
+      line-height: 1.4;
+    }}
+  </style>
+
+  <script>
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const intentUrl = "{intent_url}";
+    const playStoreUrl = "{play_store_url}";
+
+    function openInApp() {{
+      if (isAndroid) {{
+        window.location.href = intentUrl;
+        setTimeout(function() {{
+          window.location.href = playStoreUrl;
+        }}, 2500);
+      }} else {{
+        window.location.href = playStoreUrl;
+      }}
+    }}
+
+    // Auto-attempt open in Android App when link is tapped
+    window.addEventListener("DOMContentLoaded", function() {{
+      if (isAndroid && !window.location.search.includes("no_auto=1")) {{
+        setTimeout(function() {{
+          window.location.href = intentUrl;
+        }}, 400);
+      }}
+    }});
+  </script>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="card">
+    <div class="brand">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="#8C7CFF"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+      <span>Kalpkrut Beats</span>
+    </div>
+
+    <div class="art-wrap">
+      <img src="{html.escape(artwork)}" alt="{html.escape(title)}" onerror="this.src='/icons/Icon-512.png'">
+    </div>
+
+    <h1>{html.escape(title)}</h1>
+    <p class="artist">{html.escape(subtitle)}</p>
+
+    {f'<div class="audio-player"><audio controls preload="none"><source src="{html.escape(stream_url)}" type="audio/mp4"></audio></div>' if stream_url else ''}
+
+    <button class="btn btn-primary" onclick="openInApp()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      <span>Open in Kalpkrut Beats</span>
+    </button>
+
+    <a href="{play_store_url}" class="btn btn-secondary">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3.609 1.814L13.792 12 3.61 22.186a1.996 1.996 0 0 1-.22-.924V2.738c0-.348.082-.668.219-.924zM15.207 13.414l2.593 2.593-11.83 6.744 9.237-9.337zm0-2.828L5.97 1.25l11.83 6.744-2.593 2.592zm1.414 1.414l3.18-1.814c.915-.522.915-1.374 0-1.896l-3.18-1.814-2.121 2.121 2.121 2.121z"/></svg>
+      <span>Get on Google Play</span>
+    </a>
+
+    <p class="hint">
+      Have the app installed? It will open directly.<br>
+      If not installed, it will automatically take you to Google Play Store to install.
+    </p>
+  </div>
+</body>
+</html>"""
+
+
+@app.route("/.well-known/assetlinks.json")
+def serve_assetlinks():
+    assetlinks_path = os.path.join(BASE_DIR, "web", ".well-known", "assetlinks.json")
+    if os.path.exists(assetlinks_path):
+        with open(assetlinks_path, "r", encoding="utf-8") as f:
+            data = f.read()
+        resp = Response(data, mimetype="application/json")
+        resp.headers["Cache-Control"] = "public, max-age=3600"
+        return resp
+    return jsonify([
+        {
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {
+                "namespace": "android_app",
+                "package_name": "com.kalpkrut.beats",
+                "sha256_cert_fingerprints": [
+                    "16:5E:F2:79:13:A6:DE:95:04:06:8A:8A:EF:50:59:29:02:3F:7D:D7:9A:8D:7F:A4:BE:AA:1A:83:15:18:9A:CB"
+                ]
+            }
+        }
+    ]), 200, {"Content-Type": "application/json"}
+
+
+@app.route("/app-ads.txt")
+def serve_app_ads_txt():
+    for candidate in [
+        os.path.join(BASE_DIR, "web", "app-ads.txt"),
+        os.path.join(BASE_DIR, "app-ads.txt"),
+    ]:
+        if os.path.exists(candidate):
+            with open(candidate, "r", encoding="utf-8") as f:
+                content = f.read()
+            resp = Response(content, mimetype="text/plain; charset=utf-8")
+            resp.headers["Cache-Control"] = "public, max-age=3600"
+            return resp
+    return Response(
+        "google.com, pub-4362362303618297, DIRECT, f08c47fec0942fa0\n",
+        mimetype="text/plain; charset=utf-8",
+        headers={"Cache-Control": "public, max-age=3600"}
+    )
+
+
+@app.route("/robots.txt")
+def serve_robots_txt():
+    candidate = os.path.join(BASE_DIR, "web", "robots.txt")
+    if os.path.exists(candidate):
+        with open(candidate, "r", encoding="utf-8") as f:
+            content = f.read()
+        resp = Response(content, mimetype="text/plain; charset=utf-8")
+        resp.headers["Cache-Control"] = "public, max-age=3600"
+        return resp
+    return Response("User-agent: *\nAllow: /\n", mimetype="text/plain; charset=utf-8")
+
+
+@app.route("/share/song/<track_id>")
+@app.route("/song/<track_id>")
+def share_song(track_id):
+    clean_id = track_id.split(":")[-1] if ":" in track_id else track_id
+    track = song_details(clean_id) or {}
+    
+    title = track.get("title") or track.get("song") or "Kalpkrut Beats Song"
+    artist = track.get("artist") or track.get("singers") or track.get("artistNames") or "Kalpkrut Beats"
+    artwork = track.get("artwork_url") or track.get("image") or "https://beats.kalpkrutinfotech.com/icons/Icon-512.png"
+    stream_url = f"/api/play/{clean_id}"
+    play_store_url = "https://play.google.com/store/apps/details?id=com.kalpkrut.beats"
+    intent_url = f"intent://beats.kalpkrutinfotech.com/song/{clean_id}#Intent;scheme=https;package=com.kalpkrut.beats;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kalpkrut.beats;end"
+    
+    return render_share_page(
+        title=title,
+        subtitle=artist,
+        artwork=artwork,
+        stream_url=stream_url,
+        intent_url=intent_url,
+        play_store_url=play_store_url,
+        content_type="song"
+    )
+
+
+@app.route("/share/album/<album_id>")
+@app.route("/album/<album_id>")
+def share_album(album_id):
+    clean_id = album_id.split(":")[-1] if ":" in album_id else album_id
+    play_store_url = "https://play.google.com/store/apps/details?id=com.kalpkrut.beats"
+    intent_url = f"intent://beats.kalpkrutinfotech.com/album/{clean_id}#Intent;scheme=https;package=com.kalpkrut.beats;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kalpkrut.beats;end"
+    return render_share_page(
+        title="Album on Kalpkrut Beats",
+        subtitle="Listen in High-Fidelity Audio",
+        artwork="https://beats.kalpkrutinfotech.com/icons/Icon-512.png",
+        stream_url="",
+        intent_url=intent_url,
+        play_store_url=play_store_url,
+        content_type="album"
+    )
+
+
+@app.route("/share/artist/<artist_id>")
+@app.route("/artist/<artist_id>")
+def share_artist(artist_id):
+    clean_id = artist_id.split(":")[-1] if ":" in artist_id else artist_id
+    play_store_url = "https://play.google.com/store/apps/details?id=com.kalpkrut.beats"
+    intent_url = f"intent://beats.kalpkrutinfotech.com/artist/{clean_id}#Intent;scheme=https;package=com.kalpkrut.beats;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kalpkrut.beats;end"
+    return render_share_page(
+        title="Artist on Kalpkrut Beats",
+        subtitle="Top Tracks, Albums & Radio",
+        artwork="https://beats.kalpkrutinfotech.com/icons/Icon-512.png",
+        stream_url="",
+        intent_url=intent_url,
+        play_store_url=play_store_url,
+        content_type="artist"
+    )
+
+
+@app.route("/share/playlist/<playlist_id>")
+@app.route("/playlist/<playlist_id>")
+def share_playlist(playlist_id):
+    clean_id = playlist_id.split(":")[-1] if ":" in playlist_id else playlist_id
+    play_store_url = "https://play.google.com/store/apps/details?id=com.kalpkrut.beats"
+    intent_url = f"intent://beats.kalpkrutinfotech.com/playlist/{clean_id}#Intent;scheme=https;package=com.kalpkrut.beats;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kalpkrut.beats;end"
+    return render_share_page(
+        title="Playlist on Kalpkrut Beats",
+        subtitle="Curated High-Fidelity Beats",
+        artwork="https://beats.kalpkrutinfotech.com/icons/Icon-512.png",
+        stream_url="",
+        intent_url=intent_url,
+        play_store_url=play_store_url,
+        content_type="playlist"
+    )
 
 
 # ─── Songs, albums, playlists, artists ──────────────────────────────────────────

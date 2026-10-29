@@ -410,45 +410,73 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
     return Scaffold(
       appBar: AppBar(
-        titleSpacing: 12,
+        titleSpacing: 16,
+        elevation: 0,
+        backgroundColor: (isDark ? AppColors.darkBg : AppColors.lightNavSurface)
+            .withValues(alpha: 0.94),
         title: Row(
           children: <Widget>[
-            Icon(
-              Icons.admin_panel_settings_rounded,
-              color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
-              size: 22,
+            if (!isDesktop) ...<Widget>[
+              Icon(
+                Icons.admin_panel_settings_rounded,
+                color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+            ],
+            Text(
+              isDesktop
+                  ? 'Operations Console  ›  ${_tabs[_selectedTab]['title']}'
+                  : 'Admin Console',
+              style: TextStyle(
+                fontFamily: 'Plus Jakarta Sans',
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                color: context.textPrimary,
+              ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                isDesktop ? 'Kalpkrut Beats Operations' : 'Admin Dashboard',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                  color: context.textPrimary,
-                ),
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Icon(Icons.check_circle_rounded, size: 11, color: AppColors.success),
+                  SizedBox(width: 4),
+                  Text(
+                    'Supabase Live',
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.success),
+                  ),
+                ],
               ),
             ),
           ],
         ),
         actions: <Widget>[
           IconButton(
-            tooltip: 'Refresh',
+            tooltip: 'Refresh Metrics',
             visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-            icon: const Icon(Icons.refresh_rounded, size: 22),
+            icon: const Icon(Icons.refresh_rounded, size: 20),
             onPressed: () {
               _loadPlatformMetrics();
               _onTabSelected(_selectedTab);
             },
           ),
           const SizedBox(width: 4),
+          TextButton.icon(
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            ),
+            icon: const Icon(Icons.open_in_new_rounded, size: 16),
+            label: const Text('Exit', style: TextStyle(fontSize: 12)),
+            onPressed: () => Navigator.pop(context),
+          ),
+          const SizedBox(width: 8),
         ],
-        backgroundColor: (isDark ? AppColors.darkBg : AppColors.lightNavSurface)
-            .withValues(alpha: 0.94),
         bottom: !isDesktop
             ? PreferredSize(
                 preferredSize: const Size.fromHeight(48),
@@ -484,36 +512,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           ? Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                NavigationRail(
-                  selectedIndex: _selectedTab,
-                  onDestinationSelected: (int index) {
-                    setState(() => _selectedTab = index);
-                    _tabController.animateTo(index);
-                    _onTabSelected(index);
-                  },
-                  backgroundColor: isDark
-                      ? AppColors.surfaceContainerLowest
-                      : AppColors.lightElevatedSurface,
-                  indicatorColor: isDark
-                      ? AppColors.primary.withValues(alpha: 0.3)
-                      : AppColors.lightPrimaryAccent.withValues(alpha: 0.16),
-                  labelType: NavigationRailLabelType.all,
-                  destinations: _tabs.map((Map<String, dynamic> t) {
-                    return NavigationRailDestination(
-                      icon: Icon(t['icon'] as IconData),
-                      selectedIcon: Icon(t['icon'] as IconData,
-                          color: isDark
-                              ? AppColors.secondary
-                              : AppColors.lightSecondaryAccent),
-                      label: Text(t['title'] as String,
-                          style: const TextStyle(fontSize: 11)),
-                    );
-                  }).toList(),
-                ),
-                VerticalDivider(
-                  width: 1,
-                  color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
-                ),
+                _buildModernAdminSidebar(context, isDark),
                 Expanded(
                   child: LayoutBuilder(
                     builder: (BuildContext ctx, BoxConstraints constraints) {
@@ -4481,6 +4480,302 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   // TAB 1: OVERVIEW & REAL DATABASE METRICS
   // ==========================================
 
+
+  Widget _buildModernAdminSidebar(BuildContext context, bool isDark) {
+    return Container(
+      width: 250,
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceContainerLowest : AppColors.lightElevatedSurface,
+        border: Border(
+          right: BorderSide(
+            color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
+            width: 1,
+          ),
+        ),
+      ),
+      child: Column(
+        children: <Widget>[
+          // Brand Header
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+            child: Row(
+              children: <Widget>[
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    gradient: AppColors.heroGradient,
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.35),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.graphic_eq_rounded, color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
+                        'Kalpkrut Beats',
+                        style: TextStyle(
+                          fontFamily: 'Plus Jakarta Sans',
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          color: context.textPrimary,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      Row(
+                        children: <Widget>[
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: AppColors.success,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Text(
+                            'Console v1.0.12',
+                            style: TextStyle(fontSize: 10, color: Colors.white60, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(
+            height: 1,
+            color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
+          ),
+
+          // Scrollable Sidebar Navigation Groups
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+              children: <Widget>[
+                _buildSidebarSectionLabel('ANALYTICS & CORE'),
+                _buildSidebarItem(0, 'Overview', Icons.dashboard_rounded, isDark),
+
+                const SizedBox(height: 12),
+                _buildSidebarSectionLabel('CONTENT & STREAMING'),
+                _buildSidebarItem(1, 'Catalogue', Icons.queue_music_rounded, isDark),
+                _buildSidebarItem(2, 'Live Radio', Icons.radio_rounded, isDark, badgeText: 'LIVE'),
+                _buildSidebarItem(3, 'Genre & Moods', Icons.category_rounded, isDark),
+
+                const SizedBox(height: 12),
+                _buildSidebarSectionLabel('GROWTH & ADS'),
+                _buildSidebarItem(4, 'Advertisements', Icons.campaign_rounded, isDark),
+                _buildSidebarItem(5, 'Push Notify', Icons.notifications_active_rounded, isDark),
+
+                const SizedBox(height: 12),
+                _buildSidebarSectionLabel('MANAGEMENT'),
+                _buildSidebarItem(6, 'User Accounts', Icons.people_alt_rounded, isDark),
+                _buildSidebarItem(7, 'Abuse Reports', Icons.report_problem_rounded, isDark),
+
+                const SizedBox(height: 12),
+                _buildSidebarSectionLabel('SYSTEM GATEWAYS'),
+                _buildSidebarItem(8, 'Audio Providers', Icons.hub_rounded, isDark),
+                _buildSidebarItem(9, 'Legal & Licenses', Icons.gavel_rounded, isDark),
+                _buildSidebarItem(10, 'Operations Settings', Icons.tune_rounded, isDark),
+              ],
+            ),
+          ),
+
+          // Admin Footer Card
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.surfaceContainerLowest : AppColors.lightSurface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
+              ),
+            ),
+            child: Row(
+              children: <Widget>[
+                CircleAvatar(
+                  radius: 15,
+                  backgroundColor: AppColors.secondary.withValues(alpha: 0.2),
+                  child: const Icon(Icons.shield_rounded, size: 15, color: AppColors.secondary),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const Text(
+                        'Admin Session',
+                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        'Super Administrator',
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          color: isDark ? Colors.white54 : Colors.black45,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.logout_rounded, size: 17),
+                  tooltip: 'Exit Console',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSidebarSectionLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 9.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.8,
+          color: context.textSecondary.withValues(alpha: 0.6),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarItem(
+    int index,
+    String title,
+    IconData icon,
+    bool isDark, {
+    String? badgeText,
+  }) {
+    final bool isSelected = _selectedTab == index;
+    final Color activeColor = isDark ? AppColors.secondary : AppColors.lightSecondaryAccent;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: InkWell(
+        onTap: () {
+          setState(() => _selectedTab = index);
+          _tabController.animateTo(index);
+          _onTabSelected(index);
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? activeColor.withValues(alpha: isDark ? 0.16 : 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: isSelected
+                ? Border.all(color: activeColor.withValues(alpha: 0.35), width: 1)
+                : null,
+          ),
+          child: Row(
+            children: <Widget>[
+              Icon(
+                icon,
+                size: 17,
+                color: isSelected
+                    ? activeColor
+                    : (isDark ? Colors.white60 : Colors.black54),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected
+                        ? (isDark ? Colors.white : context.textPrimary)
+                        : (isDark ? Colors.white70 : Colors.black87),
+                  ),
+                ),
+              ),
+              if (badgeText != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    badgeText,
+                    style: const TextStyle(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.error,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOverviewQuickAction(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final bool isDark = context.isDarkMode;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surfaceContainerLowest : AppColors.lightSurface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: context.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildOverviewTab(BuildContext context) {
     final bool isDark = context.isDarkMode;
 
@@ -4504,7 +4799,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Live platform metrics. Use top tabs / side rail for sections.',
+                    'Real-time operations, database telemetry & streaming command center.',
                     style: TextStyle(fontSize: 13, color: context.textSecondary),
                   ),
                 ],
@@ -4516,6 +4811,43 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               visualDensity: VisualDensity.compact,
               constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
               onPressed: _loadPlatformMetrics,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Quick Actions Command Bar
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: <Widget>[
+            _buildOverviewQuickAction(
+              context,
+              icon: Icons.add_circle_outline_rounded,
+              label: '+ New Catalogue Shelf',
+              color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
+              onTap: () => _goToTab(1),
+            ),
+            _buildOverviewQuickAction(
+              context,
+              icon: Icons.campaign_rounded,
+              label: '+ New Ad Campaign',
+              color: Colors.amber,
+              onTap: () => _goToTab(4),
+            ),
+            _buildOverviewQuickAction(
+              context,
+              icon: Icons.send_rounded,
+              label: '+ Send Push Alert',
+              color: isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent,
+              onTap: () => _goToTab(5),
+            ),
+            _buildOverviewQuickAction(
+              context,
+              icon: Icons.radio_rounded,
+              label: '+ Add Live Radio',
+              color: AppColors.success,
+              onTap: () => _goToTab(2),
             ),
           ],
         ),

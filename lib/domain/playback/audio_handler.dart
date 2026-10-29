@@ -315,8 +315,16 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
     _advancing = true;
     final Track? finished = queueModel.current;
     try {
-      await onTrackEnded?.call(finished ?? _empty, true);
-      final Track? next = queueModel.next();
+      Track? next = queueModel.next();
+      if (next == null && onTrackEnded != null) {
+        // Queue reached the end: await radio autoplay to extend queue if enabled
+        await onTrackEnded!(finished ?? _empty, true);
+        next = queueModel.next();
+      } else if (onTrackEnded != null) {
+        // Asynchronously update history without interrupting background playback
+        unawaited(onTrackEnded!(finished ?? _empty, true));
+      }
+
       if (next == null) {
         await _player.stop();
         _broadcastState(processingState: AudioProcessingState.completed);

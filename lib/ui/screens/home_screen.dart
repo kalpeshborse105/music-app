@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/utils/formatters.dart';
+import '../../core/storage/settings_store.dart';
 import '../../data/music_repository.dart';
 import '../../data/services/supabase_service.dart';
 import '../../domain/models/catalog_section.dart';
@@ -81,9 +82,16 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _hasMore = true;
   int _currentOffset = 0;
 
-  /// Mood chips map to `lang=` (backend MOOD_QUERIES). `All` → no filter.
+  /// Mood chips map to `lang=` (backend MOOD_QUERIES). `All` → preferredLanguage (defaults to hindi).
   String? get _activeLang {
-    if (_selectedMood == 'All') return null;
+    if (_selectedMood == 'All') {
+      try {
+        final SettingsStore settings = context.read<SettingsStore>();
+        return settings.preferredLanguage;
+      } catch (_) {
+        return 'hindi';
+      }
+    }
     return _selectedMood.toLowerCase();
   }
 
@@ -339,7 +347,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: _buildAdminCatalogSections(context, repo),
                     ),
 
-
                     // Followed Artists Quick Shelf (auto-suggestions from followed artists)
                     if (library.followedArtists.isNotEmpty)
                       SliverToBoxAdapter(
@@ -441,11 +448,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        'JioSaavn Music',
+                        'MUSIC | MOOD | ENJOY',
                         style: TextStyle(
                           fontFamily: 'Inter',
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.8,
                           color: context.textSecondary,
                         ),
                       ),
@@ -650,9 +658,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       itemBuilder: (BuildContext _, int i) {
                         final Map<String, dynamic> n = notes[i];
                         final int ts = (n['created_at'] as num?)?.toInt() ?? 0;
-                        final String when = ts > 0
-                            ? _formatNotifTime(ts)
-                            : '';
+                        final String when = ts > 0 ? _formatNotifTime(ts) : '';
                         return InkWell(
                           borderRadius: BorderRadius.circular(12),
                           onTap: () {
@@ -682,8 +688,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _formatNotifTime(int unix) {
-    final DateTime dt =
-        DateTime.fromMillisecondsSinceEpoch(unix * 1000).toLocal();
+    final DateTime dt = DateTime.fromMillisecondsSinceEpoch(
+      unix * 1000,
+    ).toLocal();
     final Duration diff = DateTime.now().difference(dt);
     if (diff.inMinutes < 1) return 'Just now';
     if (diff.inHours < 1) return '${diff.inMinutes}m ago';
@@ -691,10 +698,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return '${diff.inDays}d ago';
   }
 
-  void _openNotificationTarget(
-    BuildContext context,
-    Map<String, dynamic> n,
-  ) {
+  void _openNotificationTarget(BuildContext context, Map<String, dynamic> n) {
     final String type = '${n['target_type'] ?? 'none'}'.toLowerCase();
     final String id = '${n['target_id'] ?? ''}'.trim();
     if (id.isEmpty || type == 'none') return;
@@ -784,14 +788,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             )
           else
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 18),
             ),
-            child: Icon(icon, color: color, size: 18),
-          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1107,7 +1111,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        '$_selectedMood SOUNDSCAPE'.toUpperCase(),
+                        '$_selectedMood BEATS'.toUpperCase(),
                         style: const TextStyle(
                           fontSize: 10.5,
                           fontWeight: FontWeight.w800,
@@ -1618,27 +1622,29 @@ class _HomeScreenState extends State<HomeScreen> {
                         : sec.items.length;
                     return MediaCard(
                       title: sec.displayTitle,
-                      subtitle: sec.subtitle ??
+                      subtitle:
+                          sec.subtitle ??
                           (sec.sourceType == 'artist'
                               ? 'Artist'
                               : '$count songs'),
-                      imageUrl: sec.effectiveArtworkUrl ??
+                      imageUrl:
+                          sec.effectiveArtworkUrl ??
                           (sec.items.isNotEmpty
                               ? sec.items.first.artworkUrl
                               : null),
                       fallbackIcon: sec.sourceType == 'artist'
                           ? Icons.person_rounded
                           : (sec.sourceType == 'album'
-                              ? Icons.album_rounded
-                              : Icons.queue_music_rounded),
+                                ? Icons.album_rounded
+                                : Icons.queue_music_rounded),
                       circle: sec.sourceType == 'artist',
                       badgeText: sec.isBanner
                           ? 'SPECIAL'
                           : (sec.sourceType == 'artist'
-                              ? 'ARTIST'
-                              : (sec.sourceType == 'album'
-                                  ? 'ALBUM'
-                                  : 'PLAYLIST')),
+                                ? 'ARTIST'
+                                : (sec.sourceType == 'album'
+                                      ? 'ALBUM'
+                                      : 'PLAYLIST')),
                       badgeColor: sec.isBanner
                           ? AppColors.primaryLight
                           : AppColors.secondary,
@@ -1699,7 +1705,6 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     );
   }
-
 
   /// Two-row horizontal shelf: short screens 5/row, large 10/row (max 2 rows).
   Widget _buildDoubleRowShelf({
@@ -1908,7 +1913,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildBottomTrendingBlast(BuildContext context, PlaybackController playback) {
+  Widget _buildBottomTrendingBlast(
+    BuildContext context,
+    PlaybackController playback,
+  ) {
     final List<Track> tracks = _infiniteTracks;
 
     return Padding(
@@ -1919,9 +1927,12 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: AppSpacing.md),
           SectionHeader(
             title: 'Trending & Fresh Releases',
-            subtitle: 'Auto-suggested mixture of viral hits, top charts & fresh drops',
+            subtitle:
+                'Auto-suggested mixture of viral hits, top charts & fresh drops',
             topPadding: AppSpacing.sm,
-            actionLabel: tracks.isNotEmpty ? 'Play All (${tracks.length})' : null,
+            actionLabel: tracks.isNotEmpty
+                ? 'Play All (${tracks.length})'
+                : null,
             onAction: tracks.isNotEmpty
                 ? () => TrackActions.play(context, tracks.first, queue: tracks)
                 : null,
@@ -1958,8 +1969,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     index: i,
                     track: tracks[i],
                     dense: false,
-                    isPlaying: playback.currentTrack?.id == tracks[i].id && playback.isPlaying,
-                    onTap: () => TrackActions.play(context, tracks[i], queue: tracks),
+                    isPlaying:
+                        playback.currentTrack?.id == tracks[i].id &&
+                        playback.isPlaying,
+                    onTap: () =>
+                        TrackActions.play(context, tracks[i], queue: tracks),
                     onMenu: () => showTrackActionsSheet(context, tracks[i]),
                   ),
                   if (i < tracks.length - 1)
@@ -2039,10 +2053,7 @@ class _MadeForYouSkeletonState extends State<_MadeForYouSkeleton>
               final double t = _pulse.value;
               return Opacity(
                 opacity: 0.75 + t * 0.25,
-                child: Transform.scale(
-                  scale: 0.94 + t * 0.06,
-                  child: child,
-                ),
+                child: Transform.scale(scale: 0.94 + t * 0.06, child: child),
               );
             },
             child: ClipRRect(

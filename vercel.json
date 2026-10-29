@@ -3,7 +3,65 @@
   "buildCommand": "bash vercel_build.sh",
   "outputDirectory": "build/web",
   "framework": null,
+  "headers": [
+    {
+      "source": "/app-ads.txt",
+      "headers": [
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
+      ]
+    },
+    {
+      "source": "/robots.txt",
+      "headers": [
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/.well-known/assetlinks.json",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" },
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
+      ]
+    }
+  ],
   "rewrites": [
+    {
+      "source": "/app-ads.txt",
+      "destination": "/app-ads.txt"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/robots.txt"
+    },
+    {
+      "source": "/.well-known/assetlinks.json",
+      "destination": "/.well-known/assetlinks.json"
+    },
+    {
+      "source": "/song/:id",
+      "destination": "https://music-api-tq5i.onrender.com/share/song/:id"
+    },
+    {
+      "source": "/album/:id",
+      "destination": "https://music-api-tq5i.onrender.com/share/album/:id"
+    },
+    {
+      "source": "/artist/:id",
+      "destination": "https://music-api-tq5i.onrender.com/share/artist/:id"
+    },
+    {
+      "source": "/playlist/:id",
+      "destination": "https://music-api-tq5i.onrender.com/share/playlist/:id"
+    },
+    {
+      "source": "/track/:provider/:id",
+      "destination": "https://music-api-tq5i.onrender.com/share/song/:id"
+    },
+    {
+      "source": "/auth/callback",
+      "destination": "/auth/callback/index.html"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

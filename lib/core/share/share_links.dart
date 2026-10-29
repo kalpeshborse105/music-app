@@ -43,10 +43,15 @@ class ShareLinks {
     return '$base/playlist/${_cleanId(playlistId)}';
   }
 
-  /// Intent URL used by web share pages to open the installed Android app.
+  static const String playStoreUrl =
+      'https://play.google.com/store/apps/details?id=com.kalpkrut.beats';
+
+  /// Intent URL used by web share pages to open the installed Android app,
+  /// with automatic fallback to Google Play Store if not installed.
   static String androidIntent(String httpsUrl) {
     final Uri u = Uri.parse(httpsUrl);
+    final String fallback = Uri.encodeComponent(playStoreUrl);
     return 'intent://${u.host}${u.path}'
-        '#Intent;scheme=https;package=com.kalpkrut.beats;end';
+        '#Intent;scheme=https;package=com.kalpkrut.beats;S.browser_fallback_url=$fallback;end';
   }
 }

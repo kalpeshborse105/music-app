@@ -97,7 +97,10 @@ class DeepLinkService {
     } else {
       if (parts.isEmpty) return;
       type = parts.first.toLowerCase();
-      if (type == 'track') {
+      if (type == 'share' && parts.length >= 3) {
+        type = parts[1].toLowerCase();
+        id = Uri.decodeComponent(parts.sublist(2).join('/'));
+      } else if (type == 'track') {
         type = 'song';
         // /track/custom_api/ID or /track/ID
         if (parts.length >= 3 && parts[1] == 'custom_api') {

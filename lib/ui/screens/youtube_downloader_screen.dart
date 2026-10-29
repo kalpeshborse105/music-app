@@ -159,7 +159,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                 const Text('Source:', style: TextStyle(color: Colors.white70)),
                 const SizedBox(width: 12),
                 ChoiceChip(
-                  label: const Text('🎵 JioSaavn'),
+                  label: const Text('🎵 Kalpkrut Beats'),
                   selected: _selectedSource == 'jiosaavn',
                   onSelected: (_) => setState(() => _selectedSource = 'jiosaavn'),
                   selectedColor: const Color(0xFF6C63FF),
@@ -231,7 +231,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                         const SizedBox(height: 16),
                         Text(
                           _selectedSource == 'jiosaavn'
-                              ? 'Search songs, artists, albums\non JioSaavn'
+                              ? 'Search songs, artists, albums\non Kalpkrut Beats'
                               : 'Search YouTube music',
                           textAlign: TextAlign.center,
                           style: const TextStyle(color: Colors.white38, fontSize: 14),

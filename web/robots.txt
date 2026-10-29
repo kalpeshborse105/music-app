@@ -3,11 +3,19 @@
 
 User-agent: *
 Allow: /
+Allow: /app-ads.txt
 Allow: /search
 Allow: /radio
 Allow: /library
 Allow: /reset-password
 Allow: /delete-account
+
+# Explicitly allow Google AdMob crawler
+User-agent: Mediapartners-Google
+Allow: /
+
+User-agent: Googlebot
+Allow: /
 
 # Disallow sensitive admin/ops
 Disallow: /admin

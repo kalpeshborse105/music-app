@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -6,8 +7,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../app/app_dependencies.dart';
 import '../../core/storage/settings_store.dart';
 import '../../core/utils/auth_utils.dart';
 import '../../data/services/supabase_service.dart';
@@ -283,9 +286,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           title: const Text('Preferred Music Language',
                               style: TextStyle(fontWeight: FontWeight.w600)),
                           subtitle: Text(
-                            ((_userProfile?['preferred_language'] as String?)?.isNotEmpty == true)
-                                ? (_userProfile!['preferred_language'] as String).toUpperCase()
-                                : 'HINDI',
+                            settings.preferredLanguage.toUpperCase(),
                           ),
                           trailing: const Icon(Icons.chevron_right_rounded),
                           onTap: () => _pickPreferredLanguage(context),
@@ -1401,7 +1402,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     const List<String> languages = <String>[
       'Hindi', 'Marathi', 'Punjabi', 'Bhojpuri', 'Haryanvi', 'Gujarati', 'Tamil', 'Telugu', 'Bengali', 'English'
     ];
-    final String current = (_userProfile?['preferred_language'] as String?)?.toUpperCase() ?? 'HINDI';
+    final SettingsStore settings = context.read<SettingsStore>();
+    final String current = settings.preferredLanguage.toUpperCase();
 
     showModalBottomSheet<void>(
       context: context,
@@ -1428,15 +1430,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       onTap: () async {
                         Navigator.pop(ctx);
                         final String newLang = lang.toLowerCase();
+                        settings.preferredLanguage = newLang;
                         final SupabaseService supabase = SupabaseService();
                         if (supabase.currentUser != null) {
                           await supabase.updateProfile(userId: supabase.currentUser!.id, preferredLanguage: newLang);
                           await _loadProfileData();
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Music language updated to $lang'), backgroundColor: AppColors.electricViolet),
-                            );
-                          }
+                        }
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Music language updated to $lang'), backgroundColor: AppColors.electricViolet),
+                          );
                         }
                       },
                     );
@@ -2010,13 +2013,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
             title: const Text('Clear Temporary Cache', style: TextStyle(fontWeight: FontWeight.w600)),
             subtitle: const Text('Purge audio buffering caches and temporary image data'),
             trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Temporary audio and image cache cleared successfully'),
-                  backgroundColor: AppColors.success,
-                ),
-              );
+            onTap: () async {
+              try {
+                // 1. Purge Flutter image memory caches
+                PaintingBinding.instance.imageCache.clear();
+                PaintingBinding.instance.imageCache.clearLiveImages();
+                // 2. Clear persistent network Hive cache
+                await context.read<AppDependencies>().cache.clear();
+                // 3. Purge temp storage files
+                final Directory tempDir = await getTemporaryDirectory();
+                if (tempDir.existsSync()) {
+                  final List<FileSystemEntity> files = tempDir.listSync(recursive: true);
+                  for (final FileSystemEntity file in files) {
+                    try {
+                      if (file is File) {
+                        await file.delete();
+                      }
+                    } catch (_) {}
+                  }
+                }
+              } catch (_) {}
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Temporary audio and image cache cleared successfully'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              }
             },
           ),
           const Divider(height: 1),

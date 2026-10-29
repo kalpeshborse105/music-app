@@ -142,6 +142,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         onPressed: () => showSleepTimerSheet(context),
                       ),
                       IconButton(
+                        icon: const Icon(Icons.share_rounded, color: Colors.white, size: 21),
+                        tooltip: 'Share Track',
+                        onPressed: () => TrackActions.share(context, track),
+                      ),
+                      IconButton(
                         icon: const Icon(Icons.more_horiz_rounded, color: Colors.white, size: 24),
                         tooltip: 'Options',
                         onPressed: () => showTrackActionsSheet(context, track),
@@ -214,51 +219,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               ),
                             ],
                           ),
-                          child: Stack(
-                            children: <Widget>[
-                              Hero(
-                                tag: 'player_art_${track.id}',
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(26),
-                                  child: Artwork(
-                                    url: track.artworkUrl,
-                                    size: artSize - 12,
-                                    radius: 26,
-                                    fallbackIcon: Icons.music_note_rounded,
-                                  ),
+                          child: Hero(
+                              tag: 'player_art_${track.id}',
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(26),
+                                child: Artwork(
+                                  url: track.artworkUrl,
+                                  size: artSize - 12,
+                                  radius: 26,
+                                  fallbackIcon: Icons.music_note_rounded,
                                 ),
                               ),
-                              // Live Audio Reverb Badge Overlay
-                              Positioned(
-                                bottom: 10,
-                                left: 10,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.surfaceContainerLowest.withValues(alpha: 0.85),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: AppColors.borderHighlight),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: <Widget>[
-                                      Icon(Icons.graphic_eq_rounded, size: 12, color: AppColors.secondary),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'LIVE SOUNDSCAPE',
-                                        style: TextStyle(
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 0.5,
-                                          color: AppColors.secondary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
                         ),
                       ],
                     ),
@@ -566,7 +538,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           onTap: () => showQueueSheet(context),
                         ),
                         _ActionIcon(
-                          icon: Icons.ios_share_rounded,
+                          icon: Icons.share_rounded,
                           label: 'Share',
                           onTap: () => TrackActions.share(context, track),
                         ),

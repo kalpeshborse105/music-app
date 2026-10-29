@@ -20,6 +20,7 @@ class SettingsStore extends ChangeNotifier {
   static const String _kSaveHistory = 'set_save_history';
   static const String _kAutoplayRadio = 'set_autoplay_radio';
   static const String _kArtistLabels = 'set_show_artist_labels';
+  static const String _kPreferredLanguage = 'set_music_language';
 
   SharedPreferences? _prefs;
 
@@ -95,6 +96,15 @@ class SettingsStore extends ChangeNotifier {
 
   set wifiOnlyDownload(bool value) {
     _p.setBool(_kWifiOnlyDownload, value);
+    notifyListeners();
+  }
+
+  // ---- Language Preference ----
+  String get preferredLanguage =>
+      _p.getString(_kPreferredLanguage) ?? 'hindi';
+
+  set preferredLanguage(String value) {
+    _p.setString(_kPreferredLanguage, value.toLowerCase());
     notifyListeners();
   }
 

@@ -14,7 +14,7 @@ String providerShortLabel(String providerId) {
     case 'regional_indian':
     case 'demo':
     default:
-      return 'Kalpkrut Stream';
+      return 'Kalpkrut Beats';
   }
 }
 

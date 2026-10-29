@@ -17,6 +17,10 @@ echo "[Vercel Build] Building Flutter Web (Release)..."
 flutter config --no-analytics
 flutter build web --release
 
+echo "[Vercel Build] Ensuring app-ads.txt and robots.txt are in build/web..."
+cp web/app-ads.txt build/web/app-ads.txt || cp app-ads.txt build/web/app-ads.txt || true
+cp web/robots.txt build/web/robots.txt || true
+
 echo "[Vercel Build] Copying vercel.json rewrite rules into build/web..."
 cp vercel.json build/web/vercel.json || true
 
