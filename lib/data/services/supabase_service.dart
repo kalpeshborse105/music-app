@@ -1105,15 +1105,54 @@ class SupabaseService {
     }
 
     metrics['users_count'] = await countTable('profiles');
-    metrics['tracks_count'] = await countTable('tracks');
-    metrics['artists_count'] = await countTable('artists');
-    metrics['albums_count'] = await countTable('albums');
-    metrics['playlists_count'] = await countTable('playlists');
     metrics['favorites_count'] = await countTable('favorites');
     metrics['recently_played_count'] = await countTable('recently_played');
     metrics['reports_count'] = await countTable('reports');
     metrics['ads_count'] = await countTable('advertisements');
     metrics['catalog_sections_count'] = await countTable('catalog_sections');
+
+    // Shelf counts come from catalog_sections (source of truth), not empty legacy tables.
+    try {
+      final List<dynamic> rows = await client
+          .from('catalog_sections')
+          .select('source_type, is_enabled, display_group');
+      int albums = 0;
+      int artists = 0;
+      int playlists = 0;
+      int mixes = 0;
+      int enabled = 0;
+      final Set<String> groups = <String>{};
+      for (final dynamic row in rows) {
+        if (row is! Map) continue;
+        final Map<String, dynamic> m = Map<String, dynamic>.from(row);
+        final String type = (m['source_type'] as String? ?? '').toLowerCase();
+        final bool on = m['is_enabled'] != false;
+        if (on) enabled++;
+        final String g = (m['display_group'] as String? ?? '').trim();
+        if (g.isNotEmpty) groups.add(g);
+        if (type == 'album') {
+          albums++;
+        } else if (type == 'artist') {
+          artists++;
+        } else if (type == 'playlist' || type == 'chart' || type == 'show') {
+          playlists++;
+        } else if (type == 'mix' || type == 'jiosaavn_mix') {
+          mixes++;
+        }
+      }
+      metrics['albums_count'] = albums.toString();
+      metrics['artists_count'] = artists.toString();
+      metrics['playlists_count'] = playlists.toString();
+      metrics['mixes_count'] = mixes.toString();
+      metrics['enabled_sections_count'] = enabled.toString();
+      metrics['groups_count'] = groups.length.toString();
+    } catch (e) {
+      debugPrint('[SupabaseService] catalog shelf metrics: $e');
+      metrics['albums_count'] = '0';
+      metrics['artists_count'] = '0';
+      metrics['playlists_count'] = '0';
+      metrics['mixes_count'] = '0';
+    }
 
     return metrics;
   }

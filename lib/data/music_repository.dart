@@ -907,14 +907,31 @@ class MusicRepository {
       if (group != null && group.isNotEmpty) {
         query = query.eq('display_group', group);
       }
-      if (lang != null && lang.isNotEmpty && lang.toLowerCase() != 'all') {
-        query = query.inFilter('language', <String>['all', lang]);
-      }
+      // Fetch all enabled shelves; language filter applied client-side so
+      // "Browse Languages" groups are never dropped when mood lang is hindi/etc.
       final List<dynamic> rows = await query.order('position', ascending: true);
-      final List<Map<String, dynamic>> mapList = List<Map<String, dynamic>>.from(
+      List<Map<String, dynamic>> mapList = List<Map<String, dynamic>>.from(
         rows.whereType<Map<String, dynamic>>(),
       );
-      return mapList.map((Map<String, dynamic> m) => CatalogSection.fromJson(m)).toList();
+      if (lang != null && lang.isNotEmpty && lang.toLowerCase() != 'all') {
+        final String want = lang.toLowerCase();
+        mapList = mapList.where((Map<String, dynamic> m) {
+          final String rowLang =
+              (m['language'] as String? ?? 'all').toLowerCase();
+          if (rowLang == 'all' || rowLang == want) return true;
+          final String group = (m['display_group'] as String? ?? '')
+              .trim()
+              .toLowerCase()
+              .replaceAll('_', ' ');
+          return group == 'browse languages' ||
+              group == 'browse by languages' ||
+              group == 'languages' ||
+              group == 'language';
+        }).toList();
+      }
+      return mapList
+          .map((Map<String, dynamic> m) => CatalogSection.fromJson(m))
+          .toList();
     } catch (e) {
       debugPrint('[MusicRepository] Supabase direct fallback failed: $e');
       return <CatalogSection>[];

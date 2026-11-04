@@ -3322,7 +3322,19 @@ def api_catalog_sections():
     if group_filter:
         sections = [s for s in sections if (s.get("display_group") or "").lower() == group_filter.lower()]
     if lang_filter and lang_filter != "all":
-        sections = [s for s in sections if s.get("language") in ("all", lang_filter)]
+        # Browse Languages / multi-lang shelves must stay visible on Home regardless of mood lang.
+        def _keep_for_lang(s):
+            lang = (s.get("language") or "all").lower()
+            if lang in ("all", str(lang_filter).lower()):
+                return True
+            group = (s.get("display_group") or "").strip().lower().replace("_", " ")
+            return group in (
+                "browse languages",
+                "browse by languages",
+                "languages",
+                "language",
+            )
+        sections = [s for s in sections if _keep_for_lang(s)]
 
     _ensure_catalog_items_disk_loaded()
     lite = request.args.get("lite", "").lower() in ("1", "true", "yes")

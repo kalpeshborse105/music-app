@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/utils/formatters.dart';
-import '../../core/storage/settings_store.dart';
 import '../../data/music_repository.dart';
 import '../../data/services/supabase_service.dart';
 import '../../domain/models/catalog_section.dart';
@@ -30,9 +29,7 @@ import 'app_shell.dart';
 import 'artist_screen.dart';
 import 'list_screen.dart';
 
-/// Stitch Nocturnal Home Screen combining ambient glowing background, mood filters,
-/// 6-card bento grid, Jump Back In carousel, Featured Spotlight, Made For You mixes,
-/// ranked trending tracks with live soundbars, and featured curator avatars.
+/// Home: greeting, trending, and admin-managed catalogue shelves (no mood/language filters).
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -56,26 +53,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String _selectedMood = 'All';
-
+  /// Home tab re-tap: scroll to top (no mood/language filters).
   void _resetToDefault() {
-    if (_selectedMood != 'All') {
-      setState(() {
-        _selectedMood = 'All';
-      });
-      _refreshData();
-    }
     _onScrollToTop();
   }
-
-  /// Mood chips only — language browsing lives in Library + catalog
-  /// "Browse Languages" shelves (seeded from new-releases/{lang}).
-  static const List<String> _moods = <String>[
-    'All',
-    'Devotional',
-    'Romantic',
-    'Chill',
-  ];
 
   late Future<List<Track>> _trendingFuture;
   late Future<List<CatalogSection>> _catalogSectionsFuture;
@@ -87,25 +68,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoadingMore = false;
   bool _hasMore = true;
   int _currentOffset = 0;
-
-  /// Mood chips map to `lang=` (backend MOOD_QUERIES). `All` → preferredLanguage (defaults to hindi).
-  String? get _activeLang {
-    if (_selectedMood == 'All') {
-      try {
-        final SettingsStore settings = context.read<SettingsStore>();
-        return settings.preferredLanguage;
-      } catch (_) {
-        return 'hindi';
-      }
-    }
-    return _selectedMood.toLowerCase();
-  }
-
-  static const Set<String> _moodOnlyChips = <String>{
-    'Devotional',
-    'Romantic',
-    'Chill',
-  };
 
   @override
   void initState() {
@@ -125,13 +87,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _refreshData() async {
     final MusicRepository repo = context.read<MusicRepository>();
     final LibraryController library = context.read<LibraryController>();
-    final String? lang = _activeLang;
     setState(() {
-      _trendingFuture = repo.trending(limit: 20, language: lang);
-      _catalogSectionsFuture = repo.getCatalogSections(
-        lang: lang,
-        forceRefresh: true,
-      );
+      // No user language/mood filter — admin catalogue + open trending.
+      _trendingFuture = repo.trending(limit: 20);
+      _catalogSectionsFuture = repo.getCatalogSections(forceRefresh: true);
     });
     await Future.wait(<Future<dynamic>>[
       _loadInitialTracks(),
@@ -145,10 +104,9 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final MusicRepository repo = context.read<MusicRepository>();
       final LibraryController library = context.read<LibraryController>();
-      final String? lang = _activeLang;
       final List<Object> results = await Future.wait(<Future<Object>>[
-        repo.trending(limit: 20, language: lang),
-        repo.getCatalogSections(lang: lang, forceRefresh: true),
+        repo.trending(limit: 20),
+        repo.getCatalogSections(forceRefresh: true),
         library.syncWithSupabase().then((_) => true),
       ]);
       if (!mounted) return;
@@ -186,11 +144,9 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     try {
       final MusicRepository repo = context.read<MusicRepository>();
-      final String? lang = _activeLang;
       final PagedResult<Track> paged = await repo.trendingPaged(
         limit: 20,
         offset: 0,
-        language: lang,
       );
       if (mounted) {
         setState(() {
@@ -214,11 +170,9 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isLoadingMore = true);
     try {
       final MusicRepository repo = context.read<MusicRepository>();
-      final String? lang = _activeLang;
       final PagedResult<Track> paged = await repo.trendingPaged(
         limit: 20,
         offset: _currentOffset,
-        language: lang,
       );
       if (mounted) {
         setState(() {
@@ -261,28 +215,14 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_initialized) {
       _initialized = true;
       final MusicRepository repo = context.read<MusicRepository>();
-      // Ensure home screen always defaults to 'All'
-      _selectedMood = 'All';
-      final String? lang = _activeLang;
-      _trendingFuture = repo.trending(limit: 20, language: lang);
-      _catalogSectionsFuture = repo.getCatalogSections(lang: lang);
+      _trendingFuture = repo.trending(limit: 20);
+      _catalogSectionsFuture = repo.getCatalogSections();
       _loadInitialTracks();
       // Cache-first paint, then silently pull latest admin/API updates.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _silentBackgroundRefresh();
       });
     }
-  }
-
-  void _onMoodSelected(String mood, MusicRepository repo) {
-    if (_selectedMood == mood) return;
-    setState(() {
-      _selectedMood = mood;
-      final String? lang = _activeLang;
-      _trendingFuture = repo.trending(limit: 20, language: lang);
-      _catalogSectionsFuture = repo.getCatalogSections(lang: lang);
-    });
-    _loadInitialTracks();
   }
 
   @override
@@ -353,75 +293,45 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _buildTopFestivalPosterHero(context),
                   ),
 
-                  // 2. Greeting & Mood Filter Carousel
+                  // Greeting (no mood / language chips — admin shelves drive Home)
                   SliverToBoxAdapter(
-                    child: _buildGreetingAndMoods(context, repo),
+                    child: _buildGreeting(context),
                   ),
 
-                  // Dynamic Mood Category View or Standard Discovery Soundscape
-                  if (_moodOnlyChips.contains(_selectedMood)) ...<Widget>[
-                    SliverToBoxAdapter(
-                      child: _buildCategoryView(context, repo, playback),
-                    ),
-                    const SliverToBoxAdapter(
-                      child: AdMobBannerCard(),
-                    ),
-                  ] else ...<Widget>[
-                    // 3. Recently Played (if history exists) or Trending Right Now (no dead space!)
-                    SliverToBoxAdapter(
-                      child: _buildRecentlyPlayedOrTrending(
-                        context,
-                        library,
-                        repo,
-                      ),
-                    ),
-
-                    const SliverToBoxAdapter(
-                      child: InlineAdSlot(
-                        placement: Advertisement.placementHomePostRecent,
-                      ),
-                    ),
-
-                    // Dynamic Admin-Managed Catalogue Sections (All from DB catalogue)
-                    SliverToBoxAdapter(
-                      child: _buildAdminCatalogSections(context, repo),
-                    ),
-
-                    // Followed Artists Quick Shelf (auto-suggestions from followed artists)
-                    if (library.followedArtists.isNotEmpty)
-                      SliverToBoxAdapter(
-                        child: _buildFollowedArtistsBar(context, library, repo),
-                      ),
-
-                    // Google AdMob Adaptive Banner (only renders when loaded, non-intrusive)
-                    const SliverToBoxAdapter(
-                      child: AdMobBannerCard(),
-                    ),
-
-                    // 4. Continuous Blast of Trending & Fresh Releases (Mixture Auto Suggestion)
-                    SliverToBoxAdapter(
-                      child: _buildBottomTrendingBlast(context, playback),
-                    ),
-                  ],
-
-                  // Clean subtle branding footer
+                  // Recently Played or Trending, then admin catalogue
                   SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 20, bottom: 28),
-                      child: Center(
-                        child: Text(
-                          'Kalpkrut Infotech',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: context.textMuted.withValues(alpha: 0.7),
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ),
+                    child: _buildRecentlyPlayedOrTrending(
+                      context,
+                      library,
+                      repo,
                     ),
                   ),
+
+                  const SliverToBoxAdapter(
+                    child: InlineAdSlot(
+                      placement: Advertisement.placementHomePostRecent,
+                    ),
+                  ),
+
+                  SliverToBoxAdapter(
+                    child: _buildAdminCatalogSections(context, repo),
+                  ),
+
+                  // Followed Artists Quick Shelf
+                  if (library.followedArtists.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: _buildFollowedArtistsBar(context, library, repo),
+                    ),
+
+                  const SliverToBoxAdapter(
+                    child: AdMobBannerCard(),
+                  ),
+
+                  // Extra bottom space above mini-player (no sticky legal bar after login)
+                  SliverToBoxAdapter(
+                    child: _buildBottomTrendingBlast(context, playback),
+                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 28)),
                 ],
               ),
             ),
@@ -879,7 +789,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildGreetingAndMoods(BuildContext context, MusicRepository repo) {
+  Widget _buildGreeting(BuildContext context) {
     final bool isDark = context.isDarkMode;
 
     return Padding(
@@ -887,7 +797,7 @@ class _HomeScreenState extends State<HomeScreen> {
         AppSpacing.lg,
         AppSpacing.xs,
         AppSpacing.lg,
-        AppSpacing.xs,
+        AppSpacing.sm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -913,69 +823,6 @@ class _HomeScreenState extends State<HomeScreen> {
               fontWeight: FontWeight.w800,
               letterSpacing: -0.5,
               color: context.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 10),
-          // Mood filter carousel pills
-          SizedBox(
-            height: 36,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _moods.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (BuildContext ctx, int i) {
-                final String mood = _moods[i];
-                final bool active = mood == _selectedMood;
-                final Color inactiveBg = isDark
-                    ? AppColors.surfaceContainerHigh.withValues(alpha: 0.65)
-                    : AppColors.lightElevatedSurface;
-                final Color inactiveBorder = isDark
-                    ? AppColors.borderSubtle
-                    : AppColors.lightBorder;
-
-                return InkWell(
-                  onTap: () => _onMoodSelected(mood, repo),
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: active ? AppColors.brandGradient : null,
-                      color: active ? null : inactiveBg,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: active ? Colors.transparent : inactiveBorder,
-                      ),
-                      boxShadow: active
-                          ? <BoxShadow>[
-                              BoxShadow(
-                                color: AppColors.primaryContainer.withValues(
-                                  alpha: 0.4,
-                                ),
-                                blurRadius: 12,
-                                spreadRadius: 1,
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Center(
-                      child: Text(
-                        mood,
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 12,
-                          fontWeight: active
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: active ? Colors.white : context.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
             ),
           ),
         ],
@@ -1108,185 +955,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         );
       },
-    );
-  }
-
-  Widget _buildCategoryView(
-    BuildContext context,
-    MusicRepository repo,
-    PlaybackController playback,
-  ) {
-    final bool isLoading = _isLoadingInitial && _infiniteTracks.isEmpty;
-    final List<Track> tracks = _infiniteTracks;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const SizedBox(height: 12),
-          // Category Hero Banner
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              gradient: AppColors.brandGradient,
-              borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.35),
-                  blurRadius: 18,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '$_selectedMood BEATS'.toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                    ),
-                    if (tracks.isNotEmpty)
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 6,
-                          ),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        onPressed: () => TrackActions.play(
-                          context,
-                          tracks.first,
-                          queue: tracks,
-                        ),
-                        icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                        label: const Text(
-                          'Play All',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Curated $_selectedMood',
-                  style: const TextStyle(
-                    fontFamily: 'Plus Jakarta Sans',
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: -0.4,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Streaming tracks in $_selectedMood category',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 12.5,
-                    color: Colors.white.withValues(alpha: 0.85),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Tracks List
-          if (isLoading)
-            Column(
-              children: List<Widget>.generate(
-                5,
-                (_) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Container(
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: context.isDarkMode
-                          ? AppColors.surfaceContainerHigh.withValues(
-                              alpha: 0.5,
-                            )
-                          : AppColors.lightElevatedSurface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            )
-          else if (tracks.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(child: Text('No tracks found in this category')),
-            )
-          else
-            Column(
-              children: <Widget>[
-                for (int i = 0; i < tracks.length; i++) ...<Widget>[
-                  TrackTile(
-                    index: i,
-                    track: tracks[i],
-                    dense: false,
-                    isPlaying:
-                        playback.currentTrack?.id == tracks[i].id &&
-                        playback.isPlaying,
-                    onTap: () =>
-                        TrackActions.play(context, tracks[i], queue: tracks),
-                    onMenu: () => showTrackActionsSheet(context, tracks[i]),
-                  ),
-                  if (i < tracks.length - 1)
-                    const Divider(height: 1, indent: 64),
-                ],
-                if (_isLoadingMore)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 20),
-                    child: Center(
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2.2),
-                      ),
-                    ),
-                  )
-                else if (!_hasMore && tracks.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Center(
-                      child: Text(
-                        'You\'ve reached the end',
-                        style: TextStyle(
-                          color: context.textMuted,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-        ],
-      ),
     );
   }
 
@@ -1527,13 +1195,20 @@ class _HomeScreenState extends State<HomeScreen> {
             )
             .toList();
 
-        // Group regular sections by displayGroup
+        // Group regular sections by displayGroup (order = admin position)
         final Map<String, List<CatalogSection>> grouped =
             <String, List<CatalogSection>>{};
         for (final CatalogSection sec in regularSections) {
-          grouped
-              .putIfAbsent(sec.displayGroup, () => <CatalogSection>[])
-              .add(sec);
+          final String g = sec.displayGroup.trim().isEmpty
+              ? 'More'
+              : sec.displayGroup.trim();
+          grouped.putIfAbsent(g, () => <CatalogSection>[]).add(sec);
+        }
+        for (final List<CatalogSection> list in grouped.values) {
+          list.sort(
+            (CatalogSection a, CatalogSection b) =>
+                a.position.compareTo(b.position),
+          );
         }
 
         void openSection(CatalogSection section) {
@@ -1598,8 +1273,21 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         }
 
+        // Group order follows admin: earliest section.position in each group.
         final List<MapEntry<String, List<CatalogSection>>> groupEntries =
-            grouped.entries.toList();
+            grouped.entries.toList()
+              ..sort((
+                MapEntry<String, List<CatalogSection>> a,
+                MapEntry<String, List<CatalogSection>> b,
+              ) {
+                final int minA = a.value
+                    .map((CatalogSection s) => s.position)
+                    .fold<int>(1 << 30, (int m, int p) => p < m ? p : m);
+                final int minB = b.value
+                    .map((CatalogSection s) => s.position)
+                    .fold<int>(1 << 30, (int m, int p) => p < m ? p : m);
+                return minA.compareTo(minB);
+              });
         final int midGroup = groupEntries.isEmpty
             ? 0
             : (groupEntries.length / 2).floor().clamp(0, groupEntries.length);

@@ -213,6 +213,12 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     setState(() => _isLoadingMetrics = true);
     final Map<String, dynamic> data =
         await SupabaseService().fetchAdminPlatformMetrics();
+    // Warm radio list so Overview never shows "—" for Live Radio.
+    if (_adminRadioStations.isEmpty) {
+      try {
+        await _loadRadioStations();
+      } catch (_) {}
+    }
     if (mounted) {
       setState(() {
         _metrics = data;
@@ -1540,6 +1546,27 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     }
   }
 
+  Future<void> _persistCatalogOrder(List<CatalogSection> updated) async {
+    final List<String> orderedKeys =
+        updated.map((CatalogSection s) => s.sectionKey).toList();
+    setState(() => _catalogSections = updated);
+    try {
+      final MusicRepository repo = context.read<MusicRepository>();
+      await repo.reorderCatalogSections(orderedKeys);
+      await _loadCatalogSections();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to reorder: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        await _loadCatalogSections();
+      }
+    }
+  }
+
   /// Move a shelf up/down **inside its group** (1st in group stays #1 there).
   Future<void> _moveCatalogSectionInGroup(
     List<CatalogSection> groupSections,
@@ -1566,26 +1593,48 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         updated.add(s);
       }
     }
-    final List<String> orderedKeys =
-        updated.map((CatalogSection s) => s.sectionKey).toList();
+    await _persistCatalogOrder(updated);
+  }
 
-    setState(() => _catalogSections = updated);
+  /// Move an entire display group up/down — Home shows groups in this order.
+  Future<void> _moveCatalogGroup(
+    List<String> orderedGroups,
+    int fromIndex,
+    int toIndex,
+  ) async {
+    if (toIndex < 0 || toIndex >= orderedGroups.length) return;
+    if (fromIndex == toIndex) return;
 
-    try {
-      final MusicRepository repo = context.read<MusicRepository>();
-      await repo.reorderCatalogSections(orderedKeys);
-      await _loadCatalogSections();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to reorder: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-        await _loadCatalogSections();
+    final List<String> groups = List<String>.from(orderedGroups);
+    final String moved = groups.removeAt(fromIndex);
+    groups.insert(toIndex, moved);
+
+    String groupOf(CatalogSection s) =>
+        s.displayGroup.isNotEmpty ? s.displayGroup : 'other';
+
+    final Map<String, List<CatalogSection>> byGroup =
+        <String, List<CatalogSection>>{};
+    for (final CatalogSection s in _catalogSections) {
+      byGroup.putIfAbsent(groupOf(s), () => <CatalogSection>[]).add(s);
+    }
+    for (final List<CatalogSection> list in byGroup.values) {
+      list.sort(
+        (CatalogSection a, CatalogSection b) =>
+            a.position.compareTo(b.position),
+      );
+    }
+
+    final List<CatalogSection> updated = <CatalogSection>[];
+    for (final String g in groups) {
+      updated.addAll(byGroup[g] ?? const <CatalogSection>[]);
+    }
+    // Append any leftover groups not in the visible filter list
+    for (final MapEntry<String, List<CatalogSection>> e in byGroup.entries) {
+      if (!groups.contains(e.key)) {
+        updated.addAll(e.value);
       }
     }
+    await _persistCatalogOrder(updated);
   }
 
   Future<void> _refreshCatalogSection(CatalogSection section) async {
@@ -3183,12 +3232,22 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       }
     }).toList();
 
-    // Distinct display groups present in the filtered data
+    // Distinct display groups — order matches Home (min position in group)
     final Set<String> groupKeys = <String>{};
     for (final CatalogSection s in filteredSections) {
       groupKeys.add(s.displayGroup.isNotEmpty ? s.displayGroup : 'other');
     }
-    final List<String> sortedGroups = groupKeys.toList()..sort();
+    int minGroupPos(String g) {
+      int min = 1 << 30;
+      for (final CatalogSection s in filteredSections) {
+        final String key =
+            s.displayGroup.isNotEmpty ? s.displayGroup : 'other';
+        if (key == g && s.position < min) min = s.position;
+      }
+      return min;
+    }
+    final List<String> sortedGroups = groupKeys.toList()
+      ..sort((String a, String b) => minGroupPos(a).compareTo(minGroupPos(b)));
 
     String formatGroupTitle(String g) {
       switch (g.toLowerCase()) {
@@ -3515,19 +3574,81 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                             ],
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: isDark ? AppColors.surfaceContainerHigh : AppColors.lightSurface,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
-                            ),
-                          ),
-                          child: Text(
-                            '${groupSections.length} items',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                          ),
+                        Builder(
+                          builder: (BuildContext ctx) {
+                            final int groupOrderIndex =
+                                activeFilterGroups.indexOf(group);
+                            final bool canGroupUp = groupOrderIndex > 0;
+                            final bool canGroupDown =
+                                groupOrderIndex >= 0 &&
+                                groupOrderIndex <
+                                    activeFilterGroups.length - 1;
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                IconButton(
+                                  tooltip: 'Move group up (Home order)',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: canGroupUp
+                                      ? () => _moveCatalogGroup(
+                                          activeFilterGroups,
+                                          groupOrderIndex,
+                                          groupOrderIndex - 1,
+                                        )
+                                      : null,
+                                  icon: Icon(
+                                    Icons.keyboard_arrow_up_rounded,
+                                    color: canGroupUp
+                                        ? context.textPrimary
+                                        : context.textMuted
+                                            .withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Move group down (Home order)',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: canGroupDown
+                                      ? () => _moveCatalogGroup(
+                                          activeFilterGroups,
+                                          groupOrderIndex,
+                                          groupOrderIndex + 1,
+                                        )
+                                      : null,
+                                  icon: Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    color: canGroupDown
+                                        ? context.textPrimary
+                                        : context.textMuted
+                                            .withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? AppColors.surfaceContainerHigh
+                                        : AppColors.lightSurface,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: isDark
+                                          ? AppColors.borderSubtle
+                                          : AppColors.lightBorder,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '${groupSections.length} items',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -4937,7 +5058,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               context,
               icon: Icons.radio_rounded,
               label:
-                  'Live Radio (${_adminRadioStations.isEmpty ? (_metrics['radio_count'] ?? '—') : _adminRadioStations.length})',
+                  'Live Radio (${_adminRadioStations.isNotEmpty ? _adminRadioStations.length : RadioStation.stations.length})',
               color: AppColors.success,
               onTap: () => _goToTab(2),
             ),
@@ -4945,7 +5066,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               context,
               icon: Icons.category_rounded,
               label:
-                  'Library (${_adminLibraryCats.isEmpty ? '—' : _adminLibraryCats.length})',
+                  'Library (${_adminLibraryCats.isNotEmpty ? _adminLibraryCats.length : (_metrics['groups_count'] ?? 0)})',
               color: Colors.teal,
               onTap: () => _goToTab(3),
             ),
@@ -5083,26 +5204,47 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               ),
               _buildMetricCard(
                 context,
-                title: 'Albums',
-                value: _metrics['albums_count'] ?? '0',
+                title: 'Album Shelves',
+                value: _metrics['albums_count'] ??
+                    '${_catalogSections.where((CatalogSection s) => s.sourceType == 'album').length}',
                 icon: Icons.album_rounded,
                 color: isDark ? AppColors.tertiaryLight : AppColors.lightTertiaryAccent,
                 onTap: () => _goToTab(1),
               ),
               _buildMetricCard(
                 context,
-                title: 'Artists',
-                value: _metrics['artists_count'] ?? '0',
+                title: 'Artist Shelves',
+                value: _metrics['artists_count'] ??
+                    '${_catalogSections.where((CatalogSection s) => s.sourceType == 'artist').length}',
                 icon: Icons.mic_external_on_rounded,
                 color: isDark ? AppColors.tertiaryLight : AppColors.lightTertiaryAccent,
                 onTap: () => _goToTab(1),
               ),
               _buildMetricCard(
                 context,
-                title: 'Playlists',
-                value: _metrics['playlists_count'] ?? '0',
+                title: 'Playlist Shelves',
+                value: _metrics['playlists_count'] ??
+                    '${_catalogSections.where((CatalogSection s) => s.sourceType == 'playlist').length}',
                 icon: Icons.library_music_rounded,
                 color: Colors.amber,
+                onTap: () => _goToTab(1),
+              ),
+              _buildMetricCard(
+                context,
+                title: 'Mix Shelves',
+                value: _metrics['mixes_count'] ??
+                    '${_catalogSections.where((CatalogSection s) => s.sourceType == 'mix' || s.sourceType == 'jiosaavn_mix').length}',
+                icon: Icons.auto_awesome_rounded,
+                color: AppColors.electricViolet,
+                onTap: () => _goToTab(1),
+              ),
+              _buildMetricCard(
+                context,
+                title: 'Home Groups',
+                value: _metrics['groups_count'] ??
+                    '${_catalogSections.map((CatalogSection s) => s.displayGroup).where((String g) => g.isNotEmpty).toSet().length}',
+                icon: Icons.view_agenda_rounded,
+                color: Colors.cyan,
                 onTap: () => _goToTab(1),
               ),
               _buildMetricCard(
@@ -5116,7 +5258,8 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               _buildMetricCard(
                 context,
                 title: 'Radio Stations',
-                value: '${RadioStation.stations.length}',
+                value:
+                    '${_adminRadioStations.isNotEmpty ? _adminRadioStations.length : RadioStation.stations.length}',
                 icon: Icons.radio_rounded,
                 color: AppColors.success,
                 onTap: () => _goToTab(2),

@@ -278,22 +278,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         const Divider(height: 1),
-                        ListTile(
-                          leading: Icon(
-                            Icons.language_rounded,
-                            color: isDark
-                                ? AppColors.primaryLight
-                                : AppColors.lightPrimaryAccent,
-                          ),
-                          title: const Text('Preferred Music Language',
-                              style: TextStyle(fontWeight: FontWeight.w600)),
-                          subtitle: Text(
-                            settings.preferredLanguage.toUpperCase(),
-                          ),
-                          trailing: const Icon(Icons.chevron_right_rounded),
-                          onTap: () => _pickPreferredLanguage(context),
-                        ),
-                        const Divider(height: 1),
                         SwitchListTile(
                           secondary: Icon(
                             Icons.data_saver_on_rounded,
@@ -1391,61 +1375,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             );
           },
-        );
-      },
-    );
-  }
-
-  void _pickPreferredLanguage(BuildContext context) {
-    const List<String> languages = <String>[
-      'Hindi', 'Marathi', 'Punjabi', 'Bhojpuri', 'Haryanvi', 'Gujarati', 'Tamil', 'Telugu', 'Bengali', 'English'
-    ];
-    final SettingsStore settings = context.read<SettingsStore>();
-    final String current = settings.preferredLanguage.toUpperCase();
-
-    showModalBottomSheet<void>(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (BuildContext ctx) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text('Select Preferred Music Language', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              ),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: languages.length,
-                  itemBuilder: (BuildContext _, int idx) {
-                    final String lang = languages[idx];
-                    final bool isSelected = lang.toUpperCase() == current;
-                    return ListTile(
-                      title: Text(lang, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                      trailing: isSelected ? const Icon(Icons.check_rounded, color: AppColors.electricViolet) : null,
-                      onTap: () async {
-                        Navigator.pop(ctx);
-                        final String newLang = lang.toLowerCase();
-                        settings.preferredLanguage = newLang;
-                        final SupabaseService supabase = SupabaseService();
-                        if (supabase.currentUser != null) {
-                          await supabase.updateProfile(userId: supabase.currentUser!.id, preferredLanguage: newLang);
-                          await _loadProfileData();
-                        }
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Music language updated to $lang'), backgroundColor: AppColors.electricViolet),
-                          );
-                        }
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
         );
       },
     );
