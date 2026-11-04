@@ -27,6 +27,7 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -86,6 +87,8 @@ flutter {
 }
 
 dependencies {
+    // Required by flutter_local_notifications (FCM foreground display)
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     // Google Mobile Ads pulls an older work-runtime that breaks under AGP 9 R8
     // full mode (WorkDatabase reflective init). Pin a fixed WorkManager.
     implementation("androidx.work:work-runtime:2.10.3")
