@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -56,12 +55,12 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
     _showAuthForm = widget.initialShowAuthForm;
     _isSignUp = widget.initialSignUp;
 
-    // Reactively complete auth when session arrives (WebView exchange or web redirect).
+    // Reactively complete auth when session arrives (browser OAuth deep link).
     _authSub = SupabaseService().authStateChanges.listen((AuthState data) async {
       if (data.session == null || !mounted) return;
-      // In-app WebView finishes via _onGoogleWebViewSuccess — avoid double navigate.
-      if (_showGoogleWebView || _completingGoogle) return;
-      final bool fromGoogle = _waitingForGoogleOAuth;
+      // In-app WebView (if ever used) finishes via _onGoogleWebViewSuccess.
+      if (_showGoogleWebView) return;
+      final bool fromGoogle = _waitingForGoogleOAuth || _completingGoogle;
       _waitingForGoogleOAuth = false;
       final SupabaseService supabase = SupabaseService();
       try {
@@ -70,6 +69,7 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
+        _completingGoogle = false;
         _errorMessage = null;
       });
       if (fromGoogle) {
@@ -107,33 +107,18 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
       // Never carry a stale "reset password" flag into Google login.
       supabase.isPasswordRecovery = false;
 
-      // Mobile: MahaTicket-style in-app WebView (account picker stays inside app).
-      if (!kIsWeb) {
-        final String? url = await supabase.getGoogleOAuthUrl();
-        if (!mounted) return;
-        if (url == null || url.isEmpty) {
-          setState(() {
-            _isLoading = false;
-            _waitingForGoogleOAuth = false;
-            _errorMessage = 'Could not start Google sign-in. Please try again.';
-          });
-          return;
-        }
-        setState(() {
-          _isLoading = false;
-          _googleAuthUrl = url;
-          _showGoogleWebView = true;
-        });
-        return;
-      }
-
+      // Use the device browser / Chrome (existing Google accounts + cookies).
+      // In-app WebView is isolated and forces a blank Google login form.
       final bool started = await supabase.signInWithGoogle();
       if (!mounted) return;
       if (supabase.isAuthenticated) {
         _waitingForGoogleOAuth = false;
         await supabase.ensureProfile();
         if (!mounted) return;
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _completingGoogle = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Signed in with Google successfully'),
@@ -145,8 +130,12 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
         return;
       }
       setState(() {
+        // Keep loader until deep link returns a session.
         _isLoading = started;
         _waitingForGoogleOAuth = started;
+        _completingGoogle = started;
+        _showGoogleWebView = false;
+        _googleAuthUrl = null;
         if (!started) {
           _errorMessage = 'Google sign-in was cancelled.';
         }
@@ -156,6 +145,7 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _completingGoogle = false;
           _showGoogleWebView = false;
           _errorMessage = AuthUtils.getFriendlyErrorMessage(e);
         });
@@ -165,6 +155,7 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _completingGoogle = false;
           _showGoogleWebView = false;
           _errorMessage =
               'Google sign-in was cancelled or encountered an error.';

@@ -161,7 +161,7 @@ class SupabaseService {
     await client.auth.getSessionFromUrl(Uri.parse(callbackUrl));
   }
 
-  /// Google sign-in (web / fallback). Mobile prefers [getGoogleOAuthUrl] + in-app WebView.
+  /// Google sign-in via system browser (shares saved Google accounts / cookies).
   ///
   /// Uses **one Web Client ID + Secret in Supabase only**.
   Future<bool> signInWithGoogle({String? redirectTo}) async {
@@ -169,12 +169,14 @@ class SupabaseService {
     try {
       final String redirect = googleOAuthRedirect(redirectTo: redirectTo);
 
-      // supabase_flutter forces external Chrome for Google on Android — use WebView
-      // path on mobile instead. Web keeps platform redirect.
+      // External browser (not WebView) so users see accounts already signed in.
+      // On Android, supabase_flutter also forces externalApplication for Google.
       return await client.auth.signInWithOAuth(
         OAuthProvider.google,
         redirectTo: redirect,
-        authScreenLaunchMode: LaunchMode.platformDefault,
+        authScreenLaunchMode: kIsWeb
+            ? LaunchMode.platformDefault
+            : LaunchMode.externalApplication,
         queryParams: const <String, String>{
           'prompt': 'select_account',
         },

@@ -679,6 +679,46 @@ class MusicRepository {
     return filled >= 1 && filled >= (sections.length / 3).ceil();
   }
 
+  /// Keep track payloads from cache; always take admin meta from the network
+  /// (position, display_group, title, enabled). Prevents stale Home groups.
+  List<CatalogSection> _mergeCatalogNetworkMeta(
+    List<CatalogSection> fresh,
+    List<CatalogSection>? cached,
+  ) {
+    if (cached == null || cached.isEmpty) return fresh;
+    final Map<String, CatalogSection> byKey = <String, CatalogSection>{
+      for (final CatalogSection s in cached) s.sectionKey: s,
+    };
+    return fresh.map((CatalogSection s) {
+      if (s.items.isNotEmpty) return s;
+      final CatalogSection? old = byKey[s.sectionKey];
+      if (old == null || old.items.isEmpty) return s;
+      return s.copyWith(
+        items: old.items,
+        itemCount: old.items.length,
+      );
+    }).toList();
+  }
+
+  /// Drop disk + memory catalogue cache so Home picks up admin edits instantly.
+  Future<void> invalidateCatalogCache() async {
+    _catalogLastFetched.clear();
+    final CacheStore? cache = _cache;
+    if (cache == null) return;
+    final List<String> keys = <String>[
+      _catalogCacheKey(includeDisabled: false, lang: null, group: null),
+      _catalogCacheKey(includeDisabled: false, lang: 'all', group: null),
+      _catalogCacheKey(includeDisabled: false, lang: 'hindi', group: null),
+      _catalogCacheKey(includeDisabled: true, lang: null, group: null),
+      _catalogCacheKey(includeDisabled: true, lang: 'all', group: null),
+    ];
+    for (final String key in keys) {
+      try {
+        await cache.remove(key);
+      } catch (_) {}
+    }
+  }
+
   /// Drop accidental admin duplicates (same Jio source_id / source_url).
   /// Keeps the earliest [position] so Home / Web do not repeat the same playlist card.
   List<CatalogSection> _dedupeCatalogSections(List<CatalogSection> sections) {
@@ -803,19 +843,21 @@ class MusicRepository {
           final List<CatalogSection> fresh = raw
               .map((Map<String, dynamic> m) => CatalogSection.fromJson(m))
               .toList();
-          if (_catalogLooksHealthy(fresh)) {
+          // Always apply network meta on forceRefresh — never keep stale
+          // position / display_group from disk just because items were empty.
+          final List<CatalogSection> merged =
+              _mergeCatalogNetworkMeta(fresh, cached);
+          if (forceRefresh || _catalogLooksHealthy(merged) || !cacheOk) {
             _catalogLastFetched[cacheKey] = DateTime.now();
             if (!includeDisabled) {
-              await _writeCatalogCache(cacheKey, raw);
+              await _writeCatalogCache(
+                cacheKey,
+                merged.map((CatalogSection s) => s.toJson()).toList(),
+              );
             }
-            return fresh;
+            return merged;
           }
-          if (cacheOk) return cached!;
-          if (!includeDisabled) {
-            await _writeCatalogCache(cacheKey, raw);
-          }
-          _catalogLastFetched[cacheKey] = DateTime.now();
-          return fresh;
+          return cached!;
         }
       } catch (e) {
         debugPrint('[MusicRepository] getCatalogSections error: $e');
@@ -857,15 +899,17 @@ class MusicRepository {
           final List<CatalogSection> fresh = raw
               .map((Map<String, dynamic> m) => CatalogSection.fromJson(m))
               .toList();
-          if (_catalogLooksHealthy(fresh)) {
-            _catalogLastFetched[cacheKey] = DateTime.now();
-            if (!includeDisabled) {
-              final List<CatalogSection> deduped = _dedupeCatalogSections(fresh);
-              await _writeCatalogCache(
-                cacheKey,
-                deduped.map((CatalogSection s) => s.toJson()).toList(),
-              );
-            }
+          final List<CatalogSection>? old = _readCatalogCache(cacheKey);
+          final List<CatalogSection> merged =
+              _mergeCatalogNetworkMeta(fresh, old);
+          final List<CatalogSection> deduped =
+              _dedupeCatalogSections(merged);
+          _catalogLastFetched[cacheKey] = DateTime.now();
+          if (!includeDisabled) {
+            await _writeCatalogCache(
+              cacheKey,
+              deduped.map((CatalogSection s) => s.toJson()).toList(),
+            );
           }
         }
       } catch (e) {
@@ -881,6 +925,7 @@ class MusicRepository {
     }
     final Map<String, dynamic> res = await provider.refreshCatalogSection(key);
     final CatalogSection section = CatalogSection.fromJson(res);
+    await invalidateCatalogCache();
     return section;
   }
 
@@ -950,7 +995,7 @@ class MusicRepository {
     required String displayGroup,
     String? subtitle,
     String language = 'all',
-    int position = 1,
+    int? position,
     bool isEnabled = true,
     String? customArtworkUrl,
     bool isBanner = false,
@@ -969,7 +1014,7 @@ class MusicRepository {
       'display_group': displayGroup,
       if (subtitle != null && subtitle.isNotEmpty) 'subtitle': subtitle,
       'language': language,
-      'position': position,
+      if (position != null) 'position': position,
       'is_enabled': isEnabled,
       if (customArtworkUrl != null && customArtworkUrl.isNotEmpty) 'custom_artwork_url': customArtworkUrl,
       'is_banner': isBanner,
@@ -980,8 +1025,12 @@ class MusicRepository {
     });
     final CatalogSection section = CatalogSection.fromJson(res);
 
+    await invalidateCatalogCache();
     // Verify persistence with read-back from source of truth (Phase 2 & 6)
-    final List<CatalogSection> readBack = await getCatalogSections(includeDisabled: true);
+    final List<CatalogSection> readBack = await getCatalogSections(
+      includeDisabled: true,
+      forceRefresh: true,
+    );
     final bool exists = readBack.any((CatalogSection s) => s.key == section.key || s.id == section.id);
     if (!exists) {
       throw ProviderException('custom_api', message: 'Persistence verification failed: section "${section.displayTitle}" was not saved.');
@@ -1027,8 +1076,12 @@ class MusicRepository {
     final Map<String, dynamic> res = await provider.updateCatalogSection(key, data);
     final CatalogSection section = CatalogSection.fromJson(res);
 
+    await invalidateCatalogCache();
     // Verify persistence with read-back from source of truth (Phase 2 & 6)
-    final List<CatalogSection> readBack = await getCatalogSections(includeDisabled: true);
+    final List<CatalogSection> readBack = await getCatalogSections(
+      includeDisabled: true,
+      forceRefresh: true,
+    );
     final bool exists = readBack.any((CatalogSection s) =>
         s.key.toLowerCase().replaceAll('-', '_') == key.toLowerCase().replaceAll('-', '_') ||
         s.id == section.id ||
@@ -1096,19 +1149,24 @@ class MusicRepository {
   Future<bool> deleteCatalogSection(String key) async {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) return false;
-    return provider.deleteCatalogSection(key);
+    final bool ok = await provider.deleteCatalogSection(key);
+    if (ok) await invalidateCatalogCache();
+    return ok;
   }
 
   Future<bool> reorderCatalogSections(List<String> keys) async {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) return false;
-    return provider.reorderCatalogSections(keys);
+    final bool ok = await provider.reorderCatalogSections(keys);
+    if (ok) await invalidateCatalogCache();
+    return ok;
   }
 
   Future<CatalogSection?> toggleCatalogSection(String key, [bool? enabled]) async {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) return null;
     final Map<String, dynamic> res = await provider.toggleCatalogSection(key);
+    await invalidateCatalogCache();
     return CatalogSection.fromJson(res);
   }
 

@@ -58,7 +58,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _onScrollToTop();
   }
 
-  late Future<List<Track>> _trendingFuture;
   late Future<List<CatalogSection>> _catalogSectionsFuture;
   bool _initialized = false;
 
@@ -88,8 +87,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final MusicRepository repo = context.read<MusicRepository>();
     final LibraryController library = context.read<LibraryController>();
     setState(() {
-      // No user language/mood filter — admin catalogue + open trending.
-      _trendingFuture = repo.trending(limit: 20);
       _catalogSectionsFuture = repo.getCatalogSections(forceRefresh: true);
     });
     await Future.wait(<Future<dynamic>>[
@@ -98,24 +95,20 @@ class _HomeScreenState extends State<HomeScreen> {
     ]);
   }
 
-  /// Fetch latest catalogue + trending without blocking or flashing the UI.
+  /// Fetch latest catalogue without blocking or flashing the UI.
   Future<void> _silentBackgroundRefresh() async {
     if (!mounted) return;
     try {
       final MusicRepository repo = context.read<MusicRepository>();
       final LibraryController library = context.read<LibraryController>();
       final List<Object> results = await Future.wait(<Future<Object>>[
-        repo.trending(limit: 20),
         repo.getCatalogSections(forceRefresh: true),
         library.syncWithSupabase().then((_) => true),
       ]);
       if (!mounted) return;
       setState(() {
-        _trendingFuture = Future<List<Track>>.value(
-          results[0] as List<Track>,
-        );
         _catalogSectionsFuture = Future<List<CatalogSection>>.value(
-          results[1] as List<CatalogSection>,
+          results[0] as List<CatalogSection>,
         );
       });
       await _loadInitialTracks();
@@ -215,10 +208,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_initialized) {
       _initialized = true;
       final MusicRepository repo = context.read<MusicRepository>();
-      _trendingFuture = repo.trending(limit: 20);
       _catalogSectionsFuture = repo.getCatalogSections();
       _loadInitialTracks();
-      // Cache-first paint, then silently pull latest admin/API updates.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _silentBackgroundRefresh();
       });
@@ -298,21 +289,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _buildGreeting(context),
                   ),
 
-                  // Recently Played or Trending, then admin catalogue
-                  SliverToBoxAdapter(
-                    child: _buildRecentlyPlayedOrTrending(
-                      context,
-                      library,
-                      repo,
-                    ),
-                  ),
-
                   const SliverToBoxAdapter(
                     child: InlineAdSlot(
                       placement: Advertisement.placementHomePostRecent,
                     ),
                   ),
 
+                  // Admin catalogue shelves
                   SliverToBoxAdapter(
                     child: _buildAdminCatalogSections(context, repo),
                   ),
@@ -327,7 +310,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: AdMobBannerCard(),
                   ),
 
-                  // Extra bottom space above mini-player (no sticky legal bar after login)
+                  // Infinite scroll songs after catalogue (auto-loads on scroll)
                   SliverToBoxAdapter(
                     child: _buildBottomTrendingBlast(context, playback),
                   ),
@@ -830,134 +813,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildRecentlyPlayedOrTrending(
-    BuildContext context,
-    LibraryController library,
-    MusicRepository repo,
-  ) {
-    final bool hasHistory = library.history.isNotEmpty;
-
-    if (hasHistory) {
-      final List<Track> historyTracks = library.history
-          .map((h) => h.track)
-          .toList();
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          SectionHeader(
-            title: 'Recently Played',
-            subtitle: 'Continue your personal listening session',
-            topPadding: AppSpacing.sm,
-            actionLabel: 'See all',
-            onAction: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => TrackListScreen(
-                    title: 'Recently Played',
-                    tracks: historyTracks,
-                  ),
-                ),
-              );
-            },
-          ),
-          SizedBox(
-            height: 196,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              itemCount: historyTracks.take(10).length,
-              separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
-              itemBuilder: (BuildContext ctx, int i) {
-                final Track track = historyTracks[i];
-                return MediaCard.forTrack(
-                  track: track,
-                  onTap: () =>
-                      TrackActions.play(context, track, queue: historyTracks),
-                  onPlay: () =>
-                      TrackActions.play(context, track, queue: historyTracks),
-                  width: 136,
-                );
-              },
-            ),
-          ),
-        ],
-      );
-    }
-
-    // Fallback when no history exists: Compact Trending Charts (prevents any dead space)
-    return FutureBuilder<List<Track>>(
-      future: _trendingFuture,
-      builder: (BuildContext context, AsyncSnapshot<List<Track>> snapshot) {
-        final List<Track> tracks = snapshot.data ?? <Track>[];
-        if (tracks.isEmpty &&
-            snapshot.connectionState != ConnectionState.waiting) {
-          return const SizedBox.shrink();
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            SectionHeader(
-              title: 'Trending Right Now',
-              subtitle: 'Top global charts and viral hits',
-              topPadding: AppSpacing.sm,
-              actionLabel: 'See all',
-              onAction: () async {
-                final List<Track> all = await repo.trending(limit: 30);
-                if (context.mounted) {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => TrackListScreen(
-                        title: 'Trending Charts',
-                        tracks: all,
-                      ),
-                    ),
-                  );
-                }
-              },
-            ),
-            SizedBox(
-              height: 196,
-              child: snapshot.connectionState == ConnectionState.waiting
-                  ? ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.lg,
-                      ),
-                      itemCount: 4,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(width: AppSpacing.md),
-                      itemBuilder: (_, __) => _buildTrackSkeletonCard(context),
-                    )
-                  : ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.lg,
-                      ),
-                      itemCount: tracks.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(width: AppSpacing.md),
-                      itemBuilder: (BuildContext ctx, int i) {
-                        final Track track = tracks[i];
-                        return MediaCard.forTrack(
-                          track: track,
-                          badgeText: '#${i + 1}',
-                          badgeColor: i < 3 ? AppColors.secondary : null,
-                          onTap: () =>
-                              TrackActions.play(context, track, queue: tracks),
-                          onPlay: () =>
-                              TrackActions.play(context, track, queue: tracks),
-                          width: 136,
-                        );
-                      },
-                    ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Widget _buildTopFestivalPosterHero(BuildContext context) {
     return FutureBuilder<List<CatalogSection>>(
       future: _catalogSectionsFuture,
@@ -1187,15 +1042,19 @@ class _HomeScreenState extends State<HomeScreen> {
           return const SizedBox.shrink();
         }
 
-        // Regular non-banner sections (Phase 4)
+        // Regular non-banner sections — sort by admin position first
         final List<CatalogSection> regularSections = sections
             .where(
               (CatalogSection s) =>
                   (!s.isBanner || !s.isCampaignActive) && s.isEnabled,
             )
-            .toList();
+            .toList()
+          ..sort(
+            (CatalogSection a, CatalogSection b) =>
+                a.position.compareTo(b.position),
+          );
 
-        // Group regular sections by displayGroup (order = admin position)
+        // Group by displayGroup; Home order = admin ↑↓ via min(position) per group
         final Map<String, List<CatalogSection>> grouped =
             <String, List<CatalogSection>>{};
         for (final CatalogSection sec in regularSections) {
@@ -1204,11 +1063,12 @@ class _HomeScreenState extends State<HomeScreen> {
               : sec.displayGroup.trim();
           grouped.putIfAbsent(g, () => <CatalogSection>[]).add(sec);
         }
-        for (final List<CatalogSection> list in grouped.values) {
-          list.sort(
-            (CatalogSection a, CatalogSection b) =>
-                a.position.compareTo(b.position),
-          );
+        int minPos(List<CatalogSection> list) {
+          var m = 1 << 30;
+          for (final CatalogSection s in list) {
+            if (s.position < m) m = s.position;
+          }
+          return m;
         }
 
         void openSection(CatalogSection section) {
@@ -1273,21 +1133,14 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         }
 
-        // Group order follows admin: earliest section.position in each group.
+        // Sort groups by lowest shelf position (admin group ↑↓ writes these ranks).
         final List<MapEntry<String, List<CatalogSection>>> groupEntries =
             grouped.entries.toList()
-              ..sort((
-                MapEntry<String, List<CatalogSection>> a,
-                MapEntry<String, List<CatalogSection>> b,
-              ) {
-                final int minA = a.value
-                    .map((CatalogSection s) => s.position)
-                    .fold<int>(1 << 30, (int m, int p) => p < m ? p : m);
-                final int minB = b.value
-                    .map((CatalogSection s) => s.position)
-                    .fold<int>(1 << 30, (int m, int p) => p < m ? p : m);
-                return minA.compareTo(minB);
-              });
+              ..sort(
+                (MapEntry<String, List<CatalogSection>> a,
+                        MapEntry<String, List<CatalogSection>> b) =>
+                    minPos(a.value).compareTo(minPos(b.value)),
+              );
         final int midGroup = groupEntries.isEmpty
             ? 0
             : (groupEntries.length / 2).floor().clamp(0, groupEntries.length);
@@ -1308,54 +1161,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   final String groupTitle = entry.key;
                   final List<CatalogSection> groupSections = entry.value;
 
-                  // Check if this is a genuine track-only shelf (e.g. New Releases)
-                  final bool isTrackFeed =
-                      groupSections.length == 1 &&
-                      (groupSections.first.sourceType == 'new_releases' ||
-                          groupSections.first.sourceType == 'tracks');
-
-                  if (isTrackFeed) {
-                    final CatalogSection sec = groupSections.first;
-                    if (sec.items.isEmpty) return const SizedBox.shrink();
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        SectionHeader(
-                          title: sec.displayTitle,
-                          topPadding: AppSpacing.sm,
-                          actionLabel: 'See all',
-                          onAction: () => openSection(sec),
-                        ),
-                        _buildDoubleRowShelf(
-                          context: context,
-                          itemCount: sec.items.length,
-                          rowHeight: 200,
-                          itemWidth: 136,
-                          itemBuilder: (BuildContext cardCtx, int i) {
-                            final Track track = sec.items[i];
-                            return MediaCard.forTrack(
-                              track: track,
-                              onTap: () => TrackActions.play(
-                                context,
-                                track,
-                                queue: sec.items,
-                              ),
-                              onPlay: () => TrackActions.play(
-                                context,
-                                track,
-                                queue: sec.items,
-                              ),
-                              width: 136,
-                            );
-                          },
-                        ),
-                      ],
-                    );
+                  // All admin shelves as entity cards (never dump raw track grids
+                  // for new_releases — that caused broken Bhojpuri/NULL songs).
+                  final List<CatalogSection> shelfSections = groupSections;
+                  if (shelfSections.isEmpty) {
+                    return const SizedBox.shrink();
                   }
 
                   // Entity Shelves (Playlists, Albums, Artists, Charts):
-                  // Renders genuine entity cards without appending tracks into the shelf.
-                  final bool isArtistGroup = groupSections.every(
+                  final bool isArtistGroup = shelfSections.every(
                     (CatalogSection s) => s.sourceType == 'artist',
                   );
                   final double shelfHeight = isArtistGroup ? 185 : 215;
@@ -1420,7 +1234,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       SectionHeader(
                         title: groupTitle,
                         topPadding: AppSpacing.sm,
-                        actionLabel: groupSections.length > 1
+                        actionLabel: shelfSections.length > 1
                             ? 'See all'
                             : null,
                       ),
@@ -1433,21 +1247,21 @@ class _HomeScreenState extends State<HomeScreen> {
                             padding: const EdgeInsets.symmetric(
                               horizontal: AppSpacing.lg,
                             ),
-                            itemCount: groupSections.length,
+                            itemCount: shelfSections.length,
                             separatorBuilder: (_, __) =>
                                 const SizedBox(width: AppSpacing.md),
                             itemBuilder: (BuildContext cardCtx, int i) =>
-                                cardFor(groupSections[i]),
+                                cardFor(shelfSections[i]),
                           ),
                         )
                       else
                         _buildDoubleRowShelf(
                           context: context,
-                          itemCount: groupSections.length,
+                          itemCount: shelfSections.length,
                           rowHeight: shelfHeight,
                           itemWidth: cardWidth,
                           itemBuilder: (BuildContext cardCtx, int i) =>
-                              cardFor(groupSections[i]),
+                              cardFor(shelfSections[i]),
                         ),
                     ],
                   );
@@ -1497,56 +1311,6 @@ class _HomeScreenState extends State<HomeScreen> {
           row(row1Count, row2Count),
         ],
       ],
-    );
-  }
-
-  Widget _buildTrackSkeletonCard(BuildContext context) {
-    final bool isDark = context.isDarkMode;
-    final Color baseColor = isDark
-        ? AppColors.surfaceContainerHigh.withValues(alpha: 0.5)
-        : AppColors.lightElevatedSurface;
-
-    return SizedBox(
-      width: 136,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Container(
-            width: 136,
-            height: 136,
-            decoration: BoxDecoration(
-              color: baseColor,
-              borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-              border: Border.all(
-                color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
-              ),
-            ),
-            child: Icon(
-              Icons.music_note_rounded,
-              color: isDark ? Colors.white12 : Colors.black12,
-              size: 32,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Container(
-            width: 100,
-            height: 12,
-            decoration: BoxDecoration(
-              color: baseColor,
-              borderRadius: BorderRadius.circular(6),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Container(
-            width: 65,
-            height: 10,
-            decoration: BoxDecoration(
-              color: baseColor,
-              borderRadius: BorderRadius.circular(5),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -1667,6 +1431,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Infinite song list after admin catalogue — loads more on scroll.
   Widget _buildBottomTrendingBlast(
     BuildContext context,
     PlaybackController playback,
@@ -1692,7 +1457,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 : null,
           ),
           const SizedBox(height: 6),
-
           if (_isLoadingInitial && tracks.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 28),
@@ -1723,8 +1487,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     index: i,
                     track: tracks[i],
                     dense: false,
-                    isPlaying:
-                        playback.currentTrack?.id == tracks[i].id &&
+                    isPlaying: playback.currentTrack?.id == tracks[i].id &&
                         playback.isPlaying,
                     onTap: () =>
                         TrackActions.play(context, tracks[i], queue: tracks),
@@ -1762,7 +1525,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Simple Made for you logo pulse — no shelf skeletons.
 class _MadeForYouSkeleton extends StatefulWidget {
   const _MadeForYouSkeleton();
 

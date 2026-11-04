@@ -17,6 +17,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/ad_popup_dialog.dart';
 import '../widgets/glass_card.dart';
+import 'home_screen.dart';
 
 /// Full Production Admin Dashboard — Operations, Real Database Metrics,
 /// User Management, Live Provider Testing, Legal Attribution, and Reports Resolution.
@@ -1348,13 +1349,14 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           excludedTrackIds: _excludedTrackIds.toList(),
         );
       } else {
+        // Omit position — API inserts new shelf first inside this display group
+        // without moving other Home groups.
         await repo.createCatalogSection(
           sourceUrl: url,
           displayTitle: title,
           displayGroup: group,
           subtitle: subtitle.isNotEmpty ? subtitle : null,
           language: _catalogLanguage,
-          position: pos,
           isEnabled: _catalogIsEnabled,
           customArtworkUrl: customArt.isNotEmpty ? customArt : null,
           isBanner: _catalogIsBanner,
@@ -1374,7 +1376,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           ),
         );
         _cancelCatalogEdit();
+        await repo.getCatalogSections(forceRefresh: true);
         await _loadCatalogSections();
+        HomeScreen.silentRefreshLatest();
       }
     } catch (e) {
       if (mounted) {
@@ -1495,7 +1499,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     final MusicRepository repo = context.read<MusicRepository>();
     try {
       await repo.toggleCatalogSection(s.sectionKey, !s.isEnabled);
+      await repo.getCatalogSections(forceRefresh: true);
       await _loadCatalogSections();
+      HomeScreen.silentRefreshLatest();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1534,7 +1540,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Deleted "${s.displayTitle}"'), backgroundColor: AppColors.success),
           );
+          await repo.getCatalogSections(forceRefresh: true);
           await _loadCatalogSections();
+          HomeScreen.silentRefreshLatest();
         }
       } catch (e) {
         if (mounted) {
@@ -1547,13 +1555,31 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   }
 
   Future<void> _persistCatalogOrder(List<CatalogSection> updated) async {
+    // Assign unique 1..N positions locally so Home never sees duplicate ranks.
+    final List<CatalogSection> renumbered = <CatalogSection>[
+      for (int i = 0; i < updated.length; i++)
+        updated[i].copyWith(position: i + 1),
+    ];
     final List<String> orderedKeys =
-        updated.map((CatalogSection s) => s.sectionKey).toList();
-    setState(() => _catalogSections = updated);
+        renumbered.map((CatalogSection s) => s.sectionKey).toList();
+    setState(() => _catalogSections = renumbered);
     try {
       final MusicRepository repo = context.read<MusicRepository>();
       await repo.reorderCatalogSections(orderedKeys);
+      // Force-pull so disk/API cache matches the new Home order
+      await repo.getCatalogSections(includeDisabled: true, forceRefresh: true);
+      await repo.getCatalogSections(forceRefresh: true);
       await _loadCatalogSections();
+      HomeScreen.silentRefreshLatest();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Order saved — Home will show this sequence'),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1605,10 +1631,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     if (toIndex < 0 || toIndex >= orderedGroups.length) return;
     if (fromIndex == toIndex) return;
 
-    final List<String> groups = List<String>.from(orderedGroups);
-    final String moved = groups.removeAt(fromIndex);
-    groups.insert(toIndex, moved);
-
+    // Always reorder against the full catalogue so filters can't orphan groups.
     String groupOf(CatalogSection s) =>
         s.displayGroup.isNotEmpty ? s.displayGroup : 'other';
 
@@ -1624,15 +1647,27 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       );
     }
 
+    int minGroupPos(String g) {
+      final List<CatalogSection>? list = byGroup[g];
+      if (list == null || list.isEmpty) return 1 << 30;
+      return list.first.position;
+    }
+
+    // Full group list sorted like Home, then apply the visible ↑↓ move.
+    final List<String> groups = byGroup.keys.toList()
+      ..sort((String a, String b) => minGroupPos(a).compareTo(minGroupPos(b)));
+    final String movedName = orderedGroups[fromIndex];
+    final int fullFrom = groups.indexOf(movedName);
+    if (fullFrom < 0) return;
+    final int delta = toIndex - fromIndex;
+    final int fullTo = (fullFrom + delta).clamp(0, groups.length - 1);
+    if (fullTo == fullFrom) return;
+    final String moved = groups.removeAt(fullFrom);
+    groups.insert(fullTo, moved);
+
     final List<CatalogSection> updated = <CatalogSection>[];
     for (final String g in groups) {
       updated.addAll(byGroup[g] ?? const <CatalogSection>[]);
-    }
-    // Append any leftover groups not in the visible filter list
-    for (final MapEntry<String, List<CatalogSection>> e in byGroup.entries) {
-      if (!groups.contains(e.key)) {
-        updated.addAll(e.value);
-      }
     }
     await _persistCatalogOrder(updated);
   }
@@ -1673,29 +1708,73 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
   Future<void> _refreshAllCatalogSections() async {
     setState(() => _isLoadingCatalog = true);
+    final MusicRepository repo = context.read<MusicRepository>();
     try {
-      final MusicRepository repo = context.read<MusicRepository>();
-      final List<CatalogSection> list = await repo.getCatalogSections(
+      // Always pull full catalogue so every enabled shelf is refreshed from JioSaavn
+      List<CatalogSection> list = await repo.getCatalogSections(
         includeDisabled: true,
         forceRefresh: true,
       );
-      if (mounted) {
-        setState(() {
-          _catalogSections = list;
-          _isLoadingCatalog = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Successfully refreshed all ${list.length} sections from provider'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+
+      int ok = 0;
+      int failed = 0;
+      // Refresh every enabled shelf (skip disabled drafts)
+      final List<CatalogSection> targets = list
+          .where((CatalogSection s) => s.isEnabled)
+          .toList();
+      for (final CatalogSection section in targets) {
+        if (!mounted) return;
+        setState(() => _refreshingSectionKeys.add(section.sectionKey));
+        try {
+          final CatalogSection? updated =
+              await repo.refreshCatalogSection(section.sectionKey);
+          if (updated != null) {
+            ok++;
+            final int idx = list.indexWhere(
+              (CatalogSection s) => s.sectionKey == section.sectionKey,
+            );
+            if (idx >= 0) list[idx] = updated;
+          } else {
+            failed++;
+          }
+        } catch (_) {
+          failed++;
+        } finally {
+          if (mounted) {
+            setState(() => _refreshingSectionKeys.remove(section.sectionKey));
+          }
+        }
       }
+
+      list = await repo.getCatalogSections(
+        includeDisabled: true,
+        forceRefresh: true,
+      );
+      await repo.getCatalogSections(forceRefresh: true);
+      HomeScreen.silentRefreshLatest();
+      if (!mounted) return;
+      setState(() {
+        _catalogSections = list;
+        _isLoadingCatalog = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            failed == 0
+                ? 'Refreshed $ok catalogue shelves from live sources'
+                : 'Refreshed $ok shelves ($failed failed)',
+          ),
+          backgroundColor: failed == 0 ? AppColors.success : AppColors.secondary,
+        ),
+      );
     } catch (e) {
       if (mounted) {
         setState(() => _isLoadingCatalog = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Refresh all failed: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Refresh all failed: $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     }
@@ -2634,29 +2713,60 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                       ],
                       const SizedBox(height: 8),
 
-                      // Quick Category Chips
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: <String>[
-                          'Top Charts',
-                          'Featured Playlists',
-                          'Festival Specials',
-                          'Trending Now',
-                          'Devotional & Bhakti',
-                          'Featured Artists',
-                          'New Releases',
-                        ].map((String grp) {
-                          return ActionChip(
-                            visualDensity: VisualDensity.compact,
-                            label: Text(grp, style: const TextStyle(fontSize: 10.5)),
-                            onPressed: () {
-                              setState(() {
-                                _catalogGroupController.text = grp;
-                              });
-                            },
+                      // Quick Category Chips — presets + groups already used in catalogue
+                      Builder(
+                        builder: (BuildContext chipCtx) {
+                          const List<String> presets = <String>[
+                            'All Time Great',
+                            'Top Charts',
+                            'Featured Playlists',
+                            'Festival Specials',
+                            'Trending Now',
+                            'Devotional & Bhakti',
+                            'Featured Artists',
+                            'Fresh Drops',
+                            'New Releases',
+                          ];
+                          final Set<String> seen = <String>{};
+                          final List<String> chips = <String>[];
+                          for (final String g in presets) {
+                            if (seen.add(g.toLowerCase())) chips.add(g);
+                          }
+                          for (final CatalogSection s in _catalogSections) {
+                            final String g = s.displayGroup.trim();
+                            if (g.isEmpty) continue;
+                            if (seen.add(g.toLowerCase())) chips.add(g);
+                          }
+                          return Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: chips.map((String grp) {
+                              final bool selected =
+                                  _catalogGroupController.text.trim().toLowerCase() ==
+                                  grp.toLowerCase();
+                              return ActionChip(
+                                visualDensity: VisualDensity.compact,
+                                backgroundColor: selected
+                                    ? AppColors.primary.withValues(alpha: 0.25)
+                                    : null,
+                                label: Text(
+                                  grp,
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: selected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                  ),
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _catalogGroupController.text = grp;
+                                  });
+                                },
+                              );
+                            }).toList(),
                           );
-                        }).toList(),
+                        },
                       ),
                       const SizedBox(height: 14),
 
@@ -5038,6 +5148,39 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               onPressed: _loadPlatformMetrics,
             ),
           ],
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: _isLoadingCatalog
+                ? null
+                : () async {
+                    await _loadCatalogSections();
+                    await _refreshAllCatalogSections();
+                    await _loadPlatformMetrics();
+                  },
+            icon: _isLoadingCatalog
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.sync_rounded),
+            label: Text(
+              _isLoadingCatalog
+                  ? 'Refreshing all catalogues…'
+                  : 'Refresh All Catalogues',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              backgroundColor: AppColors.electricViolet,
+            ),
+          ),
         ),
         const SizedBox(height: 16),
 

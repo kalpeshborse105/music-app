@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -7,11 +6,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../app/app_dependencies.dart';
 import '../../core/storage/settings_store.dart';
 import '../../core/utils/auth_utils.dart';
 import '../../data/services/supabase_service.dart';
@@ -362,26 +359,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               style: TextStyle(fontWeight: FontWeight.w600)),
                           value: settings.wifiOnlyDownload,
                           onChanged: (bool v) => settings.wifiOnlyDownload = v,
-                        ),
-                        const Divider(height: 1),
-                        ListTile(
-                          leading: Icon(
-                            Icons.sd_storage_rounded,
-                            color: isDark
-                                ? AppColors.tertiaryLight
-                                : AppColors.lightTertiaryAccent,
-                          ),
-                          title: const Text('Offline Storage Cache',
-                              style: TextStyle(fontWeight: FontWeight.w600)),
-                          subtitle: Text(
-                              '${downloads.humanSize(downloads.totalBytes)} (${downloads.downloads.length} tracks cached)'),
-                          trailing: TextButton(
-                            onPressed: downloads.downloads.isNotEmpty
-                                ? () => _confirmClearDownloads(context, downloads)
-                                : null,
-                            child: const Text('Clear',
-                                style: TextStyle(color: AppColors.error)),
-                          ),
                         ),
                       ],
                     ),
@@ -1496,30 +1473,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _confirmClearDownloads(BuildContext context, DownloadsController downloads) {
-    showDialog<void>(
-      context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('Clear Downloads?'),
-        content: const Text('All offline tracks will be removed from device storage.'),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () {
-              downloads.removeAll();
-              Navigator.pop(ctx);
-            },
-            child: const Text('Clear All'),
-          ),
-        ],
-      ),
-    );
-  }
-
   String _formatListenMins(int mins) {
     if (mins <= 0) return '0m';
     if (mins < 60) return '${mins}m';
@@ -1915,55 +1868,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             subtitle: const Text('Update your account password directly in app'),
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => _showChangePasswordDialog(context),
-          ),
-          const Divider(height: 1),
-
-          // Clear Temporary Session & Cache Data
-          ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: isDark ? 0.2 : 0.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.cleaning_services_rounded,
-                size: 20,
-                color: Colors.amber,
-              ),
-            ),
-            title: const Text('Clear Temporary Cache', style: TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: const Text('Purge audio buffering caches and temporary image data'),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () async {
-              try {
-                // 1. Purge Flutter image memory caches
-                PaintingBinding.instance.imageCache.clear();
-                PaintingBinding.instance.imageCache.clearLiveImages();
-                // 2. Clear persistent network Hive cache
-                await context.read<AppDependencies>().cache.clear();
-                // 3. Purge temp storage files
-                final Directory tempDir = await getTemporaryDirectory();
-                if (tempDir.existsSync()) {
-                  final List<FileSystemEntity> files = tempDir.listSync(recursive: true);
-                  for (final FileSystemEntity file in files) {
-                    try {
-                      if (file is File) {
-                        await file.delete();
-                      }
-                    } catch (_) {}
-                  }
-                }
-              } catch (_) {}
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Temporary audio and image cache cleared successfully'),
-                    backgroundColor: AppColors.success,
-                  ),
-                );
-              }
-            },
           ),
           const Divider(height: 1),
 

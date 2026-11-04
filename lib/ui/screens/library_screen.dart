@@ -894,6 +894,204 @@ class _LibraryScreenState extends State<LibraryScreen> {
       );
     }
 
+    // Pinned Quick Access Bento Cards (Liked Songs, Downloads, Device Audio)
+    if (_selectedFilter == 'All') {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Row(
+                  children: <Widget>[
+                    Text(
+                      'QUICK ACCESS',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.1,
+                        color: AppColors.outline,
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(Icons.push_pin_rounded, size: 14, color: AppColors.outline),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                // Liked Songs Primary Bento Card
+                EchoGlassCard(
+                  onTap: () {
+                    Navigator.of(context).push(MaterialPageRoute<void>(
+                      builder: (_) => TrackListScreen(
+                        title: 'Liked Songs',
+                        tracks: library.likedTracks,
+                      ),
+                    ));
+                  },
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  borderRadius: AppSpacing.radiusLg,
+                  child: Row(
+                    children: <Widget>[
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: const BoxDecoration(
+                          gradient: AppColors.likedSongsGradient,
+                          borderRadius: BorderRadius.all(Radius.circular(12)),
+                        ),
+                        child: const Icon(Icons.favorite_rounded, color: Colors.white, size: 28),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            const Row(
+                              children: <Widget>[
+                                Text(
+                                  'Liked Songs',
+                                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                                ),
+                                SizedBox(width: 6),
+                                Icon(Icons.auto_awesome_rounded, size: 14, color: AppColors.secondary),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Auto-playlist • ${library.likedTracks.length} tracks',
+                              style: const TextStyle(color: AppColors.textSecondaryDark, fontSize: 12.5),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.play_arrow_rounded, color: AppColors.primaryLight, size: 28),
+                        onPressed: library.likedTracks.isNotEmpty
+                            ? () => TrackActions.play(context, library.likedTracks.first, queue: library.likedTracks)
+                            : null,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                // 2-card sub-grid: Downloaded & Device Audio
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: EchoGlassCard(
+                        onTap: () {
+                          Navigator.of(context).push(MaterialPageRoute<void>(
+                            builder: (_) => const DownloadsDetailScreen(),
+                          ));
+                        },
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        borderRadius: AppSpacing.radiusLg,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: <Widget>[
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.secondary.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(Icons.download_done_rounded, color: AppColors.secondary, size: 20),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.secondaryContainer.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    downloads.humanSize(downloads.totalBytes),
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.secondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              'Downloaded',
+                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                            ),
+                            Text(
+                              '${downloads.downloads.length} offline tracks',
+                              style: const TextStyle(color: AppColors.textSecondaryDark, fontSize: 11.5),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    Expanded(
+                      child: EchoGlassCard(
+                        onTap: () {
+                          final provider = context.read<LocalMusicProvider?>();
+                          if (provider != null) {
+                            library.scanLocal(provider);
+                          }
+                          Navigator.of(context).push(MaterialPageRoute<void>(
+                            builder: (_) => const LocalMusicScreen(),
+                          ));
+                        },
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        borderRadius: AppSpacing.radiusLg,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: <Widget>[
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(Icons.folder_special_rounded, color: AppColors.primaryLight, size: 20),
+                                ),
+                                const Icon(Icons.phone_android_rounded, size: 16, color: AppColors.outline),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              'Device Audio',
+                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                            ),
+                            Text(
+                              library.localScanning
+                                  ? 'Scanning...'
+                                  : '${library.localTracks.length} files found',
+                              style: const TextStyle(color: AppColors.textSecondaryDark, fontSize: 11.5),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     // Top Discovery & Genres Bento Cards (Explore Genres & Moods)
     if (_selectedFilter == 'All') {
       final List<Map<String, dynamic>> categoriesToDisplay =
@@ -1090,198 +1288,33 @@ class _LibraryScreenState extends State<LibraryScreen> {
       );
     }
 
-    // Pinned Quick Access Bento Cards (Liked Songs, Downloads, Device Audio)
-    if (_selectedFilter == 'All') {
+    // Recently Played Tracks Section
+    if (library.history.isNotEmpty && _selectedFilter == 'All') {
       slivers.add(
         SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const Row(
-                  children: <Widget>[
-                    Text(
-                      'QUICK ACCESS',
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.1,
-                        color: AppColors.outline,
-                      ),
-                    ),
-                    SizedBox(width: 4),
-                    Icon(Icons.push_pin_rounded, size: 14, color: AppColors.outline),
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                // Liked Songs Primary Bento Card
-                EchoGlassCard(
-                  onTap: () {
-                    Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => TrackListScreen(
-                        title: 'Liked Songs',
-                        tracks: library.likedTracks,
-                      ),
-                    ));
-                  },
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  borderRadius: AppSpacing.radiusLg,
-                  child: Row(
-                    children: <Widget>[
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: const BoxDecoration(
-                          gradient: AppColors.likedSongsGradient,
-                          borderRadius: BorderRadius.all(Radius.circular(12)),
-                        ),
-                        child: const Icon(Icons.favorite_rounded, color: Colors.white, size: 28),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            const Row(
-                              children: <Widget>[
-                                Text(
-                                  'Liked Songs',
-                                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                                ),
-                                SizedBox(width: 6),
-                                Icon(Icons.auto_awesome_rounded, size: 14, color: AppColors.secondary),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Auto-playlist • ${library.likedTracks.length} tracks',
-                              style: const TextStyle(color: AppColors.textSecondaryDark, fontSize: 12.5),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.play_arrow_rounded, color: AppColors.primaryLight, size: 28),
-                        onPressed: library.likedTracks.isNotEmpty
-                            ? () => TrackActions.play(context, library.likedTracks.first, queue: library.likedTracks)
-                            : null,
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                // 2-card sub-grid: Downloaded & Device Audio
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: EchoGlassCard(
-                        onTap: () {
-                          Navigator.of(context).push(MaterialPageRoute<void>(
-                            builder: (_) => const DownloadsDetailScreen(),
-                          ));
-                        },
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        borderRadius: AppSpacing.radiusLg,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: <Widget>[
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.secondary.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(Icons.download_done_rounded, color: AppColors.secondary, size: 20),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.secondaryContainer.withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    downloads.humanSize(downloads.totalBytes),
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.secondary,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            const Text(
-                              'Downloaded',
-                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                            ),
-                            Text(
-                              '${downloads.downloads.length} offline tracks',
-                              style: const TextStyle(color: AppColors.textSecondaryDark, fontSize: 11.5),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-
-                    Expanded(
-                      child: EchoGlassCard(
-                        onTap: () {
-                          final provider = context.read<LocalMusicProvider?>();
-                          if (provider != null) {
-                            library.scanLocal(provider);
-                          }
-                          Navigator.of(context).push(MaterialPageRoute<void>(
-                            builder: (_) => const LocalMusicScreen(),
-                          ));
-                        },
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        borderRadius: AppSpacing.radiusLg,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: <Widget>[
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.surfaceContainerHighest,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(Icons.folder_special_rounded, color: AppColors.primaryLight, size: 20),
-                                ),
-                                const Icon(Icons.phone_android_rounded, size: 16, color: AppColors.outline),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            const Text(
-                              'Device Audio',
-                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                            ),
-                            Text(
-                              library.localScanning
-                                  ? 'Scanning...'
-                                  : '${library.localTracks.length} files found',
-                              style: const TextStyle(color: AppColors.textSecondaryDark, fontSize: 11.5),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+          child: SectionHeader(
+            title: 'Recently Played',
+            subtitle: 'Ordered by most recent playback',
+            actionLabel: 'Clear',
+            onAction: library.clearHistory,
+          ),
+        ),
+      );
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (BuildContext ctx, int i) {
+                final HistoryEntry h = library.history[i];
+                return TrackTile(
+                  track: h.track,
+                  dense: true,
+                  onTap: () => TrackActions.play(context, h.track),
+                  onMenu: () => showTrackActionsSheet(context, h.track),
+                );
+              },
+              childCount: library.history.length.clamp(0, 8),
             ),
           ),
         ),
@@ -1810,39 +1843,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
         sliver: _buildCollectionsList(library),
       ),
     );
-
-    // Recently Played Tracks Section
-    if (library.history.isNotEmpty && _selectedFilter == 'All') {
-      slivers.add(
-        SliverToBoxAdapter(
-          child: SectionHeader(
-            title: 'Recently Played',
-            subtitle: 'Ordered by most recent playback',
-            actionLabel: 'Clear',
-            onAction: library.clearHistory,
-          ),
-        ),
-      );
-      slivers.add(
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (BuildContext ctx, int i) {
-                final HistoryEntry h = library.history[i];
-                return TrackTile(
-                  track: h.track,
-                  dense: true,
-                  onTap: () => TrackActions.play(context, h.track),
-                  onMenu: () => showTrackActionsSheet(context, h.track),
-                );
-              },
-              childCount: library.history.length.clamp(0, 8),
-            ),
-          ),
-        ),
-      );
-    }
 
     return slivers;
   }
