@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 
 import '../core/cache/cache_store.dart';
@@ -678,7 +679,75 @@ class MusicRepository {
     return filled >= 1 && filled >= (sections.length / 3).ceil();
   }
 
+  /// Drop accidental admin duplicates (same Jio source_id / source_url).
+  /// Keeps the earliest [position] so Home / Web do not repeat the same playlist card.
+  List<CatalogSection> _dedupeCatalogSections(List<CatalogSection> sections) {
+    if (sections.length < 2) return sections;
+    final List<CatalogSection> sorted = List<CatalogSection>.from(sections)
+      ..sort((CatalogSection a, CatalogSection b) => a.position.compareTo(b.position));
+    final Set<String> seen = <String>{};
+    final List<CatalogSection> out = <CatalogSection>[];
+    for (final CatalogSection s in sorted) {
+      final String sid = s.sourceId.trim();
+      final String url = s.sourceUrl.trim().toLowerCase();
+      final String key = sid.isNotEmpty
+          ? '${s.sourceType}|$sid'
+          : (url.isNotEmpty ? '${s.sourceType}|$url' : 'key|${s.key}');
+      if (!seen.add(key)) continue;
+      out.add(s);
+    }
+    return out;
+  }
+
+  /// Bundled shelves (trimmed tracks) so first open paints instantly before network.
+  Future<List<CatalogSection>?> _loadBundledCatalogSeed(String? lang) async {
+    final String normalized = (lang ?? 'hindi').toLowerCase();
+    // Ship hindi seed; other langs fall back to it until disk cache fills.
+    const String assetPath = 'assets/catalog_seed_hindi.json';
+    try {
+      final String text = await rootBundle.loadString(assetPath);
+      final dynamic decoded = jsonDecode(text);
+      if (decoded is! List) return null;
+      final List<CatalogSection> sections = decoded
+          .whereType<Map>()
+          .map((Map m) => CatalogSection.fromJson(Map<String, dynamic>.from(m)))
+          .toList();
+      if (!_catalogLooksHealthy(sections)) return null;
+      if (normalized != 'all' && normalized != 'hindi') {
+        final List<CatalogSection> filtered = sections
+            .where(
+              (CatalogSection s) =>
+                  s.language.toLowerCase() == 'all' ||
+                  s.language.toLowerCase() == normalized,
+            )
+            .toList();
+        if (_catalogLooksHealthy(filtered)) return filtered;
+      }
+      return sections;
+    } catch (e) {
+      debugPrint('[MusicRepository] bundled catalog seed miss: $e');
+      return null;
+    }
+  }
+
   Future<List<CatalogSection>> getCatalogSections({
+    bool includeDisabled = false,
+    String? lang,
+    String? group,
+    bool forceRefresh = false,
+  }) async {
+    final List<CatalogSection> result = await _getCatalogSectionsRaw(
+      includeDisabled: includeDisabled,
+      lang: lang,
+      group: group,
+      forceRefresh: forceRefresh,
+    );
+    // Admin includeDisabled keeps every row for editing; Home/Web dedupe repeats.
+    if (includeDisabled) return result;
+    return _dedupeCatalogSections(result);
+  }
+
+  Future<List<CatalogSection>> _getCatalogSectionsRaw({
     bool includeDisabled = false,
     String? lang,
     String? group,
@@ -694,9 +763,8 @@ class MusicRepository {
         : _readCatalogCache(cacheKey);
     final bool cacheOk = cached != null && _catalogLooksHealthy(cached);
 
-    // Instant reopen from healthy cache
+    // Instant reopen from healthy disk cache
     if (cacheOk && !forceRefresh) {
-      // 30-minute SWR background revalidation policy
       final DateTime? lastFetched = _catalogLastFetched[cacheKey];
       final bool isStale = lastFetched == null ||
           DateTime.now().difference(lastFetched) > const Duration(minutes: 30);
@@ -704,6 +772,22 @@ class MusicRepository {
         _revalidateCatalogSections(cacheKey, includeDisabled, lang, group);
       }
       return cached;
+    }
+
+    // Cold install: paint bundled seed immediately, then refresh in background
+    if (!forceRefresh && !includeDisabled) {
+      final List<CatalogSection>? seed = await _loadBundledCatalogSeed(lang);
+      if (seed != null) {
+        _revalidateCatalogSections(cacheKey, includeDisabled, lang, group);
+        // Persist seed so next launch hits disk cache without asset decode cost
+        try {
+          await _writeCatalogCache(
+            cacheKey,
+            seed.map((CatalogSection s) => s.toJson()).toList(),
+          );
+        } catch (_) {}
+        return seed;
+      }
     }
 
     final CustomApiProvider? provider = _customApiProvider;
@@ -726,7 +810,7 @@ class MusicRepository {
             }
             return fresh;
           }
-          if (cacheOk) return cached;
+          if (cacheOk) return cached!;
           if (!includeDisabled) {
             await _writeCatalogCache(cacheKey, raw);
           }
@@ -738,7 +822,10 @@ class MusicRepository {
       }
     }
 
-    if (cacheOk) return cached;
+    if (cacheOk) return cached!;
+
+    final List<CatalogSection>? seed = await _loadBundledCatalogSeed(lang);
+    if (seed != null) return seed;
 
     if (SupabaseService().isInitialized) {
       return _getCatalogSectionsFromSupabase(
@@ -764,7 +851,7 @@ class MusicRepository {
           includeDisabled: includeDisabled,
           lang: lang,
           group: group,
-          refresh: false,
+          refresh: true,
         );
         if (raw.isNotEmpty) {
           final List<CatalogSection> fresh = raw
@@ -773,7 +860,11 @@ class MusicRepository {
           if (_catalogLooksHealthy(fresh)) {
             _catalogLastFetched[cacheKey] = DateTime.now();
             if (!includeDisabled) {
-              await _writeCatalogCache(cacheKey, raw);
+              final List<CatalogSection> deduped = _dedupeCatalogSections(fresh);
+              await _writeCatalogCache(
+                cacheKey,
+                deduped.map((CatalogSection s) => s.toJson()).toList(),
+              );
             }
           }
         }

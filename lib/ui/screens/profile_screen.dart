@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/app_dependencies.dart';
 import '../../core/storage/settings_store.dart';
@@ -420,11 +421,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: const Text('Theme Mode',
                           style: TextStyle(fontWeight: FontWeight.w600)),
                       subtitle: Text(
-                        settings.themeMode == ThemeMode.system
-                            ? 'System Default'
-                            : (settings.themeMode == ThemeMode.dark
-                                ? 'Nocturnal Dark'
-                                : 'Alabaster Light'),
+                        settings.themeMode == ThemeMode.light
+                            ? 'Alabaster Light'
+                            : 'Nocturnal Dark',
                       ),
                       trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () => _pickTheme(context, settings),
@@ -475,21 +474,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Row(
                           children: <Widget>[
                             TextButton(
-                              onPressed: () => _showLegalDialog(
-                                context,
-                                'Privacy Policy',
-                                'Kalpkrut Beats respects your privacy. We collect minimal telemetry required to keep '
-                                'streaming latency low. We never sell personal listener information or audio listening patterns.',
+                              onPressed: () => _openLegalUrl(
+                                'https://kalpkrutinfotech.com/privacy',
                               ),
                               child: const Text('Privacy Policy', style: TextStyle(fontSize: 12)),
                             ),
                             const Text('•', style: TextStyle(color: AppColors.outline)),
                             TextButton(
-                              onPressed: () => _showLegalDialog(
-                                context,
-                                'Terms of Service',
-                                'By using Kalpkrut Beats, you agree to stream audio strictly in accordance with copyright licenses '
-                                'provided by source artists. Commercial rebroadcasting is prohibited without direct license.',
+                              onPressed: () => _openLegalUrl(
+                                'https://kalpkrutinfotech.com/terms',
                               ),
                               child: const Text('Terms of Service', style: TextStyle(fontSize: 12)),
                             ),
@@ -1495,20 +1488,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showLegalDialog(BuildContext context, String title, String content) {
-    showDialog<void>(
-      context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(content, style: const TextStyle(fontSize: 13, height: 1.4)),
-        actions: <Widget>[
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
+  Future<void> _openLegalUrl(String url) async {
+    final Uri uri = Uri.parse(url);
+    final bool ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open $url')),
+      );
+    }
   }
 
   void _pickQuality(
@@ -1554,7 +1541,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            for (final ThemeMode mode in ThemeMode.values)
+            for (final ThemeMode mode in <ThemeMode>[
+              ThemeMode.dark,
+              ThemeMode.light,
+            ])
               ListTile(
                 leading: Icon(
                   mode == settings.themeMode ? Icons.radio_button_checked : Icons.radio_button_unchecked,
@@ -1563,9 +1553,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       : context.textSecondary,
                 ),
                 title: Text(
-                  mode == ThemeMode.system
-                      ? 'System Default'
-                      : (mode == ThemeMode.dark ? 'Nocturnal Dark' : 'Alabaster Light'),
+                  mode == ThemeMode.dark ? 'Nocturnal Dark' : 'Alabaster Light',
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 onTap: () {

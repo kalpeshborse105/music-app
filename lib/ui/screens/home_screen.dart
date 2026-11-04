@@ -46,6 +46,11 @@ class HomeScreen extends StatefulWidget {
     _activeState?._resetToDefault();
   }
 
+  /// Silent background refresh (no pull UI) — used after warm-up / login.
+  static void silentRefreshLatest() {
+    _activeState?._silentBackgroundRefresh();
+  }
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -132,6 +137,33 @@ class _HomeScreenState extends State<HomeScreen> {
       _loadInitialTracks(),
       library.syncWithSupabase(),
     ]);
+  }
+
+  /// Fetch latest catalogue + trending without blocking or flashing the UI.
+  Future<void> _silentBackgroundRefresh() async {
+    if (!mounted) return;
+    try {
+      final MusicRepository repo = context.read<MusicRepository>();
+      final LibraryController library = context.read<LibraryController>();
+      final String? lang = _activeLang;
+      final List<Object> results = await Future.wait(<Future<Object>>[
+        repo.trending(limit: 20, language: lang),
+        repo.getCatalogSections(lang: lang, forceRefresh: true),
+        library.syncWithSupabase().then((_) => true),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _trendingFuture = Future<List<Track>>.value(
+          results[0] as List<Track>,
+        );
+        _catalogSectionsFuture = Future<List<CatalogSection>>.value(
+          results[1] as List<CatalogSection>,
+        );
+      });
+      await _loadInitialTracks();
+    } catch (e) {
+      debugPrint('[HomeScreen] silent refresh skipped: $e');
+    }
   }
 
   void _onScrollToTop() {
@@ -235,6 +267,10 @@ class _HomeScreenState extends State<HomeScreen> {
       _trendingFuture = repo.trending(limit: 20, language: lang);
       _catalogSectionsFuture = repo.getCatalogSections(lang: lang);
       _loadInitialTracks();
+      // Cache-first paint, then silently pull latest admin/API updates.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _silentBackgroundRefresh();
+      });
     }
   }
 
@@ -1345,9 +1381,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           width: 80,
                           height: 80,
                           color: AppColors.primary.withValues(alpha: 0.2),
-                          child: const Icon(
+                          child: Icon(
                             Icons.celebration_rounded,
-                            color: AppColors.primaryLight,
+                            color: isDark
+                                ? AppColors.primaryLight
+                                : AppColors.lightPrimaryAccent,
                             size: 36,
                           ),
                         ),
@@ -1356,9 +1394,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         width: 80,
                         height: 80,
                         color: AppColors.primary.withValues(alpha: 0.2),
-                        child: const Icon(
+                        child: Icon(
                           Icons.celebration_rounded,
-                          color: AppColors.primaryLight,
+                          color: isDark
+                              ? AppColors.primaryLight
+                              : AppColors.lightPrimaryAccent,
                           size: 36,
                         ),
                       ),
@@ -1371,31 +1411,39 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: <Widget>[
                     Row(
                       children: <Widget>[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.25),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: AppColors.primary,
-                              width: 0.8,
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
                             ),
-                          ),
-                          child: Text(
-                            (banner.subtitle != null &&
-                                    banner.subtitle!.isNotEmpty)
-                                ? banner.subtitle!.toUpperCase()
-                                : (banner.displayGroup.isNotEmpty
-                                      ? banner.displayGroup.toUpperCase()
-                                      : 'FEATURED SPOTLIGHT'),
-                            style: const TextStyle(
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.6,
-                              color: AppColors.primaryLight,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.25),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: isDark
+                                    ? AppColors.primary
+                                    : AppColors.lightPrimaryAccent,
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Text(
+                              (banner.subtitle != null &&
+                                      banner.subtitle!.isNotEmpty)
+                                  ? banner.subtitle!.toUpperCase()
+                                  : (banner.displayGroup.isNotEmpty
+                                        ? banner.displayGroup.toUpperCase()
+                                        : 'FEATURED SPOTLIGHT'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.6,
+                                color: isDark
+                                    ? AppColors.primaryLight
+                                    : AppColors.lightPrimaryAccent,
+                              ),
                             ),
                           ),
                         ),
@@ -1629,6 +1677,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     final int count = sec.itemCount > 0
                         ? sec.itemCount
                         : sec.items.length;
+                    // Skip empty featured albums/playlists (0 songs looks broken).
+                    if (sec.sourceType != 'artist' &&
+                        count <= 0 &&
+                        sec.items.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    final bool shelfDark = context.isDarkMode;
                     return MediaCard(
                       title: sec.displayTitle,
                       subtitle:
@@ -1655,7 +1710,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ? 'ALBUM'
                                       : 'PLAYLIST')),
                       badgeColor: sec.isBanner
-                          ? AppColors.primaryLight
+                          ? (shelfDark
+                              ? AppColors.primaryLight
+                              : AppColors.lightPrimaryAccent)
                           : AppColors.secondary,
                       width: cardWidth,
                       onTap: () => openSection(sec),

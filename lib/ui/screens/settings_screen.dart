@@ -212,13 +212,18 @@ class SettingsScreen extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            for (final ThemeMode mode in ThemeMode.values)
+            for (final ThemeMode mode in <ThemeMode>[
+              ThemeMode.dark,
+              ThemeMode.light,
+            ])
               ListTile(
                 leading: Icon(
                   mode == settings.themeMode ? Icons.radio_button_checked : Icons.radio_button_unchecked,
                   color: mode == settings.themeMode ? Theme.of(ctx).colorScheme.primary : null,
                 ),
-                title: Text(mode.name[0].toUpperCase() + mode.name.substring(1)),
+                title: Text(
+                  mode == ThemeMode.dark ? 'Nocturnal Dark' : 'Alabaster Light',
+                ),
                 onTap: () {
                   settings.themeMode = mode;
                   Navigator.pop(ctx);

@@ -7,6 +7,8 @@ import '../../core/utils/auth_utils.dart';
 import '../../data/services/supabase_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/glass_card.dart';
+import 'app_shell.dart';
+import 'onboarding_auth_screen.dart';
 
 /// Dedicated Password Reset and Recovery Screen.
 /// Provides real-time validation, show/hide eye toggles, recovery session verification,
@@ -52,8 +54,19 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   void _initSessionCheck() {
     final SupabaseService supabase = SupabaseService();
 
+    // Google landed here by mistake (`/?code=…#/reset-password`) — finish login, leave.
+    if (AuthUtils.isOAuthLoginCallback(Uri.base)) {
+      supabase.isPasswordRecovery = false;
+      unawaited(_leaveOAuthMisroute());
+      return;
+    }
+
     // Listen for incoming password recovery or signedIn event
     _authSub = supabase.authStateChanges.listen((AuthState data) {
+      if (AuthUtils.isOAuthLoginCallback(Uri.base)) {
+        unawaited(_leaveOAuthMisroute());
+        return;
+      }
       if (data.session != null ||
           data.event == AuthChangeEvent.passwordRecovery ||
           data.event == AuthChangeEvent.signedIn) {
@@ -83,11 +96,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       });
     }
 
-    final bool urlHasRecovery = uri.path.contains('reset-password') ||
-        uri.fragment.contains('type=recovery') ||
-        uri.fragment.contains('access_token') ||
-        uri.queryParameters.containsKey('code') ||
-        uri.queryParameters['type'] == 'recovery';
+    final bool urlHasRecovery = AuthUtils.isPasswordRecoveryUri(uri);
 
     if (supabase.isAuthenticated ||
         supabase.currentUser != null ||
@@ -116,6 +125,42 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         }
       });
     }
+  }
+
+  /// Google OAuth was mis-routed onto this screen — establish session and go home.
+  Future<void> _leaveOAuthMisroute() async {
+    final SupabaseService supabase = SupabaseService();
+    supabase.isPasswordRecovery = false;
+    try {
+      if (!supabase.isAuthenticated) {
+        final String? code = Uri.base.queryParameters['code'];
+        if (code != null && code.isNotEmpty) {
+          await supabase.client.auth.exchangeCodeForSession(code);
+        }
+      }
+      await supabase.ensureProfile();
+    } catch (e) {
+      debugPrint('[ResetPasswordScreen] OAuth misroute finish: $e');
+    }
+    if (!mounted) return;
+    final bool authed = supabase.isAuthenticated;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => authed
+            ? const AppShell()
+            : OnboardingAuthScreen(
+                onComplete: () {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const AppShell(),
+                    ),
+                    (Route<dynamic> r) => false,
+                  );
+                },
+              ),
+      ),
+      (Route<dynamic> r) => false,
+    );
   }
 
   Future<void> _handleSubmit() async {

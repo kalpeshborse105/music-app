@@ -46,7 +46,7 @@ class Artwork extends StatelessWidget {
         url != null && (url!.startsWith('http://') || url!.startsWith('https://'));
 
     final Widget imageWidget = !isRemote
-        ? _fallback()
+        ? _fallback(context)
         : CachedNetworkImage(
             imageUrl: url!,
             width: size,
@@ -59,7 +59,7 @@ class Artwork extends StatelessWidget {
               if (failedUrl != null && failedUrl.isNotEmpty) {
                 _failedUrls.add(failedUrl);
               }
-              return _fallback();
+              return _fallback(c);
             },
           );
 
@@ -127,25 +127,35 @@ class Artwork extends StatelessWidget {
         ),
       );
 
-  Widget _fallback() {
+  Widget _fallback(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerHigh.withValues(alpha: 0.6),
-        gradient: const LinearGradient(
+        color: isDark
+            ? AppColors.surfaceContainerHigh.withValues(alpha: 0.6)
+            : AppColors.lightElevatedSurface,
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[
-            Color(0xFF2A2A3E),
-            Color(0xFF141420),
-          ],
+          colors: isDark
+              ? const <Color>[
+                  Color(0xFF2A2A3E),
+                  Color(0xFF141420),
+                ]
+              : const <Color>[
+                  Color(0xFFE2E8F0),
+                  Color(0xFFCBD5E1),
+                ],
         ),
       ),
       alignment: Alignment.center,
       child: Icon(
         fallbackIcon,
-        color: Colors.white.withValues(alpha: 0.75),
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.75)
+            : AppColors.textMutedLight,
         size: (size * 0.42).clamp(16.0, 72.0),
       ),
     );

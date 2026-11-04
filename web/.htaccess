@@ -1,0 +1,24 @@
+# Hostinger — Kalpkrut Beats Flutter web (beats.kalpkrutinfotech.com)
+# Critical: real files (google-site-verification=*.html, app-ads.txt) must win
+# before SPA fallback, or Google ownership checks fail with soft-200 index.html.
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # Serve existing files/directories as-is (verification HTML, icons, assets)
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Flutter SPA deep links
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+</IfModule>

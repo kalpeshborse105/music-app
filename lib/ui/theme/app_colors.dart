@@ -135,4 +135,11 @@ extension EchoThemeContext on BuildContext {
   Color get surfaceColor => isDarkMode ? AppColors.surfaceContainer : AppColors.lightSurface;
   Color get cardColor => isDarkMode ? AppColors.surfaceContainerHigh : AppColors.lightCard;
   Color get borderColor => isDarkMode ? AppColors.borderSubtle : AppColors.lightBorder;
+  Color get pageBackground => isDarkMode ? AppColors.darkBg : AppColors.lightBg;
+  Color get elevatedSurface =>
+      isDarkMode ? AppColors.surfaceContainerHighest : AppColors.lightElevatedSurface;
+  Color get accentPrimary =>
+      isDarkMode ? AppColors.primary : AppColors.lightPrimaryAccent;
+  Color get accentSecondary =>
+      isDarkMode ? AppColors.secondary : AppColors.lightSecondaryAccent;
 }

@@ -1,0 +1,94 @@
+Kalpkrut Beats — Google OAuth verification fix (project kalpkrut-beats / 986422322069)
+========================================================================================
+
+Google email issues (exact):
+1) Homepage https://beats.kalpkrutinfotech.com is not registered to you.
+2) Homepage does not include a link to Privacy Policy https://kalpkrutinfotech.com/privacy
+
+--------------------------------------------------------------------------------
+A) CODE / SITE FIXES (done in repo — YOU must deploy)
+--------------------------------------------------------------------------------
+1. music-app/web/index.html
+   - Visible footer bar with absolute link:
+     https://kalpkrutinfotech.com/privacy
+   - Also Terms + Company + Play Store links
+   - Deploy Flutter web build to Hostinger beats subdomain
+
+2. kalpkrut (company site) Privacy + Terms
+   - Privacy now covers Beats, Google Sign-In, AdMob, account deletion
+   - Terms mention Beats product use
+   - Deploy: npm run build → upload dist/ to kalpkrutinfotech.com
+
+3. music-app/web/app-ads.txt
+   - Same AdMob line as company site (helps AdMob readiness on beats host)
+
+Deploy beats web (from music-app):
+  flutter build web --release
+  Upload build/web/* to Hostinger folder for beats.kalpkrutinfotech.com
+
+Deploy company site (from D:\kalpkrut):
+  npm run build
+  Upload dist/* to public_html for kalpkrutinfotech.com
+
+After deploy, open in browser (Incognito) and confirm:
+  - https://beats.kalpkrutinfotech.com/ shows "Privacy Policy" link at bottom
+  - Clicking it opens https://kalpkrutinfotech.com/privacy
+  - https://kalpkrutinfotech.com/privacy mentions Kalpkrut Beats + Google Sign-In
+
+--------------------------------------------------------------------------------
+B) DOMAIN OWNERSHIP (you must do in Google — cannot be done from code alone)
+--------------------------------------------------------------------------------
+Preferred: verify the whole domain once.
+
+1. Google Search Console → Add property → Domain → kalpkrutinfotech.com
+2. Add the TXT DNS record Hostinger shows
+3. Verify
+
+OR verify URL-prefix https://beats.kalpkrutinfotech.com with HTML file / meta tag.
+
+Then Google Cloud Console (project kalpkrut-beats):
+  APIs & Services → OAuth consent / Branding / Domain verification
+  → ensure kalpkrutinfotech.com (and beats if listed) is verified under the SAME Google account
+    that owns the Cloud project
+
+Also confirm OAuth branding fields:
+  App name: Kalpkrut Beats
+  Homepage: https://beats.kalpkrutinfotech.com
+  Privacy policy: https://kalpkrutinfotech.com/privacy
+  Authorised domains: kalpkrutinfotech.com  (covers beats subdomain)
+
+--------------------------------------------------------------------------------
+C) RESUBMIT + REPLY TO THE EMAIL (required)
+--------------------------------------------------------------------------------
+1. Cloud Console → OAuth Verification / Branding → Save → Submit / Resubmit
+2. Reply to the Google verification email with something like:
+
+---
+Hello,
+
+We have completed the requested items for project 986422322069 (kalpkrut-beats):
+
+1. Domain ownership: kalpkrutinfotech.com / beats.kalpkrutinfotech.com is verified in
+   Google Search Console / Cloud domain verification under this Google account.
+2. Homepage https://beats.kalpkrutinfotech.com now includes an easily accessible link to
+   our Privacy Policy at https://kalpkrutinfotech.com/privacy
+
+Please continue the OAuth verification review.
+
+Thank you,
+Kalpkrut Infotech
+---
+
+Without this reply, review often stays blocked even after you fix the site.
+
+--------------------------------------------------------------------------------
+D) PLAY STORE / LEGAL CROSS-CHECK
+--------------------------------------------------------------------------------
+Play Console Data safety + App content should point to:
+  Privacy: https://kalpkrutinfotech.com/privacy
+  Account deletion: https://beats.kalpkrutinfotech.com/delete-account/
+
+Company footer already links Privacy / Terms / Cookie / Refund / Disclaimer.
+Apps page already links Privacy.
+
+In-app Profile Privacy / Terms now open the live URLs (not a short dialog).

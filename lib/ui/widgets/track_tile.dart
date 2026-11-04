@@ -238,18 +238,21 @@ class _HotTag extends StatelessWidget {
 class _ExplicitTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
       decoration: BoxDecoration(
-        color: AppColors.outlineVariant.withValues(alpha: 0.6),
+        color: isDark
+            ? AppColors.outlineVariant.withValues(alpha: 0.6)
+            : AppColors.lightBorderSubtle,
         borderRadius: BorderRadius.circular(3),
       ),
-      child: const Text(
+      child: Text(
         'E',
         style: TextStyle(
           fontSize: 9,
           fontWeight: FontWeight.w700,
-          color: Colors.white,
+          color: isDark ? Colors.white : AppColors.textPrimaryLight,
         ),
       ),
     );

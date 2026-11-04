@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/config/app_config.dart';
 import '../../core/storage/settings_store.dart';
 import '../../data/music_repository.dart';
@@ -71,10 +72,6 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   bool _isTestingJamendo = false;
 
   // System & Feature Flags
-  bool _spatialAudio = true;
-  bool _flacPipeline = true;
-  bool _localSync = true;
-  bool _hapticFeedback = true;
 
   // Catalogue Management State (Local-first)
   bool _isLoadingCatalog = false;
@@ -117,7 +114,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
   late TabController _tabController;
 
-  // Music-ops first: content → ads → notify → people → system.
+  // Real ops only — every tab maps to live catalogue / Supabase / ads / FCM tools.
   static const List<Map<String, dynamic>> _tabs = <Map<String, dynamic>>[
     <String, dynamic>{'title': 'Overview', 'icon': Icons.dashboard_rounded},
     <String, dynamic>{'title': 'Catalogue', 'icon': Icons.queue_music_rounded},
@@ -128,7 +125,6 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     <String, dynamic>{'title': 'Users', 'icon': Icons.people_alt_rounded},
     <String, dynamic>{'title': 'Reports', 'icon': Icons.report_problem_rounded},
     <String, dynamic>{'title': 'Providers', 'icon': Icons.hub_rounded},
-    <String, dynamic>{'title': 'Licenses', 'icon': Icons.gavel_rounded},
     <String, dynamic>{'title': 'Settings', 'icon': Icons.tune_rounded},
   ];
 
@@ -572,10 +568,6 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 ),
                 SingleChildScrollView(
                   padding: const EdgeInsets.all(AppSpacing.md),
-                  child: _buildLicensesTab(context),
-                ),
-                SingleChildScrollView(
-                  padding: const EdgeInsets.all(AppSpacing.md),
                   child: _buildSettingsTab(context),
                 ),
               ],
@@ -604,8 +596,6 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       case 8:
         return _buildProvidersTab(context);
       case 9:
-        return _buildLicensesTab(context);
-      case 10:
       default:
         return _buildSettingsTab(context);
     }
@@ -1550,12 +1540,34 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     }
   }
 
-  Future<void> _moveCatalogSection(int oldIndex, int newIndex) async {
-    if (newIndex < 0 || newIndex >= _catalogSections.length) return;
-    final List<CatalogSection> updated = List<CatalogSection>.from(_catalogSections);
-    final CatalogSection item = updated.removeAt(oldIndex);
-    updated.insert(newIndex, item);
-    final List<String> orderedKeys = updated.map((CatalogSection s) => s.sectionKey).toList();
+  /// Move a shelf up/down **inside its group** (1st in group stays #1 there).
+  Future<void> _moveCatalogSectionInGroup(
+    List<CatalogSection> groupSections,
+    int fromGroupIndex,
+    int toGroupIndex,
+  ) async {
+    if (fromGroupIndex == toGroupIndex) return;
+    if (toGroupIndex < 0 || toGroupIndex >= groupSections.length) return;
+
+    final List<CatalogSection> reorderedGroup =
+        List<CatalogSection>.from(groupSections);
+    final CatalogSection moved = reorderedGroup.removeAt(fromGroupIndex);
+    reorderedGroup.insert(toGroupIndex, moved);
+
+    final Set<String> groupKeys =
+        groupSections.map((CatalogSection s) => s.sectionKey).toSet();
+    final List<CatalogSection> queue =
+        List<CatalogSection>.from(reorderedGroup);
+    final List<CatalogSection> updated = <CatalogSection>[];
+    for (final CatalogSection s in _catalogSections) {
+      if (groupKeys.contains(s.sectionKey)) {
+        updated.add(queue.removeAt(0));
+      } else {
+        updated.add(s);
+      }
+    }
+    final List<String> orderedKeys =
+        updated.map((CatalogSection s) => s.sectionKey).toList();
 
     setState(() => _catalogSections = updated);
 
@@ -1566,7 +1578,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to reorder: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Failed to reorder: $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
         await _loadCatalogSections();
       }
@@ -1661,7 +1676,15 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildCatalogSectionCard(BuildContext context, CatalogSection section, int index) {
+  Widget _buildCatalogSectionCard(
+    BuildContext context,
+    CatalogSection section, {
+    required int displayNumber,
+    required bool canMoveUp,
+    required bool canMoveDown,
+    required VoidCallback onMoveUp,
+    required VoidCallback onMoveDown,
+  }) {
     final bool isDark = context.isDarkMode;
     final bool isRefreshing = _refreshingSectionKeys.contains(section.sectionKey);
     final bool isMix = section.sourceType == 'mix' || section.sourceType == 'jiosaavn_mix';
@@ -1875,7 +1898,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        '#${section.position}',
+                        '#$displayNumber',
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
@@ -1885,15 +1908,13 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     ),
                     IconButton(
                       icon: const Icon(Icons.arrow_upward_rounded, size: 18),
-                      tooltip: 'Move Up',
-                      onPressed: index > 0 ? () => _moveCatalogSection(index, index - 1) : null,
+                      tooltip: 'Move Up in section',
+                      onPressed: canMoveUp ? onMoveUp : null,
                     ),
                     IconButton(
                       icon: const Icon(Icons.arrow_downward_rounded, size: 18),
-                      tooltip: 'Move Down',
-                      onPressed: index < _catalogSections.length - 1
-                          ? () => _moveCatalogSection(index, index + 1)
-                          : null,
+                      tooltip: 'Move Down in section',
+                      onPressed: canMoveDown ? onMoveDown : null,
                     ),
                     const Spacer(),
                     IconButton(
@@ -1932,17 +1953,19 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
-              // Position & Reorder Arrows
+              // Section-wise position (#1 = first in this group) + reorder
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   InkWell(
-                    onTap: index > 0 ? () => _moveCatalogSection(index, index - 1) : null,
+                    onTap: canMoveUp ? onMoveUp : null,
                     borderRadius: BorderRadius.circular(4),
                     child: Icon(
                       Icons.arrow_drop_up_rounded,
                       size: 24,
-                      color: index > 0 ? context.textPrimary : context.textMuted.withValues(alpha: 0.3),
+                      color: canMoveUp
+                          ? context.textPrimary
+                          : context.textMuted.withValues(alpha: 0.3),
                     ),
                   ),
                   Container(
@@ -1952,7 +1975,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      '#${section.position}',
+                      '#$displayNumber',
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
@@ -1961,14 +1984,12 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     ),
                   ),
                   InkWell(
-                    onTap: index < _catalogSections.length - 1
-                        ? () => _moveCatalogSection(index, index + 1)
-                        : null,
+                    onTap: canMoveDown ? onMoveDown : null,
                     borderRadius: BorderRadius.circular(4),
                     child: Icon(
                       Icons.arrow_drop_down_rounded,
                       size: 24,
-                      color: index < _catalogSections.length - 1
+                      color: canMoveDown
                           ? context.textPrimary
                           : context.textMuted.withValues(alpha: 0.3),
                     ),
@@ -3514,7 +3535,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     const Divider(height: 1),
                     const SizedBox(height: 12),
 
-                    // Items in this group
+                    // Items in this group — numbers are 1..N within the section/group
                     ListView.separated(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -3522,8 +3543,23 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (BuildContext ctx, int index) {
                         final CatalogSection sec = groupSections[index];
-                        final int globalIndex = _catalogSections.indexOf(sec);
-                        return _buildCatalogSectionCard(ctx, sec, globalIndex >= 0 ? globalIndex : index);
+                        return _buildCatalogSectionCard(
+                          ctx,
+                          sec,
+                          displayNumber: index + 1,
+                          canMoveUp: index > 0,
+                          canMoveDown: index < groupSections.length - 1,
+                          onMoveUp: () => _moveCatalogSectionInGroup(
+                            groupSections,
+                            index,
+                            index - 1,
+                          ),
+                          onMoveDown: () => _moveCatalogSectionInGroup(
+                            groupSections,
+                            index,
+                            index + 1,
+                          ),
+                        );
                       },
                     ),
                   ],
@@ -4560,35 +4596,103 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             color: isDark ? AppColors.borderSubtle : AppColors.lightBorder,
           ),
 
-          // Scrollable Sidebar Navigation Groups
+          // Scrollable Sidebar — only real tabs (matches TabController length)
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
               children: <Widget>[
                 _buildSidebarSectionLabel('ANALYTICS & CORE'),
-                _buildSidebarItem(0, 'Overview', Icons.dashboard_rounded, isDark),
+                _buildSidebarItem(
+                  0,
+                  'Overview',
+                  Icons.dashboard_rounded,
+                  isDark,
+                ),
 
                 const SizedBox(height: 12),
                 _buildSidebarSectionLabel('CONTENT & STREAMING'),
-                _buildSidebarItem(1, 'Catalogue', Icons.queue_music_rounded, isDark),
-                _buildSidebarItem(2, 'Live Radio', Icons.radio_rounded, isDark, badgeText: 'LIVE'),
-                _buildSidebarItem(3, 'Genre & Moods', Icons.category_rounded, isDark),
+                _buildSidebarItem(
+                  1,
+                  'Catalogue',
+                  Icons.queue_music_rounded,
+                  isDark,
+                  badgeText: '${_metrics['catalog_sections_count'] ?? _catalogSections.length}',
+                ),
+                _buildSidebarItem(
+                  2,
+                  'Live Radio',
+                  Icons.radio_rounded,
+                  isDark,
+                  badgeText: _adminRadioStations.isEmpty
+                      ? null
+                      : '${_adminRadioStations.length}',
+                ),
+                _buildSidebarItem(
+                  3,
+                  'Library Categories',
+                  Icons.category_rounded,
+                  isDark,
+                  badgeText: _adminLibraryCats.isEmpty
+                      ? null
+                      : '${_adminLibraryCats.length}',
+                ),
 
                 const SizedBox(height: 12),
                 _buildSidebarSectionLabel('GROWTH & ADS'),
-                _buildSidebarItem(4, 'Advertisements', Icons.campaign_rounded, isDark),
-                _buildSidebarItem(5, 'Push Notify', Icons.notifications_active_rounded, isDark),
+                _buildSidebarItem(
+                  4,
+                  'Advertisements',
+                  Icons.campaign_rounded,
+                  isDark,
+                  badgeText: '${_metrics['ads_count'] ?? ''}'.isEmpty ||
+                          '${_metrics['ads_count']}' == '0'
+                      ? null
+                      : '${_metrics['ads_count']}',
+                ),
+                _buildSidebarItem(
+                  5,
+                  'Push Notify',
+                  Icons.notifications_active_rounded,
+                  isDark,
+                ),
 
                 const SizedBox(height: 12),
                 _buildSidebarSectionLabel('MANAGEMENT'),
-                _buildSidebarItem(6, 'User Accounts', Icons.people_alt_rounded, isDark),
-                _buildSidebarItem(7, 'Abuse Reports', Icons.report_problem_rounded, isDark),
+                _buildSidebarItem(
+                  6,
+                  'Users',
+                  Icons.people_alt_rounded,
+                  isDark,
+                  badgeText: '${_metrics['users_count'] ?? ''}'.isEmpty ||
+                          '${_metrics['users_count']}' == '0'
+                      ? null
+                      : '${_metrics['users_count']}',
+                ),
+                _buildSidebarItem(
+                  7,
+                  'Reports',
+                  Icons.report_problem_rounded,
+                  isDark,
+                  badgeText: '${_metrics['reports_count'] ?? ''}'.isEmpty ||
+                          '${_metrics['reports_count']}' == '0'
+                      ? null
+                      : '${_metrics['reports_count']}',
+                ),
 
                 const SizedBox(height: 12),
-                _buildSidebarSectionLabel('SYSTEM GATEWAYS'),
-                _buildSidebarItem(8, 'Audio Providers', Icons.hub_rounded, isDark),
-                _buildSidebarItem(9, 'Legal & Licenses', Icons.gavel_rounded, isDark),
-                _buildSidebarItem(10, 'Operations Settings', Icons.tune_rounded, isDark),
+                _buildSidebarSectionLabel('SYSTEM'),
+                _buildSidebarItem(
+                  8,
+                  'Audio Providers',
+                  Icons.hub_rounded,
+                  isDark,
+                ),
+                _buildSidebarItem(
+                  9,
+                  'Settings',
+                  Icons.tune_rounded,
+                  isDark,
+                ),
               ],
             ),
           ),
@@ -4816,38 +4920,76 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         ),
         const SizedBox(height: 16),
 
-        // Quick Actions Command Bar
+        // Quick actions — only real admin tabs with live counts
         Wrap(
           spacing: 10,
           runSpacing: 10,
           children: <Widget>[
             _buildOverviewQuickAction(
               context,
-              icon: Icons.add_circle_outline_rounded,
-              label: '+ New Catalogue Shelf',
+              icon: Icons.queue_music_rounded,
+              label:
+                  'Catalogue (${_metrics['catalog_sections_count'] ?? _catalogSections.length})',
               color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
               onTap: () => _goToTab(1),
             ),
             _buildOverviewQuickAction(
               context,
+              icon: Icons.radio_rounded,
+              label:
+                  'Live Radio (${_adminRadioStations.isEmpty ? (_metrics['radio_count'] ?? '—') : _adminRadioStations.length})',
+              color: AppColors.success,
+              onTap: () => _goToTab(2),
+            ),
+            _buildOverviewQuickAction(
+              context,
+              icon: Icons.category_rounded,
+              label:
+                  'Library (${_adminLibraryCats.isEmpty ? '—' : _adminLibraryCats.length})',
+              color: Colors.teal,
+              onTap: () => _goToTab(3),
+            ),
+            _buildOverviewQuickAction(
+              context,
               icon: Icons.campaign_rounded,
-              label: '+ New Ad Campaign',
+              label: 'Ads (${_metrics['ads_count'] ?? 0})',
               color: Colors.amber,
               onTap: () => _goToTab(4),
             ),
             _buildOverviewQuickAction(
               context,
-              icon: Icons.send_rounded,
-              label: '+ Send Push Alert',
+              icon: Icons.notifications_active_rounded,
+              label: 'Push Notify',
               color: isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent,
               onTap: () => _goToTab(5),
             ),
             _buildOverviewQuickAction(
               context,
-              icon: Icons.radio_rounded,
-              label: '+ Add Live Radio',
-              color: AppColors.success,
-              onTap: () => _goToTab(2),
+              icon: Icons.people_alt_rounded,
+              label: 'Users (${_metrics['users_count'] ?? 0})',
+              color: Colors.indigo,
+              onTap: () => _goToTab(6),
+            ),
+            _buildOverviewQuickAction(
+              context,
+              icon: Icons.report_problem_rounded,
+              label: 'Reports (${_metrics['reports_count'] ?? 0})',
+              color: Colors.deepOrange,
+              onTap: () => _goToTab(7),
+            ),
+            _buildOverviewQuickAction(
+              context,
+              icon: Icons.hub_rounded,
+              label: 'Providers',
+              color: Colors.blueGrey,
+              onTap: () => _goToTab(8),
+            ),
+            _buildOverviewQuickAction(
+              context,
+              icon: Icons.tune_rounded,
+              label: 'Settings',
+              color: Colors.grey,
+              onTap: () => _goToTab(9),
             ),
           ],
         ),
@@ -4879,25 +5021,35 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          const Text(
-                            'Supabase PostgreSQL: ',
-                            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                          ),
-                          Text(
-                            _metrics['database_status'] ?? 'Online',
-                            style: const TextStyle(
-                              color: AppColors.success,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
+                      Text.rich(
+                        TextSpan(
+                          children: <InlineSpan>[
+                            TextSpan(
+                              text: 'Supabase: ',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                color: context.textPrimary,
+                              ),
                             ),
-                          ),
-                        ],
+                            TextSpan(
+                              text: _metrics['database_status'] ?? 'Online',
+                              style: const TextStyle(
+                                color: AppColors.success,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
                       Text(
                         'Last Sync: ${_metrics['last_sync'] != null ? DateTime.tryParse(_metrics['last_sync'])?.toLocal().toString().split('.').first : "Just now"}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(fontSize: 11, color: context.textSecondary),
                       ),
                     ],
@@ -4923,31 +5075,55 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               ),
               _buildMetricCard(
                 context,
-                title: 'Total Tracks',
-                value: _metrics['tracks_count'] ?? 'Not tracked yet',
-                icon: Icons.music_note_rounded,
+                title: 'Catalogue Sections',
+                value: _metrics['catalog_sections_count'] ?? '0',
+                icon: Icons.queue_music_rounded,
                 color: isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent,
                 onTap: () => _goToTab(1),
               ),
               _buildMetricCard(
                 context,
-                title: 'Total Artists',
-                value: _metrics['artists_count'] ?? 'Not tracked yet',
+                title: 'Albums',
+                value: _metrics['albums_count'] ?? '0',
+                icon: Icons.album_rounded,
+                color: isDark ? AppColors.tertiaryLight : AppColors.lightTertiaryAccent,
+                onTap: () => _goToTab(1),
+              ),
+              _buildMetricCard(
+                context,
+                title: 'Artists',
+                value: _metrics['artists_count'] ?? '0',
                 icon: Icons.mic_external_on_rounded,
                 color: isDark ? AppColors.tertiaryLight : AppColors.lightTertiaryAccent,
                 onTap: () => _goToTab(1),
               ),
               _buildMetricCard(
                 context,
-                title: 'Total Playlists',
+                title: 'Playlists',
                 value: _metrics['playlists_count'] ?? '0',
-                icon: Icons.queue_music_rounded,
+                icon: Icons.library_music_rounded,
                 color: Colors.amber,
                 onTap: () => _goToTab(1),
               ),
               _buildMetricCard(
                 context,
-                title: 'Total Favorites',
+                title: 'Active Ads',
+                value: _metrics['ads_count'] ?? '0',
+                icon: Icons.campaign_rounded,
+                color: AppColors.secondary,
+                onTap: () => _goToTab(4),
+              ),
+              _buildMetricCard(
+                context,
+                title: 'Radio Stations',
+                value: '${RadioStation.stations.length}',
+                icon: Icons.radio_rounded,
+                color: AppColors.success,
+                onTap: () => _goToTab(2),
+              ),
+              _buildMetricCard(
+                context,
+                title: 'Favorites',
                 value: _metrics['favorites_count'] ?? '0',
                 icon: Icons.favorite_border_rounded,
                 color: AppColors.tertiary,
@@ -4962,7 +5138,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               ),
               _buildMetricCard(
                 context,
-                title: 'Total Reports',
+                title: 'Reports',
                 value: _metrics['reports_count'] ?? '0',
                 icon: Icons.flag_outlined,
                 color: AppColors.error,
@@ -5020,13 +5196,18 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 ],
               ),
               const SizedBox(height: 14),
-              Text(
-                value,
-                style: TextStyle(
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontSize: wide ? 26 : 22,
-                  fontWeight: FontWeight.w800,
-                  color: context.textPrimary,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontSize: wide ? 26 : 22,
+                    fontWeight: FontWeight.w800,
+                    color: context.textPrimary,
+                  ),
                 ),
               ),
             ],
@@ -5957,11 +6138,12 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
   Widget _buildSettingsTab(BuildContext context) {
     final bool isDark = context.isDarkMode;
+    final MusicRepository repo = context.read<MusicRepository>();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Text(
-          'System & Feature Flags',
+          'Ops Settings',
           style: TextStyle(
             fontFamily: 'Plus Jakarta Sans',
             fontSize: 20,
@@ -5969,43 +6151,102 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             color: context.textPrimary,
           ),
         ),
+        const SizedBox(height: 4),
+        Text(
+          'Live API endpoint and shortcuts to real catalogue tools. Fake feature flags removed.',
+          style: TextStyle(fontSize: 13, color: context.textSecondary),
+        ),
         const SizedBox(height: 16),
+        EchoGlassCard(
+          padding: const EdgeInsets.all(16),
+          borderRadius: 16,
+          backgroundColor: isDark ? null : AppColors.lightSurface,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'Music API base URL',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: context.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              SelectableText(
+                AppConfig.customApiUrl,
+                style: TextStyle(fontSize: 12, color: context.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  OutlinedButton.icon(
+                    onPressed: () => _goToTab(1),
+                    icon: const Icon(Icons.queue_music_rounded, size: 16),
+                    label: const Text('Open Catalogue'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      try {
+                        await repo.getCatalogSections(forceRefresh: true);
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Catalogue refresh started')),
+                        );
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Refresh failed: $e')),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.cloud_sync_rounded, size: 16),
+                    label: const Text('Force API refresh'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _goToTab(8),
+                    icon: const Icon(Icons.hub_rounded, size: 16),
+                    label: const Text('Providers'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
         EchoGlassCard(
           padding: EdgeInsets.zero,
           borderRadius: 16,
           backgroundColor: isDark ? null : AppColors.lightSurface,
           child: Column(
             children: <Widget>[
-              SwitchListTile(
-                title: const Text('Spatial Audio Engine',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                subtitle: const Text('Binaural 3D soundstage emulation'),
-                value: _spatialAudio,
-                onChanged: (bool v) => setState(() => _spatialAudio = v),
+              ListTile(
+                leading: const Icon(Icons.privacy_tip_outlined),
+                title: const Text('Privacy Policy'),
+                subtitle: const Text('kalpkrutinfotech.com/privacy'),
+                onTap: () {
+                  launchUrl(
+                    Uri.parse('https://kalpkrutinfotech.com/privacy'),
+                    mode: LaunchMode.externalApplication,
+                  );
+                },
+                trailing: const Icon(Icons.open_in_new, size: 16),
               ),
               const Divider(height: 1),
-              SwitchListTile(
-                title: const Text('Hi-Res 24-Bit FLAC Pipeline',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                subtitle: const Text('Enable bit-perfect FLAC decoding stream'),
-                value: _flacPipeline,
-                onChanged: (bool v) => setState(() => _flacPipeline = v),
+              ListTile(
+                leading: const Icon(Icons.campaign_outlined),
+                title: const Text('Ads manager'),
+                onTap: () => _goToTab(4),
+                trailing: const Icon(Icons.chevron_right),
               ),
               const Divider(height: 1),
-              SwitchListTile(
-                title: const Text('Local MediaStore Scoped Storage',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                subtitle: const Text('Zero-latency indexing of local device audio'),
-                value: _localSync,
-                onChanged: (bool v) => setState(() => _localSync = v),
-              ),
-              const Divider(height: 1),
-              SwitchListTile(
-                title: const Text('Haptic Touch Feedback',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                subtitle: const Text('Subtle haptics on playback interactions'),
-                value: _hapticFeedback,
-                onChanged: (bool v) => setState(() => _hapticFeedback = v),
+              ListTile(
+                leading: const Icon(Icons.notifications_active_outlined),
+                title: const Text('Push notifications'),
+                onTap: () => _goToTab(5),
+                trailing: const Icon(Icons.chevron_right),
               ),
             ],
           ),

@@ -23,6 +23,7 @@ import '../data/services/deep_link_service.dart';
 import '../data/services/fcm_service.dart';
 import '../data/services/supabase_service.dart';
 import '../data/services/admob_service.dart';
+import '../ui/screens/home_screen.dart';
 
 /// Holds every long-lived dependency. Constructed once during bootstrap so the
 /// widget tree stays free of async initialization (fast, deterministic startup,
@@ -180,6 +181,23 @@ class AppDependencies {
     await AdMobService.instance.initialize().catchError((Object e) {
       Logger.warn('AdMob warm-up skipped', error: e);
     });
+    // 6. Silent catalogue / trending refresh so Home shows latest admin + API data.
+    await _silentCatalogWarm();
+  }
+
+  Future<void> _silentCatalogWarm() async {
+    try {
+      // Seed/disk first (instant). Network refresh happens inside getCatalogSections
+      // via SWR + HomeScreen.silentRefreshLatest — never block UI on forceRefresh.
+      await Future.wait(<Future<Object>>[
+        repository.getCatalogSections(forceRefresh: false),
+        repository.trending(limit: 20),
+        library.syncWithSupabase().then((_) => true),
+      ]);
+      HomeScreen.silentRefreshLatest();
+    } catch (e) {
+      Logger.warn('silent catalogue warm-up skipped', error: e);
+    }
   }
 
   Future<void> dispose() async {

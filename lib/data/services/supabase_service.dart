@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/app_config.dart';
+import '../../core/utils/auth_utils.dart';
 import '../../domain/models/advertisement.dart';
 import '../../domain/models/album.dart';
 import '../../domain/models/artist.dart';
@@ -53,19 +54,20 @@ class SupabaseService {
       _isInitialized = true;
 
       try {
-        final Uri baseUri = Uri.base;
-        if (baseUri.path.contains('reset-password') ||
-            baseUri.fragment.contains('type=recovery') ||
-            baseUri.fragment.contains('access_token') ||
-            baseUri.queryParameters['type'] == 'recovery' ||
-            baseUri.queryParameters.containsKey('code')) {
-          isPasswordRecovery = true;
-        }
+        // Never treat bare OAuth `?code=` as password recovery (Google Sign-In).
+        isPasswordRecovery = AuthUtils.isPasswordRecoveryUri(Uri.base);
       } catch (_) {}
 
       client.auth.onAuthStateChange.listen((AuthState data) {
         if (data.event == AuthChangeEvent.passwordRecovery) {
-          isPasswordRecovery = true;
+          // Stale PKCE recovery marker must not hijack Google login.
+          isPasswordRecovery = !AuthUtils.isOAuthLoginCallback(Uri.base);
+        } else if (data.event == AuthChangeEvent.signedIn) {
+          // Successful Google / email login — clear any stale recovery flag.
+          if (!AuthUtils.isPasswordRecoveryUri() ||
+              AuthUtils.isOAuthLoginCallback()) {
+            isPasswordRecovery = false;
+          }
         } else if (data.event == AuthChangeEvent.signedOut) {
           isPasswordRecovery = false;
         }
@@ -122,37 +124,57 @@ class SupabaseService {
     return res;
   }
 
-  /// Google sign-in 
+  /// Redirect used for Google OAuth (mobile deep link / web origin).
   ///
-  /// Uses **one Web Client ID + Secret in Supabase only**. Opens the system
-  /// browser so the user can Continue with an existing Google account, then
-  /// returns to the app via `com.kalpkrut.beats://login-callback/` deep link.
-  /// No separate Android OAuth client is required for this flow.
+  /// Web always returns to the **current origin** so local stays local and
+  /// live (`beats.kalpkrutinfotech.com`) stays live. Do not hardcode production
+  /// here — that made local release builds bounce to the live site with `?code=`.
+  String googleOAuthRedirect({String? redirectTo}) {
+    if (redirectTo != null && redirectTo.isNotEmpty) return redirectTo;
+    if (kIsWeb) {
+      return Uri.base.origin.endsWith('/')
+          ? Uri.base.origin
+          : '${Uri.base.origin}/';
+    }
+    // Must also be listed under Supabase Auth → Redirect URLs.
+    return 'com.kalpkrut.beats://login-callback/';
+  }
+
+  /// PKCE OAuth URL for in-app WebView (MahaTicket-style). Does not open a browser.
+  Future<String?> getGoogleOAuthUrl({String? redirectTo}) async {
+    if (!_isInitialized) return null;
+    final OAuthResponse res = await client.auth.getOAuthSignInUrl(
+      provider: OAuthProvider.google,
+      redirectTo: googleOAuthRedirect(redirectTo: redirectTo),
+      queryParams: const <String, String>{
+        'prompt': 'select_account',
+      },
+    );
+    return res.url;
+  }
+
+  /// Finish Google login from WebView / deep-link callback URL (exchanges PKCE code).
+  Future<void> completeGoogleOAuthFromUrl(String callbackUrl) async {
+    if (!_isInitialized) {
+      throw const AuthException('Auth is not ready yet. Please try again.');
+    }
+    await client.auth.getSessionFromUrl(Uri.parse(callbackUrl));
+  }
+
+  /// Google sign-in (web / fallback). Mobile prefers [getGoogleOAuthUrl] + in-app WebView.
   ///
-  /// Session persistence + [ensureProfile] are handled by the auth-state
-  /// listener after the deep link is received.
+  /// Uses **one Web Client ID + Secret in Supabase only**.
   Future<bool> signInWithGoogle({String? redirectTo}) async {
     if (!_isInitialized) return false;
     try {
-      final String redirect;
-      if (redirectTo != null && redirectTo.isNotEmpty) {
-        redirect = redirectTo;
-      } else if (kIsWeb) {
-        redirect =
-            kReleaseMode ? 'https://beats.kalpkrutinfotech.com/' : Uri.base.origin;
-      } else {
-        // Must also be listed under Supabase Auth → Redirect URLs.
-        redirect = 'com.kalpkrut.beats://login-callback/';
-      }
+      final String redirect = googleOAuthRedirect(redirectTo: redirectTo);
 
-      // Google on Android must use the external browser (Supabase forces this).
-      // Same UX as MahaTicket: pick account in Chrome → return to app.
+      // supabase_flutter forces external Chrome for Google on Android — use WebView
+      // path on mobile instead. Web keeps platform redirect.
       return await client.auth.signInWithOAuth(
         OAuthProvider.google,
         redirectTo: redirect,
-        authScreenLaunchMode: kIsWeb
-            ? LaunchMode.platformDefault
-            : LaunchMode.externalApplication,
+        authScreenLaunchMode: LaunchMode.platformDefault,
         queryParams: const <String, String>{
           'prompt': 'select_account',
         },
@@ -1090,6 +1112,8 @@ class SupabaseService {
     metrics['favorites_count'] = await countTable('favorites');
     metrics['recently_played_count'] = await countTable('recently_played');
     metrics['reports_count'] = await countTable('reports');
+    metrics['ads_count'] = await countTable('advertisements');
+    metrics['catalog_sections_count'] = await countTable('catalog_sections');
 
     return metrics;
   }

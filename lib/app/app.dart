@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/storage/settings_store.dart';
 import '../core/utils/app_messenger.dart';
+import '../core/utils/auth_utils.dart';
 import '../data/music_repository.dart';
 import '../data/provider_registry.dart';
 import '../data/services/deep_link_service.dart';
@@ -21,6 +22,7 @@ import '../state/search_controller.dart';
 import '../ui/screens/admin_screen.dart';
 import '../ui/screens/app_shell.dart';
 import '../ui/screens/delete_account_screen.dart';
+import '../ui/screens/home_screen.dart';
 import '../ui/screens/onboarding_auth_screen.dart';
 import '../ui/screens/reset_password_screen.dart';
 import '../ui/screens/splash_screen.dart';
@@ -55,8 +57,17 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
       if (data.event == AuthChangeEvent.signedIn ||
           data.event == AuthChangeEvent.tokenRefreshed) {
         FcmService.instance.syncUser();
+        // New / returning login: pull latest catalogue + library quietly.
+        if (data.event == AuthChangeEvent.signedIn) {
+          HomeScreen.silentRefreshLatest();
+        }
       }
       if (data.event == AuthChangeEvent.passwordRecovery) {
+        // Google OAuth `?code=` must never open Create New Password.
+        if (AuthUtils.isOAuthLoginCallback(Uri.base)) {
+          SupabaseService().isPasswordRecovery = false;
+          return;
+        }
         SupabaseService().isPasswordRecovery = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           KalpkrutBeatsApp.navigatorKey.currentState?.pushNamedAndRemoveUntil(
@@ -121,6 +132,14 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
               if (path == '/reset-password' ||
                   path.startsWith('/reset-password') ||
                   name.contains('reset-password')) {
+                // Google `?code=` must not open Create New Password.
+                if (AuthUtils.isOAuthLoginCallback(Uri.base)) {
+                  SupabaseService().isPasswordRecovery = false;
+                  return MaterialPageRoute<void>(
+                    settings: routeSettings,
+                    builder: (BuildContext context) => const AuthGate(),
+                  );
+                }
                 return MaterialPageRoute<void>(
                   settings: routeSettings,
                   builder: (BuildContext context) => const ResetPasswordScreen(),
@@ -219,17 +238,37 @@ class _AuthGateState extends State<AuthGate> {
   @override
   void initState() {
     super.initState();
-    _checkInitialAuth();
+    unawaited(_checkInitialAuth());
     _listenAuth();
   }
 
-  void _checkInitialAuth() {
+  Future<void> _checkInitialAuth() async {
     final SupabaseService supabase = SupabaseService();
+    final Uri uri = Uri.base;
+
+    // Stale Google redirect (refresh / double open): code already consumed.
+    // Do not retry exchange — PKCE client already handled it once.
+    final bool oauthError = (uri.queryParameters['error'] ?? '').isNotEmpty ||
+        (uri.queryParameters['error_code'] ?? '') == 'flow_state_already_used';
+
+    // Wait briefly for supabase_flutter auto PKCE session (do NOT exchange twice).
+    if (supabase.isInitialized &&
+        !AuthUtils.isPasswordRecoveryUri(uri) &&
+        !oauthError &&
+        (uri.queryParameters['code'] ?? '').isNotEmpty &&
+        supabase.currentSession == null) {
+      for (int i = 0; i < 20 && supabase.currentSession == null; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+    }
+
     final bool auth =
         supabase.isAuthenticated && supabase.currentSession != null;
     if (auth) {
-      supabase.ensureProfile();
+      supabase.isPasswordRecovery = false;
+      await supabase.ensureProfile();
     }
+    if (!mounted) return;
     setState(() {
       _isAuthenticated = auth;
       _isLoading = false;
@@ -248,7 +287,9 @@ class _AuthGateState extends State<AuthGate> {
           _isLoading = false;
         });
       }
-      if (mounted && data.event == AuthChangeEvent.passwordRecovery) {
+      if (mounted &&
+          data.event == AuthChangeEvent.passwordRecovery &&
+          !AuthUtils.isOAuthLoginCallback(Uri.base)) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           Navigator.of(context).push(
             MaterialPageRoute<void>(
@@ -269,14 +310,11 @@ class _AuthGateState extends State<AuthGate> {
 
   @override
   Widget build(BuildContext context) {
-    final Uri uri = Uri.base;
-    final bool isRecoveryUrl = uri.path.contains('reset-password') ||
-        uri.fragment.contains('type=recovery') ||
-        uri.fragment.contains('access_token') ||
-        uri.queryParameters.containsKey('code') ||
-        uri.queryParameters['type'] == 'recovery';
-
-    if (SupabaseService().isPasswordRecovery || isRecoveryUrl) {
+    // Google OAuth lands on `/?code=…` (sometimes mis-hashed as #/reset-password).
+    if (AuthUtils.isOAuthLoginCallback(Uri.base)) {
+      SupabaseService().isPasswordRecovery = false;
+    } else if (SupabaseService().isPasswordRecovery ||
+        AuthUtils.isPasswordRecoveryUri(Uri.base)) {
       return const ResetPasswordScreen();
     }
 

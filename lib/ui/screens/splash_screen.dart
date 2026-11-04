@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../app/app.dart';
+import '../../core/utils/auth_utils.dart';
 import '../../data/services/supabase_service.dart';
 import 'reset_password_screen.dart';
 
@@ -26,10 +27,14 @@ class _SplashScreenState extends State<SplashScreen>
   void initState() {
     super.initState();
 
-    final bool isRecovery = SupabaseService().isPasswordRecovery ||
-        Uri.base.path.contains('reset-password') ||
-        Uri.base.fragment.contains('type=recovery') ||
-        Uri.base.queryParameters['type'] == 'recovery';
+    // Google `?code=` is login — never divert to Create New Password.
+    if (AuthUtils.isOAuthLoginCallback(Uri.base)) {
+      SupabaseService().isPasswordRecovery = false;
+    }
+
+    final bool isRecovery = !AuthUtils.isOAuthLoginCallback(Uri.base) &&
+        (SupabaseService().isPasswordRecovery ||
+            AuthUtils.isPasswordRecoveryUri(Uri.base));
 
     if (isRecovery) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -79,7 +84,9 @@ class _SplashScreenState extends State<SplashScreen>
 
   void _navigateToHome() {
     if (!mounted) return;
-    if (SupabaseService().isPasswordRecovery) {
+    if (AuthUtils.isOAuthLoginCallback(Uri.base)) {
+      SupabaseService().isPasswordRecovery = false;
+    } else if (SupabaseService().isPasswordRecovery) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
           settings: const RouteSettings(name: '/reset-password'),

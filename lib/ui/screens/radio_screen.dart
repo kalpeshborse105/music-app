@@ -141,11 +141,24 @@ class _RadioScreenState extends State<RadioScreen> {
     final bool isPlaying = playback.snapshot.playing;
     final List<RadioStation> stations = _filtered;
 
+    final bool isDark = context.isDarkMode;
+    final Color pageBg = isDark ? AppColors.darkBg : AppColors.lightBg;
+    final Color chipBg =
+        isDark ? AppColors.surfaceContainerHighest : AppColors.lightElevatedSurface;
+    final Color chipBorder =
+        isDark ? Colors.white12 : AppColors.lightBorder;
+    final Color chipLabel =
+        isDark ? Colors.white70 : AppColors.textSecondaryLight;
+    final Color accent =
+        isDark ? AppColors.neonCyan : AppColors.lightSecondaryAccent;
+    final Color violet =
+        isDark ? AppColors.electricViolet : AppColors.lightPrimaryAccent;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: pageBg,
       body: SafeArea(
         child: RefreshIndicator(
-          color: AppColors.neonCyan,
+          color: accent,
           onRefresh: _load,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -155,23 +168,26 @@ class _RadioScreenState extends State<RadioScreen> {
                 backgroundColor: Colors.transparent,
                 elevation: 0,
                 automaticallyImplyLeading: false,
-                title: const Text(
+                title: Text(
                   'Beats Radio Live',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: Colors.white,
+                    color: context.textPrimary,
                   ),
                 ),
                 actions: <Widget>[
                   if (_loading)
-                    const Padding(
-                      padding: EdgeInsets.only(right: 16),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 16),
                       child: Center(
                         child: SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: accent,
+                          ),
                         ),
                       ),
                     ),
@@ -183,24 +199,38 @@ class _RadioScreenState extends State<RadioScreen> {
                   child: TextField(
                     controller: _searchCtrl,
                     onChanged: (String v) => setState(() => _query = v),
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                    cursorColor: AppColors.neonCyan,
+                    style: TextStyle(color: context.textPrimary, fontSize: 14),
+                    cursorColor: accent,
                     decoration: InputDecoration(
                       hintText: 'Search stations, city, language…',
-                      hintStyle: const TextStyle(color: Colors.white54, fontSize: 13.5),
-                      prefixIcon: const Icon(Icons.search_rounded, color: Colors.white54),
+                      hintStyle: TextStyle(
+                        color: context.textMuted,
+                        fontSize: 13.5,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: context.textMuted,
+                      ),
                       suffixIcon: _query.isEmpty
                           ? null
                           : IconButton(
-                              icon: const Icon(Icons.close_rounded, color: Colors.white54),
+                              icon: Icon(
+                                Icons.close_rounded,
+                                color: context.textMuted,
+                              ),
                               onPressed: () {
                                 _searchCtrl.clear();
                                 setState(() => _query = '');
                               },
                             ),
                       filled: true,
-                      fillColor: AppColors.surfaceContainerHighest,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                      fillColor: isDark
+                          ? AppColors.surfaceContainerHighest
+                          : AppColors.lightInputBackground,
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 0,
+                        horizontal: 12,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
                         borderSide: BorderSide.none,
@@ -214,11 +244,11 @@ class _RadioScreenState extends State<RadioScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                   child: Row(
                     children: <Widget>[
-                      _tierChip('Popular', 'private'),
+                      _tierChip(context, 'Popular', 'private'),
                       const SizedBox(width: 8),
-                      _tierChip('Akashvani', 'government'),
+                      _tierChip(context, 'Akashvani', 'government'),
                       const SizedBox(width: 8),
-                      _tierChip('All', 'all'),
+                      _tierChip(context, 'All', 'all'),
                     ],
                   ),
                 ),
@@ -243,20 +273,15 @@ class _RadioScreenState extends State<RadioScreen> {
                                 _district = 'all';
                               });
                             },
-                            selectedColor:
-                                AppColors.neonCyan.withValues(alpha: 0.22),
+                            selectedColor: accent.withValues(alpha: 0.22),
                             labelStyle: TextStyle(
-                              color: selected
-                                  ? AppColors.neonCyan
-                                  : Colors.white70,
+                              color: selected ? accent : chipLabel,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
-                            backgroundColor: AppColors.surfaceContainerHighest,
+                            backgroundColor: chipBg,
                             side: BorderSide(
-                              color: selected
-                                  ? AppColors.neonCyan
-                                  : Colors.white12,
+                              color: selected ? accent : chipBorder,
                             ),
                           ),
                         );
@@ -282,20 +307,18 @@ class _RadioScreenState extends State<RadioScreen> {
                               selected: selected,
                               onSelected: (_) =>
                                   setState(() => _district = d),
-                              selectedColor: AppColors.electricViolet
-                                  .withValues(alpha: 0.25),
+                              selectedColor: violet.withValues(alpha: 0.25),
                               labelStyle: TextStyle(
                                 color: selected
-                                    ? Colors.white
-                                    : Colors.white60,
+                                    ? (isDark
+                                        ? Colors.white
+                                        : AppColors.textPrimaryLight)
+                                    : chipLabel,
                                 fontSize: 11.5,
                               ),
-                              backgroundColor:
-                                  AppColors.surfaceContainerHighest,
+                              backgroundColor: chipBg,
                               side: BorderSide(
-                                color: selected
-                                    ? AppColors.electricViolet
-                                    : Colors.white10,
+                                color: selected ? violet : chipBorder,
                               ),
                             ),
                           );
@@ -306,12 +329,12 @@ class _RadioScreenState extends State<RadioScreen> {
                 ),
               const SliverToBoxAdapter(child: SizedBox(height: 12)),
               if (stations.isEmpty)
-                const SliverFillRemaining(
+                SliverFillRemaining(
                   hasScrollBody: false,
                   child: Center(
                     child: Text(
                       'No stations match your search',
-                      style: TextStyle(color: Colors.white54),
+                      style: TextStyle(color: context.textMuted),
                     ),
                   ),
                 )
@@ -339,8 +362,10 @@ class _RadioScreenState extends State<RadioScreen> {
                             padding: const EdgeInsets.all(12),
                             borderRadius: 16,
                             borderColor: loaded
-                                ? AppColors.neonCyan.withValues(alpha: 0.55)
-                                : Colors.white.withValues(alpha: 0.06),
+                                ? accent.withValues(alpha: 0.55)
+                                : (isDark
+                                    ? Colors.white.withValues(alpha: 0.06)
+                                    : AppColors.lightBorder),
                             child: InkWell(
                               borderRadius: BorderRadius.circular(16),
                               onTap: () {
@@ -403,8 +428,8 @@ class _RadioScreenState extends State<RadioScreen> {
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
                                             color: loaded
-                                                ? AppColors.neonCyan
-                                                : Colors.white,
+                                                ? accent
+                                                : context.textPrimary,
                                             fontSize: 15,
                                             fontWeight: FontWeight.w700,
                                           ),
@@ -414,8 +439,8 @@ class _RadioScreenState extends State<RadioScreen> {
                                           meta,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            color: AppColors.onSurfaceVariant,
+                                          style: TextStyle(
+                                            color: context.textSecondary,
                                             fontSize: 12,
                                           ),
                                         ),
@@ -428,8 +453,8 @@ class _RadioScreenState extends State<RadioScreen> {
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       color: playing
-                                          ? AppColors.neonCyan
-                                          : AppColors.surfaceContainerHighest,
+                                          ? accent
+                                          : chipBg,
                                     ),
                                     child: Icon(
                                       playing
@@ -437,7 +462,7 @@ class _RadioScreenState extends State<RadioScreen> {
                                           : Icons.play_arrow_rounded,
                                       color: playing
                                           ? Colors.black
-                                          : Colors.white,
+                                          : context.textPrimary,
                                     ),
                                   ),
                                 ],
@@ -462,8 +487,11 @@ class _RadioScreenState extends State<RadioScreen> {
     );
   }
 
-  Widget _tierChip(String label, String value) {
+  Widget _tierChip(BuildContext context, String label, String value) {
+    final bool isDark = context.isDarkMode;
     final bool selected = _tier == value;
+    final Color accent =
+        isDark ? AppColors.neonCyan : AppColors.lightSecondaryAccent;
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() {
@@ -478,17 +506,21 @@ class _RadioScreenState extends State<RadioScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             color: selected
-                ? AppColors.neonCyan.withValues(alpha: 0.18)
-                : AppColors.surfaceContainerHighest,
+                ? accent.withValues(alpha: 0.18)
+                : (isDark
+                    ? AppColors.surfaceContainerHighest
+                    : AppColors.lightElevatedSurface),
             border: Border.all(
-              color: selected ? AppColors.neonCyan : Colors.white10,
+              color: selected
+                  ? accent
+                  : (isDark ? Colors.white10 : AppColors.lightBorder),
             ),
           ),
           alignment: Alignment.center,
           child: Text(
             label,
             style: TextStyle(
-              color: selected ? AppColors.neonCyan : Colors.white70,
+              color: selected ? accent : context.textSecondary,
               fontWeight: FontWeight.w700,
               fontSize: 13,
             ),

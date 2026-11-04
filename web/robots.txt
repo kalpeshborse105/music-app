@@ -7,8 +7,10 @@ Allow: /app-ads.txt
 Allow: /search
 Allow: /radio
 Allow: /library
-Allow: /reset-password
+Allow: /login
+Allow: /signup
 Allow: /delete-account
+Disallow: /reset-password
 
 # Explicitly allow Google AdMob crawler
 User-agent: Mediapartners-Google

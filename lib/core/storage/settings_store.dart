@@ -116,6 +116,9 @@ class SettingsStore extends ChangeNotifier {
         return ThemeMode.light;
       case 'dark':
         return ThemeMode.dark;
+      case 'system':
+        // System option removed — treat as dark.
+        return ThemeMode.dark;
       default:
         // Default app theme MUST BE DARK on fresh installation.
         return ThemeMode.dark;
@@ -123,7 +126,10 @@ class SettingsStore extends ChangeNotifier {
   }
 
   set themeMode(ThemeMode mode) {
-    _p.setString(_kThemeMode, mode.name);
+    // Only Dark / Light — never persist system.
+    final ThemeMode resolved =
+        mode == ThemeMode.system ? ThemeMode.dark : mode;
+    _p.setString(_kThemeMode, resolved.name);
     notifyListeners();
   }
 

@@ -1,11 +1,15 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/utils/auth_utils.dart';
 import '../../data/services/supabase_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/google_auth_webview.dart';
 
 /// Screen representing Stitch UI "Kalpkrut Beats - Onboarding & Auth"
 /// (Screen ID: f44179deb8b14f2f84a5766edd493fc7)
@@ -42,6 +46,9 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
   String? _errorMessage;
   StreamSubscription<AuthState>? _authSub;
   bool _waitingForGoogleOAuth = false;
+  bool _showGoogleWebView = false;
+  String? _googleAuthUrl;
+  bool _completingGoogle = false;
 
   @override
   void initState() {
@@ -49,10 +56,11 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
     _showAuthForm = widget.initialShowAuthForm;
     _isSignUp = widget.initialSignUp;
 
-    // Reactively complete auth when returning from Google OAuth deep link
-    // (browser → Continue → com.kalpkrut.beats://login-callback/).
+    // Reactively complete auth when session arrives (WebView exchange or web redirect).
     _authSub = SupabaseService().authStateChanges.listen((AuthState data) async {
       if (data.session == null || !mounted) return;
+      // In-app WebView finishes via _onGoogleWebViewSuccess — avoid double navigate.
+      if (_showGoogleWebView || _completingGoogle) return;
       final bool fromGoogle = _waitingForGoogleOAuth;
       _waitingForGoogleOAuth = false;
       final SupabaseService supabase = SupabaseService();
@@ -96,8 +104,30 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
 
     try {
       final SupabaseService supabase = SupabaseService();
+      // Never carry a stale "reset password" flag into Google login.
+      supabase.isPasswordRecovery = false;
+
+      // Mobile: MahaTicket-style in-app WebView (account picker stays inside app).
+      if (!kIsWeb) {
+        final String? url = await supabase.getGoogleOAuthUrl();
+        if (!mounted) return;
+        if (url == null || url.isEmpty) {
+          setState(() {
+            _isLoading = false;
+            _waitingForGoogleOAuth = false;
+            _errorMessage = 'Could not start Google sign-in. Please try again.';
+          });
+          return;
+        }
+        setState(() {
+          _isLoading = false;
+          _googleAuthUrl = url;
+          _showGoogleWebView = true;
+        });
+        return;
+      }
+
       final bool started = await supabase.signInWithGoogle();
-      // Browser OAuth: session arrives later via deep link + authStateChanges.
       if (!mounted) return;
       if (supabase.isAuthenticated) {
         _waitingForGoogleOAuth = false;
@@ -115,27 +145,18 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
         return;
       }
       setState(() {
-        // Keep spinner while user finishes in Chrome; deep link completes login.
         _isLoading = started;
         _waitingForGoogleOAuth = started;
         if (!started) {
           _errorMessage = 'Google sign-in was cancelled.';
         }
       });
-      if (started && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Choose your Google account in the browser…'),
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
     } on AuthException catch (e) {
       _waitingForGoogleOAuth = false;
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _showGoogleWebView = false;
           _errorMessage = AuthUtils.getFriendlyErrorMessage(e);
         });
       }
@@ -144,11 +165,54 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _showGoogleWebView = false;
           _errorMessage =
               'Google sign-in was cancelled or encountered an error.';
         });
       }
     }
+  }
+
+  Future<void> _onGoogleWebViewSuccess() async {
+    if (!mounted) return;
+    setState(() {
+      _showGoogleWebView = false;
+      _googleAuthUrl = null;
+      _completingGoogle = true;
+      _isLoading = true;
+      _waitingForGoogleOAuth = false;
+      _errorMessage = null;
+    });
+    final SupabaseService supabase = SupabaseService();
+    try {
+      await supabase.ensureProfile();
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      _completingGoogle = false;
+      _isLoading = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Signed in with Google successfully'),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+      ),
+    );
+    widget.onComplete();
+  }
+
+  void _onGoogleWebViewClosed({String? error}) {
+    if (!mounted || _completingGoogle) return;
+    setState(() {
+      _showGoogleWebView = false;
+      _googleAuthUrl = null;
+      _isLoading = false;
+      _waitingForGoogleOAuth = false;
+      if (error != null && error.isNotEmpty) {
+        _errorMessage = error;
+      }
+    });
   }
 
   Future<void> _handleAuthSubmit() async {
@@ -1387,19 +1451,107 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    'Privacy Policy • Music Attribution Licenses • Terms of Service',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: AppColors.onSurfaceVariant.withValues(alpha: 0.6),
+                  Text.rich(
+                    TextSpan(
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: AppColors.onSurfaceVariant.withValues(alpha: 0.6),
+                      ),
+                      children: <InlineSpan>[
+                        TextSpan(
+                          text: 'Privacy Policy',
+                          style: const TextStyle(
+                            decoration: TextDecoration.underline,
+                            color: AppColors.secondary,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () {
+                              unawaited(
+                                launchUrl(
+                                  Uri.parse('https://kalpkrutinfotech.com/privacy'),
+                                  mode: LaunchMode.externalApplication,
+                                ),
+                              );
+                            },
+                        ),
+                        const TextSpan(text: ' • '),
+                        TextSpan(
+                          text: 'Terms of Service',
+                          style: const TextStyle(
+                            decoration: TextDecoration.underline,
+                            color: AppColors.secondary,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () {
+                              unawaited(
+                                launchUrl(
+                                  Uri.parse('https://kalpkrutinfotech.com/terms'),
+                                  mode: LaunchMode.externalApplication,
+                                ),
+                              );
+                            },
+                        ),
+                      ],
                     ),
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
                 ],
               ),
             ),
           ),
+
+          // Full-screen wait while profile sync finishes after Google WebView.
+          if (_completingGoogle)
+            Positioned.fill(
+              child: ColoredBox(
+                color: Colors.black.withValues(alpha: 0.72),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const CircularProgressIndicator(
+                        color: AppColors.electricViolet,
+                        strokeWidth: 3,
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        'Signing you in…',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.95),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Almost done — please wait',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.55),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // MahaTicket-style in-app Google account picker.
+          if (_showGoogleWebView &&
+              _googleAuthUrl != null &&
+              _googleAuthUrl!.isNotEmpty)
+            Positioned.fill(
+              child: GoogleAuthWebView(
+                authUrl: _googleAuthUrl!,
+                onClose: () => _onGoogleWebViewClosed(),
+                onSuccess: () {
+                  unawaited(_onGoogleWebViewSuccess());
+                },
+                onError: (String message) =>
+                    _onGoogleWebViewClosed(error: message),
+              ),
+            ),
         ],
       ),
     );

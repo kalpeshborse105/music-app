@@ -5,6 +5,47 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class AuthUtils {
   AuthUtils._();
 
+  /// Google / OAuth PKCE callback: has `?code=` but is NOT a recovery email link.
+  ///
+  /// Example: `https://beats…/?code=…` or mis-routed `/?code=…#/reset-password`.
+  static bool isOAuthLoginCallback([Uri? uri]) {
+    final Uri u = uri ?? Uri.base;
+    if ((u.queryParameters['code'] ?? '').isEmpty) return false;
+    final String type = (u.queryParameters['type'] ?? '').toLowerCase();
+    if (type == 'recovery') return false;
+    final String frag = u.fragment;
+    if (frag.contains('type=recovery')) return false;
+    return true;
+  }
+
+  /// True only for real password-reset links — NOT Google/OAuth PKCE `?code=`.
+  ///
+  /// Google Sign-In returns `https://beats…/?code=…` which must become a session,
+  /// not the Create New Password screen.
+  static bool isPasswordRecoveryUri([Uri? uri]) {
+    final Uri u = uri ?? Uri.base;
+    // OAuth error bounce (e.g. flow_state_already_used) is never password recovery.
+    if ((u.queryParameters['error'] ?? '').isNotEmpty ||
+        (u.queryParameters['error_code'] ?? '').isNotEmpty) {
+      return false;
+    }
+    // Google login must never open Create New Password.
+    if (isOAuthLoginCallback(u)) return false;
+
+    final String type = (u.queryParameters['type'] ?? '').toLowerCase();
+    if (type == 'recovery') return true;
+
+    final String frag = u.fragment;
+    if (frag.contains('type=recovery')) return true;
+
+    final bool pathReset = u.path.contains('reset-password');
+    final bool hashReset = frag == '/reset-password' ||
+        frag.startsWith('/reset-password') ||
+        frag.startsWith('reset-password');
+
+    return pathReset || hashReset;
+  }
+
   /// Translates raw AuthException or generic exceptions into friendly, actionable
   /// messages for users without leaking raw URLs, project IDs, or internal errors.
   static String getFriendlyErrorMessage(dynamic error) {

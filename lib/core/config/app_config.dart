@@ -60,10 +60,10 @@ class AppConfig {
     defaultValue: '',
   );
 
-  /// Custom Audio Gateway API Base URL (Python FastAPI server)
+  /// Custom Audio Gateway API Base URL (Python Flask on Fly.io)
   static String customApiUrl = const String.fromEnvironment(
     'CUSTOM_API_URL',
-    defaultValue: 'https://music-api-tq5i.onrender.com',
+    defaultValue: 'https://kalpkrut-beats-api.fly.dev',
   );
 
   /// Google Cloud **Web** OAuth Client ID (public, optional in app).
