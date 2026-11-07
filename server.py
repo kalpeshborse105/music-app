@@ -238,12 +238,12 @@ INDIAN_LANGUAGES = [
     "kannada", "malayalam", "bhojpuri", "haryanvi", "rajasthani", "odia", "assamese", "urdu",
 ]
 SUPPORTED_LANGUAGES = INDIAN_LANGUAGES + ["english", "sanskrit"]
-DEFAULT_LANGUAGES = ["hindi", "punjabi", "tamil", "telugu", "marathi", "gujarati", "bengali", "bhojpuri", "haryanvi"]
+DEFAULT_LANGUAGES = ["hindi", "punjabi", "marathi", "gujarati", "bengali"]
 LANGUAGE_GROUPS = {
     "all": DEFAULT_LANGUAGES,
     "india": DEFAULT_LANGUAGES,
     "south": ["tamil", "telugu", "kannada", "malayalam"],
-    "north": ["hindi", "punjabi", "haryanvi", "bhojpuri", "rajasthani"],
+    "north": ["hindi", "punjabi", "haryanvi", "rajasthani"],
 }
 
 MOOD_QUERIES = {
@@ -2597,7 +2597,7 @@ def resolve_catalog_items(source_type, source_id, slug, language="all"):
     Returns (items, is_mock, provider_status, detected_title, detected_artwork).
     Falls back gracefully to clean tracks if network is unavailable.
     """
-    langs = [language] if (language and language != "all") else ["hindi", "punjabi", "marathi", "bhojpuri", "gujarati"]
+    langs = [language] if (language and language != "all") else ["hindi", "punjabi", "marathi", "gujarati"]
     detected_artwork = None
     try:
         if source_type in ("mix", "jiosaavn_mix") and source_id:
@@ -2849,7 +2849,8 @@ def sync_catalog_to_supabase(sections):
             "Prefer": "resolution=merge-duplicates",
             "User-Agent": "MusicApp/1.0"
         }
-        url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections"
+        # Specify on_conflict=key so PostgREST resolves merge-duplicates against unique key column
+        url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections?on_conflict=key"
         cols = [
             "id", "key", "source_url", "source_type", "provider", "source_id", "slug",
             "display_title", "display_group", "subtitle", "language", "position",
@@ -2864,6 +2865,7 @@ def sync_catalog_to_supabase(sections):
                 uuid.UUID(str(sec_id))
             except Exception:
                 sec_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, str(s.get("key", uuid.uuid4()))))
+            s["id"] = sec_id
 
             # 2. Pack extra metadata if present
             extra = {}
@@ -2899,12 +2901,25 @@ def sync_catalog_to_supabase(sections):
             payload.append(row)
 
         if payload:
-            data = json.dumps(payload).encode("utf-8")
-            req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                print(f"[Catalog Supabase Upsert] Synced {len(payload)} sections, HTTP {resp.status}")
+            chunk_size = 50
+            for i in range(0, len(payload), chunk_size):
+                chunk = payload[i:i + chunk_size]
+                data = json.dumps(chunk).encode("utf-8")
+                req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+                with urllib.request.urlopen(req, timeout=12) as resp:
+                    print(f"[Catalog Supabase Upsert] Synced chunk {i//chunk_size + 1} ({len(chunk)} sections), HTTP {resp.status}")
+            return True
+    except urllib.error.HTTPError as he:
+        body = ""
+        try:
+            body = he.read().decode("utf-8")
+        except Exception:
+            pass
+        print(f"[Catalog Supabase Upsert] HTTP {he.code} error: {body}")
+        return False
     except Exception as e:
         print(f"[Catalog Supabase Upsert] error: {e}")
+        return False
 
 
 def delete_catalog_section_from_supabase(section_key, section_id=None):
@@ -3266,7 +3281,7 @@ def get_section_items(section, force_refresh=False):
     return combined
 
 
-def save_catalog_sections(sections):
+def save_catalog_sections(sections, sync_db=True):
     with CATALOG_LOCK:
         try:
             disk_sections = []
@@ -3274,15 +3289,19 @@ def save_catalog_sections(sections):
                 clean_s = {k: v for k, v in s.items() if k != "items"}
                 disk_sections.append(clean_s)
             with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
-                json.dump(disk_sections, f, indent=2)
+                json.dump(disk_sections, f, indent=2, ensure_ascii=False)
             _CATALOG_SECTIONS_MEM["data"] = disk_sections
             _CATALOG_SECTIONS_MEM["at"] = time.time()
             _CATALOG_SECTIONS_MEM["synced_at"] = time.time()
-            threading.Thread(target=sync_catalog_to_supabase, args=(disk_sections,), daemon=True).start()
-            return True
         except Exception as e:
             print(f"[Catalog] Failed to save {CATALOG_STORAGE_FILE}: {e}")
             return False
+
+    if sync_db:
+        sync_catalog_to_supabase(disk_sections)
+    else:
+        threading.Thread(target=sync_catalog_to_supabase, args=(disk_sections,), daemon=True).start()
+    return True
 
 
 def find_catalog_section(key_or_id):
@@ -3355,13 +3374,10 @@ def api_catalog_sections():
         elif cached and cached[1]:
             # Serve cached items immediately (fast path)
             items = get_section_items(s, force_refresh=False)
-        elif do_refresh or not had_any_cache:
-            # Cold boot with zero cache or forced refresh: queue section for resolution
+        else:
+            # Uncached or forced refresh: queue section for resolution
             items = list(s.get("custom_tracks") or [])
             to_resolve.append((len(enriched), s))
-        else:
-            # Uncached section without refresh: return custom tracks (if any)
-            items = list(s.get("custom_tracks") or [])
 
         sec_copy["items"] = items
         sec_copy["item_count"] = len(items) or int(s.get("item_count") or 0)
@@ -3378,16 +3394,18 @@ def api_catalog_sections():
 
         enriched.append(sec_copy)
 
-    # Resolve queued sections only when forced refresh or cold start with zero cache
-    if to_resolve and not lite and (do_refresh or not had_any_cache):
-        with ThreadPoolExecutor(max_workers=4) as ex:
+    # Resolve queued sections when not lite (immediate cap of 10 keeps response fast and prevents timeouts)
+    if to_resolve and not lite:
+        immediate_resolve = to_resolve[:10]
+        deferred_resolve = to_resolve[10:]
+        with ThreadPoolExecutor(max_workers=6) as ex:
             futs = {
-                ex.submit(get_section_items, sec, True): (idx, sec)
-                for idx, sec in to_resolve
+                ex.submit(get_section_items, sec, do_refresh): (idx, sec)
+                for idx, sec in immediate_resolve
             }
             for fut, (idx, sec) in list(futs.items()):
                 try:
-                    items = fut.result(timeout=10)
+                    items = fut.result(timeout=8)
                 except Exception as err:
                     print(f"[Catalog] Refresh error for section {idx}: {err}")
                     items = enriched[idx].get("items") or []
@@ -3402,6 +3420,17 @@ def api_catalog_sections():
                     enriched[idx]["is_mock"] = meta.get("is_mock", False)
                     enriched[idx]["is_stale"] = meta.get("is_stale", False)
                     enriched[idx]["last_error"] = meta.get("last_error")
+
+        if deferred_resolve:
+            def _bg_resolve(items_to_resolve):
+                with ThreadPoolExecutor(max_workers=4) as bg_ex:
+                    for _, sec in items_to_resolve:
+                        try:
+                            get_section_items(sec, force_refresh=do_refresh)
+                        except Exception:
+                            pass
+                _mark_catalog_items_dirty()
+            threading.Thread(target=_bg_resolve, args=(deferred_resolve,), daemon=True).start()
 
         _mark_catalog_items_dirty()
 

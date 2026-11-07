@@ -66,7 +66,9 @@ class FcmService {
         _onOpened(initial);
       }
 
+      // ignore: deprecated_member_use
       _token = await messaging.getToken();
+      // ignore: deprecated_member_use
       messaging.onTokenRefresh.listen((String t) {
         _token = t;
         _registerToken(t);

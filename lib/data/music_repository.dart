@@ -857,14 +857,14 @@ class MusicRepository {
             }
             return merged;
           }
-          return cached!;
+          return cached;
         }
       } catch (e) {
         debugPrint('[MusicRepository] getCatalogSections error: $e');
       }
     }
 
-    if (cacheOk) return cached!;
+    if (cacheOk) return cached;
 
     final List<CatalogSection>? seed = await _loadBundledCatalogSeed(lang);
     if (seed != null) return seed;

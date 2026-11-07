@@ -43,9 +43,12 @@ class DeepLinkService {
           openUri(initial);
         });
       }
-      _sub = links.uriLinkStream.listen(openUri, onError: (Object e) {
-        Logger.warn('deep link stream error', error: e);
-      });
+      _sub = links.uriLinkStream.listen(
+        openUri,
+        onError: (Object e) {
+          Logger.warn('deep link stream error', error: e);
+        },
+      );
     } catch (e) {
       Logger.warn('deep link init failed', error: e);
     }
@@ -57,8 +60,8 @@ class DeepLinkService {
   }
 
   void openFromPayload(Map<String, dynamic> data) {
-    final String type =
-        '${data['target_type'] ?? data['type'] ?? ''}'.toLowerCase();
+    final String type = '${data['target_type'] ?? data['type'] ?? ''}'
+        .toLowerCase();
     final String id = '${data['target_id'] ?? data['id'] ?? ''}'.trim();
     if (id.isEmpty) return;
     openTyped(
@@ -80,8 +83,9 @@ class DeepLinkService {
       return;
     }
 
-    final List<String> parts =
-        uri.pathSegments.where((String s) => s.isNotEmpty).toList();
+    final List<String> parts = uri.pathSegments
+        .where((String s) => s.isNotEmpty)
+        .toList();
 
     String type = '';
     String id = '';
@@ -139,8 +143,8 @@ class DeepLinkService {
       });
       return;
     }
-    final BuildContext? ctx = nav.context;
-    if (ctx == null || !ctx.mounted) return;
+    final BuildContext ctx = nav.context;
+    if (!ctx.mounted) return;
 
     try {
       if (kind == 'song' || kind == 'track') {
@@ -148,40 +152,52 @@ class DeepLinkService {
         return;
       }
       if (kind == 'album') {
-        nav.push(MaterialPageRoute<void>(
-          builder: (_) => AlbumScreen(
-            album: Album(
-              id: 'custom_api:album:$clean',
-              providerId: 'custom_api',
-              providerAlbumId: clean,
-              title: title.isNotEmpty ? title : 'Album',
+        nav.push(
+          MaterialPageRoute<void>(
+            builder: (_) => AlbumScreen(
+              album: Album(
+                id: 'custom_api:album:$clean',
+                providerId: 'custom_api',
+                providerAlbumId: clean,
+                title: title.isNotEmpty ? title : 'Album',
+              ),
             ),
           ),
-        ));
+        );
         return;
       }
       if (kind == 'artist') {
-        nav.push(MaterialPageRoute<void>(
-          builder: (_) => ArtistScreen(
-            artist: Artist(
-              id: 'custom_api:artist:$clean',
-              providerId: 'custom_api',
-              providerArtistId: clean,
-              name: title.isNotEmpty ? title : 'Artist',
+        nav.push(
+          MaterialPageRoute<void>(
+            builder: (_) => ArtistScreen(
+              artist: Artist(
+                id: 'custom_api:artist:$clean',
+                providerId: 'custom_api',
+                providerArtistId: clean,
+                name: title.isNotEmpty ? title : 'Artist',
+              ),
             ),
           ),
-        ));
+        );
         return;
       }
       if (kind == 'playlist' || kind == 'catalog') {
-        await _openSong(ctx, clean, title: title.isNotEmpty ? title : 'Playlist');
+        await _openSong(
+          ctx,
+          clean,
+          title: title.isNotEmpty ? title : 'Playlist',
+        );
       }
     } catch (e) {
       Logger.warn('deep link open failed', error: e);
     }
   }
 
-  Future<void> _openSong(BuildContext context, String id, {String title = ''}) async {
+  Future<void> _openSong(
+    BuildContext context,
+    String id, {
+    String title = '',
+  }) async {
     final MusicRepository? repo = _repo;
     Track? track;
     if (repo != null) {
@@ -200,11 +216,13 @@ class DeepLinkService {
       await TrackActions.play(context, track);
       return;
     }
-    KalpkrutBeatsApp.navigatorKey.currentState?.push(MaterialPageRoute<void>(
-      builder: (_) => TrackListScreen(
-        title: title.isNotEmpty ? title : 'Song',
-        tracks: const <Track>[],
+    KalpkrutBeatsApp.navigatorKey.currentState?.push(
+      MaterialPageRoute<void>(
+        builder: (_) => TrackListScreen(
+          title: title.isNotEmpty ? title : 'Song',
+          tracks: const <Track>[],
+        ),
       ),
-    ));
+    );
   }
 }

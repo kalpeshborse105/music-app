@@ -715,7 +715,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             SizedBox(
               width: 160,
               child: DropdownButtonFormField<String>(
-                value: _notifyTargetFilter,
+                initialValue: _notifyTargetFilter,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Target',
@@ -737,7 +737,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             SizedBox(
               width: 140,
               child: DropdownButtonFormField<String>(
-                value: _notifySort,
+                initialValue: _notifySort,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Sort',
@@ -844,6 +844,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   Future<void> _showCreateNotificationDialog({Map<String, dynamic>? existing}) async {
     if (_users.isEmpty) {
       await _loadUsers();
+      if (!mounted) return;
     }
     final bool isEdit = existing != null;
     final TextEditingController titleCtrl =
@@ -903,7 +904,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
-                        value: targetType,
+                        initialValue: targetType,
                         items: const <DropdownMenuItem<String>>[
                           DropdownMenuItem(value: 'song', child: Text('Song')),
                           DropdownMenuItem(value: 'album', child: Text('Album')),
@@ -939,15 +940,19 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                           color: context.textPrimary,
                         ),
                       ),
+                      // ignore: deprecated_member_use
                       RadioListTile<String>(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                         title: const Text('All users'),
                         value: 'all',
+                        // ignore: deprecated_member_use
                         groupValue: audience,
+                        // ignore: deprecated_member_use
                         onChanged: (String? v) =>
                             setLocal(() => audience = v ?? 'all'),
                       ),
+                      // ignore: deprecated_member_use
                       RadioListTile<String>(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
@@ -955,7 +960,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                           'Selected users (${selectedUserIds.length})',
                         ),
                         value: 'selected',
+                        // ignore: deprecated_member_use
                         groupValue: audience,
+                        // ignore: deprecated_member_use
                         onChanged: (String? v) =>
                             setLocal(() => audience = v ?? 'selected'),
                       ),
@@ -3949,7 +3956,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             SizedBox(
               width: 180,
               child: DropdownButtonFormField<String>(
-                value: _adPlacementFilter,
+                initialValue: _adPlacementFilter,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Placement',
@@ -3972,7 +3979,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             SizedBox(
               width: 140,
               child: DropdownButtonFormField<String>(
-                value: _adStatusFilter,
+                initialValue: _adStatusFilter,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Status',
@@ -3991,7 +3998,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             SizedBox(
               width: 140,
               child: DropdownButtonFormField<String>(
-                value: _adSort,
+                initialValue: _adSort,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Sort',
@@ -4635,7 +4642,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                       ),
                       const SizedBox(height: 14),
                       DropdownButtonFormField<String>(
-                        value: placement,
+                        initialValue: placement,
                         decoration: const InputDecoration(
                           labelText: 'Placement (where it appears)',
                           border: OutlineInputBorder(),
@@ -5589,7 +5596,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             SizedBox(
               width: 140,
               child: DropdownButtonFormField<String>(
-                value: _userRoleFilter,
+                initialValue: _userRoleFilter,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Role',
@@ -5608,7 +5615,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             SizedBox(
               width: 150,
               child: DropdownButtonFormField<String>(
-                value: _userSort,
+                initialValue: _userSort,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Sort',
@@ -6132,103 +6139,6 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   }
 
   // ==========================================
-  // TAB 4: LEGAL COMPLIANCE & ATTRIBUTION
-  // ==========================================
-
-  Widget _buildLicensesTab(BuildContext context) {
-    final bool isDark = context.isDarkMode;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          'Legal Attribution & Compliance Registry',
-          style: TextStyle(
-            fontFamily: 'Plus Jakarta Sans',
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: context.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Every stream on Kalpkrut Beats respects explicit Creative Commons or direct streaming authorizations.',
-          style: TextStyle(fontSize: 13, color: context.textSecondary),
-        ),
-        const SizedBox(height: 16),
-
-        EchoGlassCard(
-          padding: const EdgeInsets.all(16),
-          borderRadius: 16,
-          backgroundColor: isDark ? null : AppColors.lightSurface,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  Icon(
-                    Icons.verified_rounded,
-                    color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Creative Commons CC-BY / CC-BY-SA 3.0 & 4.0',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: context.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Requires attribution, preserves artist rights, prohibits unauthorized offline commercial resale without express direct artist license.',
-                style: TextStyle(fontSize: 12, color: context.textSecondary, height: 1.4),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        EchoGlassCard(
-          padding: const EdgeInsets.all(16),
-          borderRadius: 16,
-          backgroundColor: isDark ? null : AppColors.lightSurface,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  Icon(
-                    Icons.security_rounded,
-                    color: isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Jamendo Commercial & Public API Terms',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: context.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Streams are delivered directly from authorized Jamendo endpoints under fair attribution guidelines.',
-                style: TextStyle(fontSize: 12, color: context.textSecondary, height: 1.4),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ==========================================
   // TAB 5: REPORTS & CONTENT RESOLUTION
   // ==========================================
 
@@ -6274,7 +6184,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             SizedBox(
               width: 150,
               child: DropdownButtonFormField<String>(
-                value: _reportStatusFilter,
+                initialValue: _reportStatusFilter,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Status',
@@ -6294,7 +6204,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             SizedBox(
               width: 140,
               child: DropdownButtonFormField<String>(
-                value: _reportSort,
+                initialValue: _reportSort,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Sort',
