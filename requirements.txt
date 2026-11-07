@@ -7,3 +7,5 @@ pycryptodome
 setuptools
 uvicorn
 a2wsgi
+firebase-admin
+

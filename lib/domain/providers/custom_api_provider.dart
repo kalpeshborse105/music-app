@@ -630,6 +630,35 @@ class CustomApiProvider extends BaseMusicProvider {
     throw const ProviderException('custom_api', message: 'Invalid response format from refresh endpoint');
   }
 
+  Future<List<Map<String, dynamic>>> refreshAllCatalogSections() async {
+    final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/refresh-all');
+    final http.Response res = await http.post(
+      uri,
+      headers: _buildHeaders(),
+    ).timeout(const Duration(seconds: 45));
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      String msg = 'Failed to refresh all sections (${res.statusCode})';
+      try {
+        final dynamic b = jsonDecode(res.body);
+        if (b is Map && b['error'] != null) msg = b['error'].toString();
+      } catch (_) {}
+      throw ProviderException('custom_api', message: msg);
+    }
+    final dynamic body = jsonDecode(res.body);
+    if (body is Map<String, dynamic> && body['sections'] is List) {
+      return (body['sections'] as List)
+          .whereType<Map>()
+          .map((Map m) => Map<String, dynamic>.from(m))
+          .toList();
+    } else if (body is List) {
+      return body
+          .whereType<Map>()
+          .map((Map m) => Map<String, dynamic>.from(m))
+          .toList();
+    }
+    return <Map<String, dynamic>>[];
+  }
+
   Future<List<Map<String, dynamic>>> getHomeModules({
     String? lang,
     bool refresh = false,

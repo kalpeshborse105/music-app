@@ -637,7 +637,7 @@ class MusicRepository {
     String? lang,
     String? group,
   }) {
-    return 'catalog_sections_v2:'
+    return 'catalog_sections_v3:'
         '${includeDisabled ? 'all' : 'on'}:'
         '${(lang ?? 'all').toLowerCase()}:'
         '${(group ?? 'all').toLowerCase()}';
@@ -651,12 +651,14 @@ class MusicRepository {
     final List<dynamic>? raw = _cache?.getList(key);
     if (raw == null || raw.isEmpty) return null;
     try {
-      return raw
+      final List<CatalogSection> list = raw
           .whereType<Map>()
           .map(
             (Map m) => CatalogSection.fromJson(Map<String, dynamic>.from(m)),
           )
           .toList();
+      list.sort((CatalogSection a, CatalogSection b) => a.position.compareTo(b.position));
+      return list;
     } catch (e) {
       debugPrint('[MusicRepository] catalog cache decode failed: $e');
       return null;
@@ -931,6 +933,23 @@ class MusicRepository {
     final CatalogSection section = CatalogSection.fromJson(res);
     await invalidateCatalogCache();
     return section;
+  }
+
+  Future<List<CatalogSection>> refreshAllCatalogSections() async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) {
+      return getCatalogSections(includeDisabled: true, forceRefresh: true);
+    }
+    final List<Map<String, dynamic>> raw = await provider.refreshAllCatalogSections();
+    await invalidateCatalogCache();
+    if (raw.isNotEmpty) {
+      final List<CatalogSection> list = raw
+          .map((Map<String, dynamic> m) => CatalogSection.fromJson(m))
+          .toList();
+      list.sort((CatalogSection a, CatalogSection b) => a.position.compareTo(b.position));
+      return list;
+    }
+    return getCatalogSections(includeDisabled: true, forceRefresh: true);
   }
 
   Future<List<Map<String, dynamic>>> getHomeModules({

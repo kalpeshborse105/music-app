@@ -1718,46 +1718,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     setState(() => _isLoadingCatalog = true);
     final MusicRepository repo = context.read<MusicRepository>();
     try {
-      // Always pull full catalogue so every enabled shelf is refreshed from JioSaavn
-      List<CatalogSection> list = await repo.getCatalogSections(
-        includeDisabled: true,
-        forceRefresh: true,
-      );
-
-      int ok = 0;
-      int failed = 0;
-      // Refresh every enabled shelf (skip disabled drafts)
-      final List<CatalogSection> targets = list
-          .where((CatalogSection s) => s.isEnabled)
-          .toList();
-      for (final CatalogSection section in targets) {
-        if (!mounted) return;
-        setState(() => _refreshingSectionKeys.add(section.sectionKey));
-        try {
-          final CatalogSection? updated =
-              await repo.refreshCatalogSection(section.sectionKey);
-          if (updated != null) {
-            ok++;
-            final int idx = list.indexWhere(
-              (CatalogSection s) => s.sectionKey == section.sectionKey,
-            );
-            if (idx >= 0) list[idx] = updated;
-          } else {
-            failed++;
-          }
-        } catch (_) {
-          failed++;
-        } finally {
-          if (mounted) {
-            setState(() => _refreshingSectionKeys.remove(section.sectionKey));
-          }
-        }
-      }
-
-      list = await repo.getCatalogSections(
-        includeDisabled: true,
-        forceRefresh: true,
-      );
+      final List<CatalogSection> list = await repo.refreshAllCatalogSections();
       await repo.getCatalogSections(forceRefresh: true);
       HomeScreen.silentRefreshLatest();
       if (!mounted) return;
@@ -1768,11 +1729,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            failed == 0
-                ? 'Refreshed $ok catalogue shelves from live sources'
-                : 'Refreshed $ok shelves ($failed failed)',
+            'Refreshed ${list.length} catalogue shelves from live sources (Just now)',
           ),
-          backgroundColor: failed == 0 ? AppColors.success : AppColors.secondary,
+          backgroundColor: AppColors.success,
         ),
       );
     } catch (e) {

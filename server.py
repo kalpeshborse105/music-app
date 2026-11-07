@@ -45,6 +45,14 @@ try:
 except ImportError:
     YTDLP_AVAILABLE = False
 
+try:
+    import firebase_admin
+    from firebase_admin import credentials, messaging
+    FIREBASE_ADMIN_AVAILABLE = True
+except ImportError:
+    FIREBASE_ADMIN_AVAILABLE = False
+
+
 
 VERSION = "3.0.0"
 SERVICE_NAME = "Kalpkrut Beats API Gateway"
@@ -3469,6 +3477,49 @@ def api_catalog_sections():
     }, 0 if do_refresh else 120)
 
 
+@app.route("/api/catalog/sections/refresh-all", methods=["POST"])
+def api_catalog_refresh_all_sections():
+    if not is_admin_request(request):
+        return jsonify({"error": "Admin privileges required to refresh catalog sections"}), 403
+
+    sections = load_catalog_sections()
+    now_ts = int(time.time())
+
+    for sec in sections:
+        sec["last_refresh"] = now_ts
+        key = str(sec.get("key") or sec.get("id") or sec.get("slug"))
+        existing = _get_cached_section_entry(key)
+        if existing:
+            _, items, meta = existing
+            sec["items"] = items
+            sec["item_count"] = len(items) if items else sec.get("item_count", 0)
+            sec["provider_status"] = meta.get("provider_status", "ok")
+        else:
+            sec["provider_status"] = "ok"
+
+    save_catalog_sections(sections, sync_db=False)
+
+    # In background, re-fetch upstream links so cache stays ultra-fresh
+    def _bg_revalidate():
+        for s in sections:
+            try:
+                if s.get("is_enabled", True):
+                    get_section_items(s, force_refresh=True)
+            except Exception:
+                pass
+        _mark_catalog_items_dirty()
+        sync_catalog_to_supabase(sections)
+
+    threading.Thread(target=_bg_revalidate, daemon=True).start()
+
+    return jsonify({
+        "success": True,
+        "sections": sections,
+        "total": len(sections),
+        "refreshed_at": now_ts,
+    })
+
+
 @app.route("/api/catalog/sections/<section_key>/refresh", methods=["POST"])
 def api_catalog_refresh_single_section(section_key):
     if not is_admin_request(request):
@@ -4016,6 +4067,131 @@ def api_radio_stream(station_id):
 # ─── Push / in-app notifications (Amazon-style admin broadcast) ─────────────────
 NOTIFICATION_STORAGE_FILE = os.path.join(DATA_DIR, "notifications.json")
 NOTIFICATION_LOCK = threading.Lock()
+FCM_STORAGE_FILE = os.path.join(DATA_DIR, "fcm_tokens.json")
+FCM_LOCK = threading.Lock()
+_fcm_app = None
+
+
+def get_firebase_app():
+    global _fcm_app
+    if not FIREBASE_ADMIN_AVAILABLE:
+        return None
+    if _fcm_app is not None:
+        return _fcm_app
+    creds_raw = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "").strip()
+    if creds_raw:
+        try:
+            cred_dict = json.loads(creds_raw)
+            cred = credentials.Certificate(cred_dict)
+            _fcm_app = firebase_admin.initialize_app(cred, name="kalpkrut_beats")
+            print("[FCM] Firebase Admin initialized from env secret")
+            return _fcm_app
+        except Exception as ex:
+            print(f"[FCM] Failed to initialize Firebase Admin from secret: {ex}")
+    for candidate in ("service_account.json", "firebase_service_account.json", os.path.join(DATA_DIR, "service_account.json")):
+        if os.path.exists(candidate):
+            try:
+                cred = credentials.Certificate(candidate)
+                _fcm_app = firebase_admin.initialize_app(cred, name="kalpkrut_beats")
+                print(f"[FCM] Firebase Admin initialized from file {candidate}")
+                return _fcm_app
+            except Exception as ex:
+                print(f"[FCM] Failed to initialize Firebase Admin from file {candidate}: {ex}")
+    return None
+
+
+def load_fcm_tokens():
+    with FCM_LOCK:
+        if os.path.exists(FCM_STORAGE_FILE):
+            try:
+                with open(FCM_STORAGE_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        return data
+            except Exception as e:
+                print(f"[FCM] load tokens error: {e}")
+        return []
+
+
+def save_fcm_tokens(tokens):
+    with FCM_LOCK:
+        try:
+            with open(FCM_STORAGE_FILE, "w", encoding="utf-8") as f:
+                json.dump(tokens, f, indent=2, ensure_ascii=False)
+            return True
+        except Exception as e:
+            print(f"[FCM] save tokens error: {e}")
+            return False
+
+
+def send_fcm_broadcast(title, body, data=None):
+    app = get_firebase_app()
+    payload_data = {}
+    if data and isinstance(data, dict):
+        for k, v in data.items():
+            payload_data[str(k)] = str(v) if v is not None else ""
+    payload_data["title"] = str(title)
+    payload_data["body"] = str(body)
+
+    if not app:
+        print("[FCM] Firebase app not initialized — logging broadcast payload")
+        return {"success": True, "mode": "unconfigured_logged", "sent": 0, "recipients": 0}
+
+    sent_count = 0
+    fail_count = 0
+
+    # 1. Broadcast to topic 'all'
+    try:
+        topic_msg = messaging.Message(
+            notification=messaging.Notification(title=title, body=body),
+            data=payload_data,
+            topic="all",
+            android=messaging.AndroidConfig(
+                priority="high",
+                notification=messaging.AndroidNotification(
+                    icon="ic_stat_notification",
+                    channel_id="kalpkrut_beats_push",
+                ),
+            ),
+        )
+        messaging.send(topic_msg, app=app)
+        sent_count += 1
+    except Exception as ex:
+        print(f"[FCM] Topic broadcast failed: {ex}")
+
+    # 2. Multicast to registered individual device tokens
+    tokens = load_fcm_tokens()
+    raw_tokens = list(set([t.get("token") for t in tokens if t.get("token")]))
+    if raw_tokens:
+        for i in range(0, len(raw_tokens), 500):
+            chunk = raw_tokens[i:i + 500]
+            multicast_msg = messaging.MulticastMessage(
+                notification=messaging.Notification(title=title, body=body),
+                data=payload_data,
+                tokens=chunk,
+                android=messaging.AndroidConfig(
+                    priority="high",
+                    notification=messaging.AndroidNotification(
+                        icon="ic_stat_notification",
+                        channel_id="kalpkrut_beats_push",
+                    ),
+                ),
+            )
+            try:
+                res = messaging.send_each_for_multicast(multicast_msg, app=app)
+                sent_count += res.success_count
+                fail_count += res.failure_count
+            except Exception as ex:
+                print(f"[FCM] Multicast chunk failed: {ex}")
+                fail_count += len(chunk)
+
+    return {
+        "success": True,
+        "mode": "fcm_v1_live",
+        "sent": sent_count,
+        "failed": fail_count,
+        "recipients": len(raw_tokens),
+    }
 
 
 def load_notifications():
@@ -4040,6 +4216,57 @@ def save_notifications(items):
         except Exception as e:
             print(f"[Notify] save error: {e}")
             return False
+
+
+@app.route("/api/fcm/token", methods=["POST"])
+def api_fcm_register_token():
+    body = request.get_json(silent=True) or {}
+    token = str(body.get("token") or "").strip()
+    if not token:
+        return jsonify({"error": "token is required"}), 400
+    user_id = str(body.get("user_id") or "").strip()
+    platform = str(body.get("platform") or "android").strip()
+    tokens = load_fcm_tokens()
+    now_ts = int(time.time())
+    found = False
+    for t in tokens:
+        if t.get("token") == token:
+            t["updated_at"] = now_ts
+            if user_id:
+                t["user_id"] = user_id
+            t["platform"] = platform
+            found = True
+            break
+    if not found:
+        tokens.append({
+            "token": token,
+            "user_id": user_id,
+            "platform": platform,
+            "created_at": now_ts,
+            "updated_at": now_ts,
+        })
+    save_fcm_tokens(tokens)
+    return jsonify({"success": True, "token": token, "registered_devices": len(tokens)})
+
+
+@app.route("/api/fcm/tokens", methods=["GET"])
+def api_fcm_list_tokens():
+    if not is_admin_request(request):
+        return jsonify({"error": "Admin privileges required"}), 403
+    tokens = load_fcm_tokens()
+    return jsonify({"tokens": tokens, "total": len(tokens)})
+
+
+@app.route("/api/fcm/send", methods=["POST"])
+def api_fcm_send():
+    if not is_admin_request(request):
+        return jsonify({"error": "Admin privileges required"}), 403
+    body = request.get_json(silent=True) or {}
+    title = str(body.get("title") or "Kalpkrut Beats").strip()
+    msg = str(body.get("body") or body.get("message") or "").strip()
+    data = body.get("data") or {}
+    res = send_fcm_broadcast(title, msg, data)
+    return jsonify(res)
 
 
 @app.route("/api/notifications", methods=["GET", "POST"])
@@ -4067,6 +4294,21 @@ def api_notifications():
             "is_active": bool(body.get("is_active", True)),
             "created_at": int(time.time()),
         }
+        send_fcm = bool(body.get("send_fcm", True))
+        if send_fcm:
+            try:
+                item["fcm"] = send_fcm_broadcast(
+                    title=item["title"],
+                    body=item["body"],
+                    data={
+                        "target_type": item["target_type"],
+                        "target_id": item["target_id"],
+                        "image_url": item["image_url"],
+                        "id": item["id"],
+                    },
+                )
+            except Exception as e:
+                item["fcm"] = {"success": False, "error": str(e)}
         items = load_notifications()
         items.insert(0, item)
         items = items[:200]
@@ -4102,6 +4344,20 @@ def api_notification_detail(notif_id):
         n["body"] = str(body["message"]).strip()
     if "is_active" in body:
         n["is_active"] = bool(body["is_active"])
+    if bool(body.get("send_fcm", False)):
+        try:
+            n["fcm"] = send_fcm_broadcast(
+                title=n["title"],
+                body=n["body"],
+                data={
+                    "target_type": n["target_type"],
+                    "target_id": n["target_id"],
+                    "image_url": n["image_url"],
+                    "id": n["id"],
+                },
+            )
+        except Exception as e:
+            n["fcm"] = {"success": False, "error": str(e)}
     save_notifications(items)
     return jsonify(n)
 

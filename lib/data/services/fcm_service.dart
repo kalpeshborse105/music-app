@@ -19,6 +19,38 @@ const String _kPushChannelName = 'Kalpkrut Beats';
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
+  if (message.notification == null && message.data.isNotEmpty) {
+    try {
+      final FlutterLocalNotificationsPlugin local =
+          FlutterLocalNotificationsPlugin();
+      const AndroidInitializationSettings androidInit =
+          AndroidInitializationSettings('@drawable/ic_stat_notification');
+      await local.initialize(const InitializationSettings(android: androidInit));
+      final String title =
+          message.data['title']?.toString() ?? 'Kalpkrut Beats';
+      final String body =
+          message.data['body']?.toString() ??
+          message.data['message']?.toString() ??
+          '';
+      if (title.isNotEmpty || body.isNotEmpty) {
+        await local.show(
+          message.messageId.hashCode,
+          title,
+          body,
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              _kPushChannelId,
+              _kPushChannelName,
+              importance: Importance.high,
+              priority: Priority.high,
+              icon: '@drawable/ic_stat_notification',
+            ),
+          ),
+          payload: jsonEncode(message.data),
+        );
+      }
+    } catch (_) {}
+  }
 }
 
 /// Registers device FCM tokens with the music-api and handles push taps.
@@ -68,6 +100,12 @@ class FcmService {
 
       // ignore: deprecated_member_use
       _token = await messaging.getToken();
+      try {
+        await messaging.subscribeToTopic('all');
+        await messaging.subscribeToTopic('news');
+      } catch (topicErr) {
+        Logger.warn('Topic subscription failed: $topicErr');
+      }
       // ignore: deprecated_member_use
       messaging.onTokenRefresh.listen((String t) {
         _token = t;
@@ -128,9 +166,16 @@ class FcmService {
   }
 
   Future<void> _onForeground(RemoteMessage message) async {
-    Logger.info('FCM foreground: ${message.notification?.title}');
     final RemoteNotification? n = message.notification;
-    if (n == null) return;
+    final String title =
+        n?.title ?? message.data['title']?.toString() ?? 'Kalpkrut Beats';
+    final String body =
+        n?.body ??
+        message.data['body']?.toString() ??
+        message.data['message']?.toString() ??
+        '';
+    Logger.info('FCM foreground: $title - $body');
+    if (title.isEmpty && body.isEmpty) return;
     final AndroidNotificationDetails android = AndroidNotificationDetails(
       _kPushChannelId,
       _kPushChannelName,
@@ -140,9 +185,9 @@ class FcmService {
       icon: '@drawable/ic_stat_notification',
     );
     await _local.show(
-      n.hashCode,
-      n.title,
-      n.body,
+      message.messageId.hashCode,
+      title,
+      body,
       NotificationDetails(android: android),
       payload: jsonEncode(message.data),
     );
