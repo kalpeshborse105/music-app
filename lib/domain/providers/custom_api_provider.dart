@@ -634,11 +634,12 @@ class CustomApiProvider extends BaseMusicProvider {
   }
 
   Future<Map<String, dynamic>> refreshCatalogSection(String key) async {
-    final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/$key/refresh');
+    final String encodedKey = Uri.encodeComponent(key);
+    final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/$encodedKey/refresh');
     final http.Response res = await http.post(
       uri,
       headers: _buildHeaders(),
-    ).timeout(const Duration(seconds: 25));
+    ).timeout(const Duration(seconds: 90));
     if (res.statusCode < 200 || res.statusCode >= 300) {
       String msg = 'Failed to refresh section (${res.statusCode})';
       try {

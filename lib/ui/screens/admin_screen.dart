@@ -2083,7 +2083,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     final MusicRepository repo = context.read<MusicRepository>();
     try {
       final List<CatalogSection> list = await repo.refreshAllCatalogSections();
-      await repo.getCatalogSections(forceRefresh: true);
+      // Keep refresh-all stamps — do not immediately re-GET (old song-cache
+      // timestamps used to overwrite "Just now" back to "11d ago").
+      await repo.invalidateCatalogCache();
       HomeScreen.silentRefreshLatest();
       if (!mounted) return;
       setState(() {

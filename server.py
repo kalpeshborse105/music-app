@@ -2626,12 +2626,45 @@ def get_mock_catalog_items(source_type, source_id, slug, language="all"):
     return []
 
 
-def resolve_catalog_items(source_type, source_id, slug, language="all"):
+def _apply_source_url_identity(section):
+    """Admin source_url is authority — re-derive type/id/slug from the full Jio URL."""
+    if not isinstance(section, dict):
+        return section
+    url = str(section.get("source_url") or "").strip()
+    if not url:
+        return section
+    parsed, _ = parse_catalog_url(url)
+    if not parsed:
+        return section
+    section["source_type"] = parsed.get("source_type") or section.get("source_type")
+    section["source_id"] = parsed.get("source_id") or section.get("source_id")
+    section["slug"] = parsed.get("slug") or section.get("slug")
+    if parsed.get("language") and (
+        not section.get("language") or str(section.get("language")).lower() == "all"
+    ):
+        section["language"] = parsed.get("language")
+    return section
+
+
+def resolve_catalog_items(source_type, source_id, slug, language="all", source_url=None):
     """
     Fetches live items from JioSaavn in real-time.
     Returns (items, is_mock, provider_status, detected_title, detected_artwork).
     Falls back gracefully to clean tracks if network is unavailable.
+    When source_url is set, the full admin URL wins over stored id/slug.
     """
+    if source_url:
+        parsed, _ = parse_catalog_url(str(source_url))
+        if parsed:
+            source_type = parsed.get("source_type") or source_type
+            source_id = parsed.get("source_id") or source_id
+            slug = parsed.get("slug") or slug
+            if parsed.get("language") and (not language or str(language).lower() == "all"):
+                language = parsed.get("language")
+    slug = slug or ""
+    if source_type in ("song", "track") and "new-releases" in slug.lower():
+        source_type = "new_releases"
+        source_id = slug if slug.startswith("new-releases") else "new-releases"
     langs = [language] if (language and language != "all") else ["hindi", "punjabi", "marathi", "gujarati"]
     detected_artwork = None
     try:
@@ -3409,13 +3442,15 @@ def _resolve_section_base_items(section, force_fetch=False):
             if now - ts < _CATALOG_ITEMS_TTL and items and not is_mock_entry:
                 return items
 
-        # Perform live resolution
+        # Perform live resolution — prefer full admin source_url over bare id/slug
         try:
+            _apply_source_url_identity(section)
             items, is_mock, provider_status, detected_title, detected_art = resolve_catalog_items(
                 section.get("source_type"),
                 section.get("source_id"),
                 section.get("slug"),
                 section.get("language", "all"),
+                source_url=section.get("source_url"),
             )
         except Exception as exc:
             print(f"[Catalog] resolve_catalog_items exception for {key}: {exc}")
@@ -3532,7 +3567,7 @@ def save_catalog_sections(sections, sync_db=False):
             _CATALOG_SECTIONS_MEM["at"] = time.time()
             _CATALOG_SECTIONS_MEM["synced_at"] = time.time()
             # Protect admin refresh/rename/reorder from stale remote overwrite
-            _CATALOG_LOCAL_AUTHORITY_UNTIL = time.time() + 600.0
+            _CATALOG_LOCAL_AUTHORITY_UNTIL = time.time() + 1800.0
         except Exception as e:
             print(f"[Catalog] Failed to save {CATALOG_STORAGE_FILE}: {e}")
             return False
@@ -3658,9 +3693,10 @@ def api_catalog_sections():
                 enriched[idx]["item_count"] = len(items) or enriched[idx].get("item_count") or 0
                 sec_k = str(sec.get("key") or sec.get("id") or sec.get("slug"))
                 cached_now = _get_cached_section_entry(sec_k)
+                stored_lr = _parse_iso_to_unix(enriched[idx].get("last_refresh")) or 0
                 if cached_now:
                     ts, _, meta = cached_now
-                    enriched[idx]["last_refresh"] = int(ts)
+                    enriched[idx]["last_refresh"] = max(int(stored_lr or 0), int(ts or 0))
                     enriched[idx]["provider_status"] = meta.get("provider_status", "ok")
                     enriched[idx]["is_mock"] = meta.get("is_mock", False)
                     enriched[idx]["is_stale"] = meta.get("is_stale", False)
@@ -3696,6 +3732,7 @@ def api_catalog_refresh_all_sections():
     now_ts = int(time.time())
 
     for sec in sections:
+        _apply_source_url_identity(sec)
         sec["last_refresh"] = now_ts
         sec["updated_at"] = now_ts
         key = str(sec.get("key") or sec.get("id") or sec.get("slug"))
@@ -3705,6 +3742,7 @@ def api_catalog_refresh_all_sections():
             sec["items"] = items
             sec["item_count"] = len(items) if items else sec.get("item_count", 0)
             sec["provider_status"] = meta.get("provider_status", "ok")
+            _CATALOG_ITEMS_CACHE[key] = (float(now_ts), items, dict(meta))
         else:
             sec["provider_status"] = "ok"
 
@@ -3716,20 +3754,22 @@ def api_catalog_refresh_all_sections():
         for s in sections:
             try:
                 if s.get("is_enabled", True):
+                    _apply_source_url_identity(s)
                     get_section_items(s, force_refresh=True)
-                    s["last_refresh"] = now_ts
-                    s["updated_at"] = now_ts
+                    s["last_refresh"] = int(time.time())
+                    s["updated_at"] = s["last_refresh"]
                     k = str(s.get("key") or s.get("id") or s.get("slug"))
                     cached_entry = _get_cached_section_entry(k)
                     if cached_entry:
-                        s["provider_status"] = cached_entry[2].get("provider_status", "ok")
-                        s["is_mock"] = cached_entry[2].get("is_mock", False)
-                        s["item_count"] = len(cached_entry[1]) if cached_entry[1] else s.get("item_count", 0)
+                        items_c, meta_c = cached_entry[1], cached_entry[2]
+                        _CATALOG_ITEMS_CACHE[k] = (float(s["last_refresh"]), items_c, dict(meta_c))
+                        s["provider_status"] = meta_c.get("provider_status", "ok")
+                        s["is_mock"] = meta_c.get("is_mock", False)
+                        s["item_count"] = len(items_c) if items_c else s.get("item_count", 0)
             except Exception:
                 pass
         _persist_catalog_items_disk()
-        save_catalog_sections(sections, sync_db=False)
-        sync_catalog_to_supabase(sections)
+        save_catalog_sections(sections, sync_db=True)
 
     threading.Thread(target=_bg_revalidate, daemon=True).start()
 
@@ -3750,6 +3790,7 @@ def api_catalog_refresh_single_section(section_key):
     if not sec:
         return not_found(f"Catalog section '{section_key}' not found")
 
+    _apply_source_url_identity(sec)
     items = get_section_items(sec, force_refresh=True)
     key = str(sec.get("key") or sec.get("id") or sec.get("slug"))
 
@@ -3762,7 +3803,8 @@ def api_catalog_refresh_single_section(section_key):
 
     existing = _get_cached_section_entry(key)
     if existing:
-        _, _, meta = existing
+        _, items_c, meta = existing
+        _CATALOG_ITEMS_CACHE[key] = (float(now_ts), items_c, dict(meta))
         sec_copy["provider_status"] = meta.get("provider_status", "ok")
         sec_copy["is_mock"] = meta.get("is_mock", False)
         sec_copy["is_stale"] = meta.get("is_stale", False)
@@ -3772,6 +3814,10 @@ def api_catalog_refresh_single_section(section_key):
     sections = load_catalog_sections()
     for s in sections:
         if matches_section_key(s, section_key):
+            _apply_source_url_identity(s)
+            s["source_type"] = sec.get("source_type") or s.get("source_type")
+            s["source_id"] = sec.get("source_id") or s.get("source_id")
+            s["slug"] = sec.get("slug") or s.get("slug")
             s["last_refresh"] = sec_copy["last_refresh"]
             s["updated_at"] = sec_copy["updated_at"]
             s["provider_status"] = sec_copy["provider_status"]
@@ -3779,7 +3825,7 @@ def api_catalog_refresh_single_section(section_key):
             s["is_mock"] = sec_copy["is_mock"]
             s["last_error"] = sec_copy["last_error"]
             break
-    save_catalog_sections(sections)
+    save_catalog_sections(sections, sync_db=True)
     _persist_catalog_items_disk()
 
     return jsonify(sec_copy)
