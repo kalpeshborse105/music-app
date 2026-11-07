@@ -1125,12 +1125,14 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   // TAB: MUSIC CATALOGUE ORCHESTRATION (LOCAL-FIRST)
   // ==========================================
 
-  Future<void> _loadCatalogSections() async {
+  Future<void> _loadCatalogSections({bool forceRefresh = false}) async {
     setState(() => _isLoadingCatalog = true);
     try {
       final MusicRepository repo = context.read<MusicRepository>();
-      final List<CatalogSection> list =
-          await repo.getCatalogSections(includeDisabled: true);
+      final List<CatalogSection> list = await repo.getCatalogSections(
+        includeDisabled: true,
+        forceRefresh: forceRefresh,
+      );
       if (mounted) {
         setState(() {
           _catalogSections = list;
@@ -1549,19 +1551,50 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
     if (confirm == true) {
       if (!mounted) return;
+      final String deleteKey = s.sectionKey.isNotEmpty ? s.sectionKey : s.id;
+      // Optimistic remove so ghost rows cannot linger if reload races.
+      setState(() {
+        _catalogSections = _catalogSections
+            .where((CatalogSection x) =>
+                x.sectionKey != s.sectionKey &&
+                x.id != s.id &&
+                (s.sourceId.isEmpty || x.sourceId != s.sourceId))
+            .toList();
+      });
       try {
         final MusicRepository repo = context.read<MusicRepository>();
-        await repo.deleteCatalogSection(s.key);
+        await repo.deleteCatalogSection(deleteKey);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Deleted "${s.displayTitle}"'), backgroundColor: AppColors.success),
           );
-          await repo.getCatalogSections(forceRefresh: true);
-          await _loadCatalogSections();
+          await repo.invalidateCatalogCache();
+          await _loadCatalogSections(forceRefresh: true);
           HomeScreen.silentRefreshLatest();
         }
       } catch (e) {
-        if (mounted) {
+        final String msg = e.toString().toLowerCase();
+        final bool alreadyGone = msg.contains('not found') || msg.contains('404');
+        if (!mounted) return;
+        if (alreadyGone) {
+          // Server already removed it — keep optimistic UI, hard-refresh catalogue.
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Removed "${s.displayTitle}"'), backgroundColor: AppColors.success),
+          );
+          try {
+            final MusicRepository repo = context.read<MusicRepository>();
+            await repo.invalidateCatalogCache();
+            await _loadCatalogSections(forceRefresh: true);
+            HomeScreen.silentRefreshLatest();
+          } catch (_) {}
+        } else {
+          // Restore row on real failure
+          setState(() {
+            if (!_catalogSections.any((CatalogSection x) => x.sectionKey == s.sectionKey)) {
+              _catalogSections = <CatalogSection>[..._catalogSections, s]
+                ..sort((CatalogSection a, CatalogSection b) => a.position.compareTo(b.position));
+            }
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Failed to delete: $e'), backgroundColor: AppColors.error),
           );
@@ -2078,6 +2111,15 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     }
   }
 
+  /// Supabase sync packs meta JSON into last_error — never show that as ERR.
+  bool _isRealCatalogError(String? err) {
+    if (err == null) return false;
+    final String t = err.trim();
+    if (t.isEmpty) return false;
+    if (t.startsWith('{')) return false;
+    return true;
+  }
+
   String _formatLastRefresh(int ts) {
     if (ts <= 0) return 'Never';
     final int now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -2267,7 +2309,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                         ),
                       ),
                     ),
-                    if (section.lastError != null && section.lastError!.isNotEmpty)
+                    if (_isRealCatalogError(section.lastError))
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
@@ -2515,7 +2557,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                             ),
                           ),
                         ],
-                        if (section.lastError != null && section.lastError!.isNotEmpty) ...<Widget>[
+                        if (_isRealCatalogError(section.lastError)) ...<Widget>[
                           const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

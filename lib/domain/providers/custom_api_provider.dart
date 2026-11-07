@@ -558,7 +558,8 @@ class CustomApiProvider extends BaseMusicProvider {
   }
 
   Future<bool> deleteCatalogSection(String key) async {
-    final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/$key');
+    final String encodedKey = Uri.encodeComponent(key);
+    final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/$encodedKey');
     final http.Response res = await http.delete(
       uri,
       headers: _buildHeaders(),

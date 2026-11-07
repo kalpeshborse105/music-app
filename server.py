@@ -2999,6 +2999,8 @@ def sync_catalog_to_supabase(sections):
                 req = urllib.request.Request(url, data=data, headers=headers, method="POST")
                 with urllib.request.urlopen(req, timeout=12) as resp:
                     print(f"[Catalog Supabase Upsert] Synced chunk {i//chunk_size + 1} ({len(chunk)} sections), HTTP {resp.status}")
+            # Upsert never removes deleted shelves — prune orphans or they resurrect.
+            prune_catalog_sections_from_supabase([r.get("key") for r in payload])
             return True
     except urllib.error.HTTPError as he:
         body = ""
@@ -3013,30 +3015,88 @@ def sync_catalog_to_supabase(sections):
         return False
 
 
-def delete_catalog_section_from_supabase(section_key, section_id=None):
+def delete_catalog_section_from_supabase(section_key, section_id=None, source_id=None, slug=None):
+    """
+    Hard-delete a catalogue row from Supabase by every known identifier.
+    Upsert-only sync cannot remove orphans — without this, deleted shelves
+    resurrect via bg pull / admin Supabase fallback (UI shows item, DELETE 404).
+    """
+    deleted_any = False
     try:
         auth_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
         headers = {
             "apikey": SUPABASE_ANON_KEY,
             "Authorization": f"Bearer {auth_key}",
-            "User-Agent": "MusicApp/1.0"
+            "Prefer": "return=minimal",
+            "User-Agent": "MusicApp/1.0",
         }
-        url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections?key=eq.{urllib.parse.quote(str(section_key))}"
-        req = urllib.request.Request(url, headers=headers, method="DELETE")
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            print(f"[Catalog Supabase Delete] Deleted {section_key}, HTTP {resp.status}")
-
+        filters = []
+        if section_key:
+            filters.append(f"key=eq.{urllib.parse.quote(str(section_key), safe='')}")
         if section_id:
             try:
                 uuid.UUID(str(section_id))
-                url_id = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections?id=eq.{urllib.parse.quote(str(section_id))}"
-                req_id = urllib.request.Request(url_id, headers=headers, method="DELETE")
-                with urllib.request.urlopen(req_id, timeout=5):
-                    pass
+                filters.append(f"id=eq.{urllib.parse.quote(str(section_id), safe='')}")
             except Exception:
                 pass
+            if str(section_id) != str(section_key or ""):
+                filters.append(f"key=eq.{urllib.parse.quote(str(section_id), safe='')}")
+        if source_id:
+            filters.append(f"source_id=eq.{urllib.parse.quote(str(source_id), safe='')}")
+        if slug:
+            filters.append(f"slug=eq.{urllib.parse.quote(str(slug), safe='')}")
+
+        seen = set()
+        for filt in filters:
+            if filt in seen:
+                continue
+            seen.add(filt)
+            try:
+                url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections?{filt}"
+                req = urllib.request.Request(url, headers=headers, method="DELETE")
+                with urllib.request.urlopen(req, timeout=8) as resp:
+                    deleted_any = True
+                    print(f"[Catalog Supabase Delete] {filt} → HTTP {resp.status}")
+            except Exception as e:
+                print(f"[Catalog Supabase Delete] {filt} error: {e}")
     except Exception as e:
         print(f"[Catalog Supabase Delete] error: {e}")
+    return deleted_any
+
+
+def prune_catalog_sections_from_supabase(keep_keys):
+    """Remove remote rows whose key is not in the current local catalogue."""
+    keep = {str(k).strip() for k in (keep_keys or []) if k and str(k).strip()}
+    if len(keep) < 1:
+        return 0
+    try:
+        auth_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
+        headers = {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": f"Bearer {auth_key}",
+            "User-Agent": "MusicApp/1.0",
+        }
+        url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections?select=id,key"
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            remote = json.loads(resp.read().decode("utf-8") or "[]")
+        if not isinstance(remote, list):
+            return 0
+        removed = 0
+        for row in remote:
+            if not isinstance(row, dict):
+                continue
+            key = str(row.get("key") or "").strip()
+            if not key or key in keep:
+                continue
+            if delete_catalog_section_from_supabase(key, row.get("id")):
+                removed += 1
+        if removed:
+            print(f"[Catalog Supabase Prune] removed {removed} orphan section(s)")
+        return removed
+    except Exception as e:
+        print(f"[Catalog Supabase Prune] error: {e}")
+        return 0
 
 
 _CATALOG_MEM_TTL = 45          # serve section list from RAM for 45s
@@ -3252,9 +3312,21 @@ def _bg_sync_catalog_from_supabase():
                     by_key[key] = merged
                 else:
                     by_key[key] = row
+            # Keep only *very recent* local-only rows (create in flight).
+            # Older local-only rows are usually deletes done on another node /
+            # Supabase — keeping them re-upserts ghosts (delete → still showing).
+            now_ts = time.time()
             for key, row in local_map.items():
-                if key not in by_key:
+                if key in by_key:
+                    continue
+                try:
+                    updated = float(row.get("updated_at") or row.get("last_refresh") or 0)
+                except Exception:
+                    updated = 0
+                if updated and (now_ts - updated) <= 120:
                     by_key[key] = row
+                else:
+                    print(f"[Catalog] drop local-only ghost section '{key}' (not on Supabase)")
             merged = sorted(by_key.values(), key=lambda x: int(x.get("position") or 999))
             _write_local_catalog_sections(merged)
             _CATALOG_SECTIONS_MEM["data"] = merged
@@ -3984,17 +4056,39 @@ def api_catalog_delete_section(section_key):
         return jsonify({"error": "Admin privileges required to delete catalog sections"}), 403
 
     sections = load_catalog_sections()
-    initial_len = len(sections)
     to_delete = [s for s in sections if matches_section_key(s, section_key)]
-    sections = [s for s in sections if not matches_section_key(s, section_key)]
-    if len(sections) == initial_len:
+
+    if not to_delete:
+        # Idempotent: still purge Supabase so ghost rows stop reappearing in admin.
+        deleted_remote = delete_catalog_section_from_supabase(section_key, section_key)
+        _CATALOG_ITEMS_CACHE.pop(section_key, None)
+        if deleted_remote:
+            save_catalog_sections(
+                [s for s in sections if not matches_section_key(s, section_key)],
+                sync_db=True,
+            )
+            return jsonify({
+                "success": True,
+                "deleted_key": section_key,
+                "purged_remote_only": True,
+            })
         return not_found(f"Catalog section '{section_key}' not found")
 
     for s in to_delete:
-        delete_catalog_section_from_supabase(s.get("key", section_key), s.get("id"))
+        sk = str(s.get("key") or section_key)
+        delete_catalog_section_from_supabase(
+            sk,
+            s.get("id"),
+            source_id=s.get("source_id"),
+            slug=s.get("slug"),
+        )
+        _CATALOG_ITEMS_CACHE.pop(sk, None)
+        _CATALOG_ITEMS_CACHE.pop(section_key, None)
+        if s.get("id"):
+            _CATALOG_ITEMS_CACHE.pop(str(s.get("id")), None)
 
-    _CATALOG_ITEMS_CACHE.pop(section_key, None)
-    save_catalog_sections(sections)
+    sections = [s for s in sections if not matches_section_key(s, section_key)]
+    save_catalog_sections(sections, sync_db=True)
     return jsonify({"success": True, "deleted_key": section_key})
 
 
