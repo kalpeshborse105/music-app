@@ -681,8 +681,8 @@ class MusicRepository {
     return filled >= 1 && filled >= (sections.length / 3).ceil();
   }
 
-  /// Keep track payloads from cache; always take admin meta from the network
-  /// (position, display_group, title, enabled). Prevents stale Home groups.
+  /// Keep track payloads from cache only when network returned live empty
+  /// and the cached rows are not mock. Never re-attach mock/offline tracks.
   List<CatalogSection> _mergeCatalogNetworkMeta(
     List<CatalogSection> fresh,
     List<CatalogSection>? cached,
@@ -693,8 +693,12 @@ class MusicRepository {
     };
     return fresh.map((CatalogSection s) {
       if (s.items.isNotEmpty) return s;
+      if (s.isMock || s.providerStatus == 'offline_mock' || s.providerStatus == 'unavailable') {
+        return s;
+      }
       final CatalogSection? old = byKey[s.sectionKey];
-      if (old == null || old.items.isEmpty) return s;
+      if (old == null || old.items.isEmpty || old.isMock) return s;
+      if (old.providerStatus == 'offline_mock') return s;
       return s.copyWith(
         items: old.items,
         itemCount: old.items.length,
@@ -1069,6 +1073,7 @@ class MusicRepository {
     String? displayTitle,
     String? displayGroup,
     String? sourceType,
+    String? displayMode,
     String? subtitle,
     String language = 'all',
     int? position,
@@ -1089,6 +1094,7 @@ class MusicRepository {
       if (displayTitle != null) 'display_title': displayTitle,
       if (displayGroup != null) 'display_group': displayGroup,
       if (sourceType != null && sourceType.isNotEmpty) 'source_type': sourceType,
+      if (displayMode != null && displayMode.isNotEmpty) 'display_mode': displayMode,
       if (subtitle != null) 'subtitle': subtitle,
       'language': language,
       if (position != null) 'position': position,
@@ -1271,6 +1277,12 @@ class MusicRepository {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) return <Map<String, dynamic>>[];
     return provider.fetchFcmTokens();
+  }
+
+  Future<Map<String, dynamic>> fetchAnalyticsSummary() async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return <String, dynamic>{};
+    return provider.fetchAnalyticsSummary();
   }
 
   Future<Map<String, dynamic>> createRadioStation(Map<String, dynamic> data) async {

@@ -978,6 +978,22 @@ class CustomApiProvider extends BaseMusicProvider {
     return <Map<String, dynamic>>[];
   }
 
+  Future<Map<String, dynamic>> fetchAnalyticsSummary() async {
+    final Uri uri = Uri.parse('$_baseUrl/api/analytics/summary');
+    final http.Response res = await http
+        .get(uri, headers: _buildHeaders())
+        .timeout(const Duration(seconds: 10));
+    if (res.statusCode == 200) {
+      final dynamic body = jsonDecode(res.body);
+      if (body is Map<String, dynamic>) {
+        final dynamic nested = body['data'];
+        if (nested is Map<String, dynamic>) return nested;
+        return body;
+      }
+    }
+    return <String, dynamic>{};
+  }
+
   Future<bool> deleteNotification(String notifId) async {
     final Uri uri = Uri.parse('$_baseUrl/api/notifications/$notifId');
     final http.Response res = await http.delete(

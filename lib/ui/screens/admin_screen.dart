@@ -38,6 +38,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   // Real Database Metrics State
   bool _isLoadingMetrics = true;
   Map<String, dynamic> _metrics = <String, dynamic>{};
+  Map<String, dynamic> _usagePulse = <String, dynamic>{};
 
   // Ads Management State
   bool _isLoadingAds = false;
@@ -212,8 +213,12 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
   Future<void> _loadPlatformMetrics() async {
     setState(() => _isLoadingMetrics = true);
-    final Map<String, dynamic> data =
-        await SupabaseService().fetchAdminPlatformMetrics();
+    final MusicRepository repo = context.read<MusicRepository>();
+    final List<dynamic> bundled = await Future.wait<dynamic>(<Future<dynamic>>[
+      SupabaseService().fetchAdminPlatformMetrics(),
+      repo.fetchAnalyticsSummary().catchError((_) => <String, dynamic>{}),
+      repo.fetchFcmTokens().catchError((_) => <Map<String, dynamic>>[]),
+    ]);
     // Warm radio list so Overview never shows "—" for Live Radio.
     if (_adminRadioStations.isEmpty) {
       try {
@@ -222,7 +227,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     }
     if (mounted) {
       setState(() {
-        _metrics = data;
+        _metrics = bundled[0] as Map<String, dynamic>;
+        _usagePulse = bundled[1] as Map<String, dynamic>;
+        _fcmTokenCount = (bundled[2] as List<Map<String, dynamic>>).length;
         _isLoadingMetrics = false;
       });
     }
@@ -1625,6 +1632,15 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     );
 
     if (newName != null && newName.isNotEmpty && newName != currentGroup && mounted) {
+      // Optimistically update group name in local state immediately so UI updates with 0 delay
+      setState(() {
+        _catalogSections = _catalogSections.map((CatalogSection s) {
+          if (s.displayGroup.trim().toLowerCase() == currentGroup.trim().toLowerCase()) {
+            return s.copyWith(displayGroup: newName);
+          }
+          return s;
+        }).toList();
+      });
       try {
         final MusicRepository repo = context.read<MusicRepository>();
         final bool ok = await repo.renameCatalogGroup(currentGroup, newName);
@@ -1650,6 +1666,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               backgroundColor: AppColors.error,
             ),
           );
+          await _loadCatalogSections();
         }
       }
     }
@@ -1740,11 +1757,11 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                         items: const <DropdownMenuItem<String>>[
                           DropdownMenuItem<String>(
                             value: 'song',
-                            child: Text('Single Track / Song (direct play)'),
+                            child: Text('Tracks shelf (horizontal songs)'),
                           ),
                           DropdownMenuItem<String>(
                             value: 'playlist',
-                            child: Text('Playlist (shows track list)'),
+                            child: Text('Playlist card (opens full list)'),
                           ),
                           DropdownMenuItem<String>(
                             value: 'album',
@@ -1816,6 +1833,24 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         return;
       }
 
+      final String displayMode =
+          selectedType == 'song' || selectedType == 'track' ? 'tracks' : 'entity';
+
+      // Optimistically update section in local state immediately so UI updates with 0 delay
+      final int idx = _catalogSections.indexWhere((CatalogSection s) => s.sectionKey == sec.sectionKey);
+      if (idx != -1) {
+        setState(() {
+          _catalogSections[idx] = _catalogSections[idx].copyWith(
+            displayTitle: newTitle,
+            displayGroup: newGroup,
+            sourceType: selectedType,
+            displayMode: displayMode,
+            subtitle: newSub.isNotEmpty ? newSub : null,
+            customArtworkUrl: newArt.isNotEmpty ? newArt : null,
+          );
+        });
+      }
+
       try {
         final MusicRepository repo = context.read<MusicRepository>();
         await repo.updateCatalogSection(
@@ -1823,6 +1858,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           displayTitle: newTitle,
           displayGroup: newGroup,
           sourceType: selectedType,
+          displayMode: displayMode,
           subtitle: newSub.isNotEmpty ? newSub : null,
           customArtworkUrl: newArt.isNotEmpty ? newArt : null,
           language: sec.language,
@@ -5368,6 +5404,33 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     );
   }
 
+  Widget _pulseChip(BuildContext context, String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+              color: context.textPrimary,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(fontSize: 10, color: context.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildOverviewQuickAction(
     BuildContext context, {
     required IconData icon,
@@ -5550,6 +5613,47 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               onTap: () => _goToTab(9),
             ),
           ],
+        ),
+        const SizedBox(height: 16),
+
+        // Live installs / sessions / FCM (from Fly API pulse)
+        EchoGlassCard(
+          padding: const EdgeInsets.all(14),
+          borderRadius: 16,
+          backgroundColor: isDark ? null : AppColors.lightSurface,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'Live Users & Devices',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  color: context.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Anonymous install/session pulse + FCM registrations. '
+                'True uninstalls: Play Console. Churn ≈ no pulse 30+ days.',
+                style: TextStyle(fontSize: 11, color: context.textMuted, height: 1.3),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: <Widget>[
+                  _pulseChip(context, 'Devices', '${_usagePulse['devices'] ?? 0}'),
+                  _pulseChip(context, 'Installs', '${_usagePulse['install_events'] ?? 0}'),
+                  _pulseChip(context, 'Sessions', '${_usagePulse['sessions'] ?? 0}'),
+                  _pulseChip(context, 'Active 7d', '${_usagePulse['active_7d'] ?? 0}'),
+                  _pulseChip(context, 'Active 30d', '${_usagePulse['active_30d'] ?? 0}'),
+                  _pulseChip(context, 'Churn≈30d', '${_usagePulse['likely_churn_30d'] ?? 0}'),
+                  _pulseChip(context, 'FCM tokens', '$_fcmTokenCount'),
+                ],
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 16),
 

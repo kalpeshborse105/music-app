@@ -19,6 +19,14 @@ class AdMobService {
 
   static const bool _isRelease = kReleaseMode;
 
+  /// While AdMob payment / account verify is pending, build with:
+  /// `--dart-define=ADMOB_TEST=true` to confirm fill using Google sample units.
+  /// Play Store AAB must ship with this OFF (production unit IDs).
+  static const bool _forceTestAds = bool.fromEnvironment(
+    'ADMOB_TEST',
+    defaultValue: false,
+  );
+
   // ---- Production Unit IDs (Kalpkrut Beats) ----
   static const String _prodAppId = 'ca-app-pub-4362362303618297~5047649758';
   static const String _prodBannerId = 'ca-app-pub-4362362303618297/5870078159';
@@ -40,14 +48,16 @@ class AdMobService {
 
   String get appId => _prodAppId;
 
+  bool get usingTestAdUnits => _forceTestAds || !_isRelease;
+
   String get bannerAdUnitId {
     if (kIsWeb || !Platform.isAndroid) return '';
-    return _isRelease ? _prodBannerId : _testBannerId;
+    return usingTestAdUnits ? _testBannerId : _prodBannerId;
   }
 
   String get interstitialAdUnitId {
     if (kIsWeb || !Platform.isAndroid) return '';
-    return _isRelease ? _prodInterstitialId : _testInterstitialId;
+    return usingTestAdUnits ? _testInterstitialId : _prodInterstitialId;
   }
 
   bool get isSupported => !kIsWeb && (Platform.isAndroid || Platform.isIOS);

@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/storage/settings_store.dart';
 import '../../core/utils/auth_utils.dart';
 import '../../data/services/supabase_service.dart';
+import '../../data/services/usage_pulse_service.dart';
 import '../../domain/models/audio_quality.dart';
 import '../../domain/models/history_entry.dart';
 import '../../state/downloads_controller.dart';
@@ -38,12 +39,27 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   StreamSubscription<AuthState>? _authSubscription;
   Map<String, dynamic>? _userProfile;
+  String? _localMemberSinceLabel;
 
   @override
   void initState() {
     super.initState();
     _initAuthListener();
     _loadProfileData();
+    _loadLocalMemberSince();
+  }
+
+  Future<void> _loadLocalMemberSince() async {
+    try {
+      final int? unix = await UsagePulseService.localMemberSinceUnix();
+      if (unix == null || !mounted) return;
+      final DateTime d =
+          DateTime.fromMillisecondsSinceEpoch(unix * 1000).toLocal();
+      setState(() {
+        _localMemberSinceLabel =
+            '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+      });
+    } catch (_) {}
   }
 
   void _initAuthListener() {
@@ -1492,6 +1508,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildMembershipCard(BuildContext context, {required bool isDark}) {
+    // Complimentary Pro welcome benefit — official membership copy.
+    final String memberSinceLabel = _memberSinceLabel();
+
     return EchoGlassCard(
       padding: const EdgeInsets.all(AppSpacing.md),
       borderRadius: AppSpacing.radiusXl,
@@ -1517,7 +1536,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Kalpkrut Beats Free',
+                      'Kalpkrut Beats Pro',
                       style: TextStyle(
                         fontFamily: 'Plus Jakarta Sans',
                         fontSize: 15,
@@ -1526,36 +1545,98 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     Text(
-                      'Unlimited streaming • No subscription required',
+                      'Welcome Benefit',
                       style: TextStyle(fontSize: 11, color: context.textSecondary),
                     ),
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  '₹0',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.success,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: <Widget>[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Active',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                        color: AppColors.success,
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Complimentary',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                      color: context.textPrimary,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
           const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: isDark ? 0.12 : 0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              'Enjoy complimentary Pro access as a special welcome benefit from '
+              'Kalpkrut Beats. Thank you for being part of our growing music community.',
+              style: TextStyle(fontSize: 12, color: context.textPrimary, height: 1.35),
+            ),
+          ),
+          const SizedBox(height: 10),
           Text(
-            'You\'re on Premium Free — unlimited streaming at ₹0. Ad-free and more plans coming soon.',
-            style: TextStyle(fontSize: 12, color: context.textMuted, height: 1.35),
+            'Plan: Pro  ·  Status: Active  ·  Offer: Welcome Bonus',
+            style: TextStyle(fontSize: 11, color: context.textMuted, height: 1.3),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Subscription: Complimentary Access',
+            style: TextStyle(fontSize: 11, color: context.textMuted, height: 1.3),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Member Since: $memberSinceLabel',
+            style: TextStyle(fontSize: 11, color: context.textMuted),
           ),
         ],
       ),
     );
+  }
+
+  /// Prefer account created_at, else first-install local stamp.
+  String _memberSinceLabel() {
+    try {
+      final String? raw = _userProfile?['created_at']?.toString();
+      if (raw != null && raw.isNotEmpty) {
+        final DateTime? parsed = DateTime.tryParse(raw);
+        if (parsed != null) {
+          final DateTime d = parsed.toLocal();
+          return '${d.day.toString().padLeft(2, '0')}/'
+              '${d.month.toString().padLeft(2, '0')}/'
+              '${d.year}';
+        }
+      }
+    } catch (_) {}
+    if (_localMemberSinceLabel != null && _localMemberSinceLabel!.isNotEmpty) {
+      return _localMemberSinceLabel!;
+    }
+    final DateTime now = DateTime.now();
+    return '${now.day.toString().padLeft(2, '0')}/'
+        '${now.month.toString().padLeft(2, '0')}/'
+        '${now.year}';
   }
 
   Widget _buildDailyPlayingTimeCard(
@@ -1896,11 +1977,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const Divider(height: 1),
 
           // Delete Account
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.error.withValues(alpha: isDark ? 0.08 : 0.04),
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(AppSpacing.radiusLg)),
-            ),
+          Material(
+            color: AppColors.error.withValues(alpha: isDark ? 0.08 : 0.04),
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(AppSpacing.radiusLg)),
             child: ListTile(
               leading: Container(
                 padding: const EdgeInsets.all(7),

@@ -13,6 +13,8 @@ class CatalogSection {
   final String slug;
   final String displayTitle;
   final String displayGroup;
+  /// `entity` (default) or `tracks` — Home horizontal song shelf when tracks.
+  final String displayMode;
   final String? subtitle;
   final String language;
   final int position;
@@ -53,6 +55,7 @@ class CatalogSection {
     required this.slug,
     required this.displayTitle,
     required this.displayGroup,
+    this.displayMode = 'entity',
     this.subtitle,
     required this.language,
     required this.position,
@@ -150,6 +153,12 @@ class CatalogSection {
       slug: json['slug'] as String? ?? '',
       displayTitle: json['display_title'] as String? ?? 'Untitled Section',
       displayGroup: json['display_group'] as String? ?? 'Featured',
+      displayMode: (json['display_mode'] as String?)?.trim().isNotEmpty == true
+          ? (json['display_mode'] as String).trim().toLowerCase()
+          : ((json['source_type'] as String?)?.toLowerCase() == 'song' ||
+                  (json['source_type'] as String?)?.toLowerCase() == 'track')
+              ? 'tracks'
+              : 'entity',
       subtitle: json['subtitle'] as String?,
       language: json['language'] as String? ?? 'all',
       position: (json['position'] as num?)?.toInt() ?? 1,
@@ -180,6 +189,7 @@ class CatalogSection {
       'slug': slug,
       'display_title': displayTitle,
       'display_group': displayGroup,
+      'display_mode': displayMode,
       if (subtitle != null) 'subtitle': subtitle,
       'language': language,
       'position': position,
@@ -206,6 +216,7 @@ class CatalogSection {
     String? slug,
     String? displayTitle,
     String? displayGroup,
+    String? displayMode,
     String? subtitle,
     String? language,
     int? position,
@@ -232,6 +243,7 @@ class CatalogSection {
       slug: slug ?? this.slug,
       displayTitle: displayTitle ?? this.displayTitle,
       displayGroup: displayGroup ?? this.displayGroup,
+      displayMode: displayMode ?? this.displayMode,
       subtitle: subtitle ?? this.subtitle,
       language: language ?? this.language,
       position: position ?? this.position,

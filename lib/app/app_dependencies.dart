@@ -1,7 +1,9 @@
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../core/cache/cache_store.dart';
+import '../core/config/app_config.dart';
 import '../core/constants/app_constants.dart';
 import '../core/network/api_client.dart';
 import '../core/network/connectivity_service.dart';
@@ -23,6 +25,7 @@ import '../data/services/deep_link_service.dart';
 import '../data/services/fcm_service.dart';
 import '../data/services/supabase_service.dart';
 import '../data/services/admob_service.dart';
+import '../data/services/usage_pulse_service.dart';
 import '../ui/screens/home_screen.dart';
 
 /// Holds every long-lived dependency. Constructed once during bootstrap so the
@@ -69,6 +72,14 @@ class AppDependencies {
   /// off *after* the first frame (see [KalpkrutBeatsApp]) so they never delay
   /// startup.
   static Future<AppDependencies> bootstrap() async {
+    try {
+      await dotenv.load(fileName: 'assets/.env');
+      AppConfig.loadFromEnv(Map<String, String>.from(dotenv.env));
+      Logger.info('Config loaded from assets/.env → ${AppConfig.customApiUrl}');
+    } catch (e) {
+      Logger.warn('assets/.env not loaded (using dart-define/defaults): $e');
+    }
+
     await Hive.initFlutter();
 
     final SettingsStore settings = SettingsStore();
@@ -181,7 +192,11 @@ class AppDependencies {
     await AdMobService.instance.initialize().catchError((Object e) {
       Logger.warn('AdMob warm-up skipped', error: e);
     });
-    // 6. Silent catalogue / trending refresh so Home shows latest admin + API data.
+    // 6. Anonymous install/session pulse (never blocks UI / playback).
+    await UsagePulseService.instance.start().catchError((Object e) {
+      Logger.warn('UsagePulse warm-up skipped', error: e);
+    });
+    // 7. Silent catalogue / trending refresh so Home shows latest admin + API data.
     await _silentCatalogWarm();
   }
 
@@ -190,7 +205,7 @@ class AppDependencies {
       // Seed/disk first (instant). Network refresh happens inside getCatalogSections
       // via SWR + HomeScreen.silentRefreshLatest — never block UI on forceRefresh.
       await Future.wait(<Future<Object>>[
-        repository.getCatalogSections(forceRefresh: false),
+        repository.getCatalogSections(forceRefresh: true),
         repository.trending(limit: 20),
         library.syncWithSupabase().then((_) => true),
       ]);

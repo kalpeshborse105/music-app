@@ -208,7 +208,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_initialized) {
       _initialized = true;
       final MusicRepository repo = context.read<MusicRepository>();
-      _catalogSectionsFuture = repo.getCatalogSections();
+      // Always fetch network catalogue first so admin edits show without a long stale flash.
+      _catalogSectionsFuture = repo.getCatalogSections(forceRefresh: true);
       _loadInitialTracks();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _silentBackgroundRefresh();
@@ -1180,12 +1181,55 @@ class _HomeScreenState extends State<HomeScreen> {
                     return const SizedBox.shrink();
                   }
 
+                  // Track shelf: display_mode=tracks OR sourceType song/track with 2+ songs
+                  final CatalogSection shelfHead = shelfSections.first;
+                  final String mode = shelfHead.displayMode.toLowerCase();
+                  final bool wantsTrackShelf = mode == 'tracks' ||
+                      mode == 'songs' ||
+                      mode == 'song' ||
+                      shelfHead.sourceType == 'song' ||
+                      shelfHead.sourceType == 'track';
+                  final int trackN = shelfHead.items.length > shelfHead.itemCount
+                      ? shelfHead.items.length
+                      : shelfHead.itemCount;
+                  final bool isTrackShelf = shelfSections.length == 1 &&
+                      wantsTrackShelf &&
+                      (shelfHead.items.length > 1 || trackN > 1);
+
+                  final CatalogSection? trackSection =
+                      isTrackShelf ? shelfSections.first : null;
+                  final List<Track> tracks =
+                      trackSection != null ? trackSection.items : const <Track>[];
+
+                  final String effectiveTitle = isTrackShelf
+                      ? (trackSection!.displayTitle.isNotEmpty
+                          ? trackSection.displayTitle
+                          : groupTitle)
+                      : groupTitle;
+
+                  final int effectiveItemCount =
+                      isTrackShelf ? tracks.length : shelfSections.length;
+
                   // Entity Shelves (Playlists, Albums, Artists, Charts):
-                  final bool isArtistGroup = shelfSections.every(
+                  final bool isArtistGroup = !isTrackShelf && shelfSections.every(
                     (CatalogSection s) => s.sourceType == 'artist',
                   );
                   final double shelfHeight = isArtistGroup ? 185 : 215;
                   final double cardWidth = isArtistGroup ? 130 : 148;
+
+                  Widget cardForTrack(Track track) {
+                    return MediaCard(
+                      title: track.title,
+                      subtitle: track.artistNames,
+                      imageUrl: track.artworkUrl ?? trackSection?.effectiveArtworkUrl,
+                      fallbackIcon: Icons.music_note_rounded,
+                      badgeText: 'TRACK',
+                      badgeColor: AppColors.tertiary,
+                      width: cardWidth,
+                      onTap: () => TrackActions.play(context, track, queue: tracks),
+                      onPlay: () => TrackActions.play(context, track, queue: tracks),
+                    );
+                  }
 
                   Widget cardFor(CatalogSection sec) {
                     final int count = sec.itemCount > 0
@@ -1265,10 +1309,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       SectionHeader(
-                        title: groupTitle,
+                        title: effectiveTitle,
                         topPadding: AppSpacing.sm,
-                        actionLabel: shelfSections.length > 1
-                            ? 'See all'
+                        actionLabel: effectiveItemCount > 1 ? 'See all' : null,
+                        onAction: isTrackShelf && tracks.isNotEmpty
+                            ? () => Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => TrackListScreen(
+                                      title: effectiveTitle,
+                                      tracks: tracks,
+                                    ),
+                                  ),
+                                )
                             : null,
                       ),
                       // Artists stay single-row horizontal; other shelves use 2 rows
@@ -1290,11 +1342,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       else
                         _buildDoubleRowShelf(
                           context: context,
-                          itemCount: shelfSections.length,
+                          itemCount: effectiveItemCount,
                           rowHeight: shelfHeight,
                           itemWidth: cardWidth,
                           itemBuilder: (BuildContext cardCtx, int i) =>
-                              cardFor(shelfSections[i]),
+                              isTrackShelf
+                                  ? cardForTrack(tracks[i])
+                                  : cardFor(shelfSections[i]),
                         ),
                     ],
                   );

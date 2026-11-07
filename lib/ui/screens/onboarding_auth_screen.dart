@@ -1355,49 +1355,27 @@ class _OnboardingAuthScreenState extends State<OnboardingAuthScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Footer Row: Toggle & Skip for now
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: <Widget>[
-                                GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _isSignUp = !_isSignUp;
-                                      _errorMessage = null;
-                                    });
-                                  },
-                                  child: Text(
-                                    _isSignUp
-                                        ? 'Already have an account? Sign In'
-                                        : 'Need an account? Sign up',
-                                    style: const TextStyle(
-                                      color: Color(0xFFB488FF),
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                            // Footer: Sign In / Sign Up toggle only (no guest skip)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _isSignUp = !_isSignUp;
+                                    _errorMessage = null;
+                                  });
+                                },
+                                child: Text(
+                                  _isSignUp
+                                      ? 'Already have an account? Sign In'
+                                      : 'Need an account? Sign up',
+                                  style: const TextStyle(
+                                    color: Color(0xFFB488FF),
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                                GestureDetector(
-                                  onTap: () {
-                                    if (widget.initialShowAuthForm &&
-                                        Navigator.canPop(context)) {
-                                      Navigator.pop(context);
-                                    } else {
-                                      widget.onComplete();
-                                    }
-                                  },
-                                  child: Text(
-                                    'Skip for now',
-                                    style: TextStyle(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.6,
-                                      ),
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                             const SizedBox(height: 18),
 
