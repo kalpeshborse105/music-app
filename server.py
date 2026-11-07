@@ -3316,7 +3316,7 @@ def get_section_items(section, force_refresh=False):
     return combined
 
 
-def save_catalog_sections(sections, sync_db=True):
+def save_catalog_sections(sections, sync_db=False):
     with CATALOG_LOCK:
         try:
             disk_sections = []
@@ -3691,7 +3691,7 @@ def api_catalog_create_section():
         "id": f"sec_{key}",
         "key": key,
         "source_url": url,
-        "source_type": parsed["source_type"],
+        "source_type": str(body.get("source_type")).strip().lower() if body.get("source_type") else parsed["source_type"],
         "source_id": parsed["source_id"],
         "slug": parsed["slug"],
         "display_title": display_title,
@@ -3762,6 +3762,8 @@ def api_catalog_update_section(section_key):
 
     if "display_title" in body:
         sec["display_title"] = str(body["display_title"]).strip()
+    if "source_type" in body and body["source_type"]:
+        sec["source_type"] = str(body["source_type"]).strip().lower()
     if "subtitle" in body:
         sec["subtitle"] = str(body["subtitle"]).strip() or None
     if "display_group" in body:
@@ -3857,8 +3859,32 @@ def api_catalog_reorder_sections():
             new_list.append(remaining)
             pos += 1
 
-    save_catalog_sections(new_list, sync_db=True)
+    save_catalog_sections(new_list, sync_db=False)
     return jsonify({"sections": new_list, "total": len(new_list)})
+
+
+@app.route("/api/catalog/groups/rename", methods=["POST"])
+def api_catalog_rename_group():
+    if not is_admin_request(request):
+        return jsonify({"error": "Admin privileges required to rename catalog group"}), 403
+
+    body = request.get_json(silent=True) or {}
+    old_name = (body.get("old_name") or "").strip()
+    new_name = (body.get("new_name") or "").strip()
+    if not old_name or not new_name:
+        return jsonify({"error": "Provide 'old_name' and 'new_name'"}), 400
+
+    sections = load_catalog_sections()
+    count = 0
+    for s in sections:
+        if (s.get("display_group") or "").strip().lower() == old_name.lower():
+            s["display_group"] = new_name
+            count += 1
+
+    if count > 0:
+        save_catalog_sections(sections, sync_db=False)
+
+    return jsonify({"success": True, "renamed": count, "old_name": old_name, "new_name": new_name})
 
 
 @app.route("/api/catalog/sections/<section_key>/toggle", methods=["POST"])

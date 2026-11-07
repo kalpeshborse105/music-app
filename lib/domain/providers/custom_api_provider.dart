@@ -500,7 +500,7 @@ class CustomApiProvider extends BaseMusicProvider {
       uri,
       headers: _buildHeaders(),
       body: jsonEncode(data),
-    ).timeout(const Duration(seconds: 12));
+    ).timeout(const Duration(seconds: 35));
     if (res.statusCode < 200 || res.statusCode >= 300) {
       String msg = 'Failed to create section (${res.statusCode})';
       try {
@@ -520,7 +520,7 @@ class CustomApiProvider extends BaseMusicProvider {
       uri,
       headers: _buildHeaders(),
       body: jsonEncode(data),
-    ).timeout(const Duration(seconds: 12));
+    ).timeout(const Duration(seconds: 35));
     if (res.statusCode < 200 || res.statusCode >= 300) {
       String msg = 'Failed to update section (${res.statusCode})';
       try {
@@ -543,7 +543,7 @@ class CustomApiProvider extends BaseMusicProvider {
         'url': urlOrId.startsWith('http') ? urlOrId : null,
         'song_id': !urlOrId.startsWith('http') ? urlOrId : null,
       }),
-    ).timeout(const Duration(seconds: 12));
+    ).timeout(const Duration(seconds: 25));
     if (res.statusCode < 200 || res.statusCode >= 300) {
       String msg = 'Failed to resolve track (${res.statusCode})';
       try {
@@ -562,7 +562,7 @@ class CustomApiProvider extends BaseMusicProvider {
     final http.Response res = await http.delete(
       uri,
       headers: _buildHeaders(),
-    ).timeout(const Duration(seconds: 12));
+    ).timeout(const Duration(seconds: 35));
     if (res.statusCode < 200 || res.statusCode >= 300) {
       String msg = 'Failed to delete section (${res.statusCode})';
       try {
@@ -580,9 +580,30 @@ class CustomApiProvider extends BaseMusicProvider {
       uri,
       headers: _buildHeaders(),
       body: jsonEncode(<String, dynamic>{'order': keys}),
-    ).timeout(const Duration(seconds: 12));
+    ).timeout(const Duration(seconds: 35));
     if (res.statusCode < 200 || res.statusCode >= 300) {
       String msg = 'Failed to reorder sections (${res.statusCode})';
+      try {
+        final dynamic b = jsonDecode(res.body);
+        if (b is Map && b['error'] != null) msg = b['error'].toString();
+      } catch (_) {}
+      throw ProviderException('custom_api', message: msg);
+    }
+    return true;
+  }
+
+  Future<bool> renameCatalogGroup(String oldName, String newName) async {
+    final Uri uri = Uri.parse('$_baseUrl/api/catalog/groups/rename');
+    final http.Response res = await http.post(
+      uri,
+      headers: _buildHeaders(),
+      body: jsonEncode(<String, dynamic>{
+        'old_name': oldName,
+        'new_name': newName,
+      }),
+    ).timeout(const Duration(seconds: 35));
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      String msg = 'Failed to rename group (${res.statusCode})';
       try {
         final dynamic b = jsonDecode(res.body);
         if (b is Map && b['error'] != null) msg = b['error'].toString();
@@ -597,7 +618,7 @@ class CustomApiProvider extends BaseMusicProvider {
     final http.Response res = await http.post(
       uri,
       headers: _buildHeaders(),
-    ).timeout(const Duration(seconds: 12));
+    ).timeout(const Duration(seconds: 35));
     if (res.statusCode < 200 || res.statusCode >= 300) {
       String msg = 'Failed to toggle section (${res.statusCode})';
       try {

@@ -1344,6 +1344,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           _editingSection!.sectionKey,
           displayTitle: title,
           displayGroup: group,
+          sourceType: _detectedSourceType,
           subtitle: subtitle.isNotEmpty ? subtitle : null,
           language: _catalogLanguage,
           position: pos,
@@ -1362,6 +1363,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           sourceUrl: url,
           displayTitle: title,
           displayGroup: group,
+          sourceType: _detectedSourceType,
           subtitle: subtitle.isNotEmpty ? subtitle : null,
           language: _catalogLanguage,
           isEnabled: _catalogIsEnabled,
@@ -1555,6 +1557,299 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Failed to delete: $e'), backgroundColor: AppColors.error),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _showRenameGroupDialog(String currentGroup) async {
+    final TextEditingController textController =
+        TextEditingController(text: currentGroup);
+    final String? newName = await showDialog<String>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        final bool isDark = Theme.of(dialogContext).brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: isDark ? AppColors.surfaceContainerHigh : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: const <Widget>[
+              Icon(Icons.edit_note_rounded, color: AppColors.primary),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Rename Category Group',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Text(
+                'Enter the new name for this category group. All sections in this group will be updated permanently.',
+                style: TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: textController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'Group Name',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  prefixIcon: const Icon(Icons.category_rounded),
+                ),
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final String trimmed = textController.text.trim();
+                if (trimmed.isNotEmpty) {
+                  Navigator.of(dialogContext).pop(trimmed);
+                }
+              },
+              child: const Text('Save Permanently'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (newName != null && newName.isNotEmpty && newName != currentGroup && mounted) {
+      try {
+        final MusicRepository repo = context.read<MusicRepository>();
+        final bool ok = await repo.renameCatalogGroup(currentGroup, newName);
+        if (ok) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Renamed category to "$newName"'),
+                backgroundColor: AppColors.success,
+              ),
+            );
+          }
+          await repo.getCatalogSections(includeDisabled: true, forceRefresh: true);
+          await repo.getCatalogSections(forceRefresh: true);
+          await _loadCatalogSections();
+          HomeScreen.silentRefreshLatest();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to rename group: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _showQuickEditSectionDialog(CatalogSection sec) async {
+    final TextEditingController titleCtrl =
+        TextEditingController(text: sec.displayTitle);
+    final TextEditingController groupCtrl =
+        TextEditingController(text: sec.displayGroup);
+    final TextEditingController subtitleCtrl =
+        TextEditingController(text: sec.subtitle ?? '');
+    final TextEditingController artworkCtrl =
+        TextEditingController(text: sec.customArtworkUrl ?? '');
+    String selectedType = sec.sourceType.toLowerCase();
+    if (!<String>['playlist', 'album', 'artist', 'song'].contains(selectedType)) {
+      selectedType = 'playlist';
+    }
+
+    final bool? saved = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext dContext, void Function(void Function()) setDState) {
+            final bool isDark = Theme.of(ctx).brightness == Brightness.dark;
+            return AlertDialog(
+              backgroundColor: isDark ? AppColors.surfaceContainerHigh : Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: const <Widget>[
+                  Icon(Icons.edit_note_rounded, color: AppColors.primary),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Edit Section / Catalogue',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 480,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      const Text(
+                        'Change title, group, or display type. Changes are saved permanently to database.',
+                        style: TextStyle(fontSize: 12.5),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: titleCtrl,
+                        decoration: InputDecoration(
+                          labelText: 'Display Title *',
+                          prefixIcon: const Icon(Icons.title_rounded),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: groupCtrl,
+                        decoration: InputDecoration(
+                          labelText: 'Frontend Group / Category *',
+                          prefixIcon: const Icon(Icons.folder_outlined),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: subtitleCtrl,
+                        decoration: InputDecoration(
+                          labelText: 'Subtitle (optional)',
+                          hintText: 'e.g. Artist name or description',
+                          prefixIcon: const Icon(Icons.subtitles_outlined),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedType,
+                        decoration: InputDecoration(
+                          labelText: 'Display Type',
+                          prefixIcon: const Icon(Icons.category_rounded),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        items: const <DropdownMenuItem<String>>[
+                          DropdownMenuItem<String>(
+                            value: 'song',
+                            child: Text('Single Track / Song (direct play)'),
+                          ),
+                          DropdownMenuItem<String>(
+                            value: 'playlist',
+                            child: Text('Playlist (shows track list)'),
+                          ),
+                          DropdownMenuItem<String>(
+                            value: 'album',
+                            child: Text('Album (shows album view)'),
+                          ),
+                          DropdownMenuItem<String>(
+                            value: 'artist',
+                            child: Text('Artist (circle avatar)'),
+                          ),
+                        ],
+                        onChanged: (String? val) {
+                          if (val != null) {
+                            setDState(() => selectedType = val);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: artworkCtrl,
+                        decoration: InputDecoration(
+                          labelText: 'Custom Artwork URL (optional)',
+                          prefixIcon: const Icon(Icons.image_outlined),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx, false);
+                    _startEditSection(sec);
+                  },
+                  child: const Text('Open Full Editor'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton.icon(
+                  icon: const Icon(Icons.check_rounded, size: 18),
+                  label: const Text('Save Permanently'),
+                  onPressed: () => Navigator.pop(ctx, true),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (saved == true && mounted) {
+      final String newTitle = titleCtrl.text.trim();
+      final String newGroup = groupCtrl.text.trim();
+      final String newSub = subtitleCtrl.text.trim();
+      final String newArt = artworkCtrl.text.trim();
+
+      if (newTitle.isEmpty || newGroup.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Title and Group cannot be empty.'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
+      }
+
+      try {
+        final MusicRepository repo = context.read<MusicRepository>();
+        await repo.updateCatalogSection(
+          sec.sectionKey,
+          displayTitle: newTitle,
+          displayGroup: newGroup,
+          sourceType: selectedType,
+          subtitle: newSub.isNotEmpty ? newSub : null,
+          customArtworkUrl: newArt.isNotEmpty ? newArt : null,
+          language: sec.language,
+          isEnabled: sec.isEnabled,
+          isBanner: sec.isBanner,
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Section "$newTitle" updated permanently!'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+
+        await repo.getCatalogSections(includeDisabled: true, forceRefresh: true);
+        await repo.getCatalogSections(forceRefresh: true);
+        await _loadCatalogSections();
+        HomeScreen.silentRefreshLatest();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to update section: $e'),
+              backgroundColor: AppColors.error,
+            ),
           );
         }
       }
@@ -2026,7 +2321,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     TextButton.icon(
                       icon: const Icon(Icons.edit_rounded, size: 18),
                       label: const Text('Edit'),
-                      onPressed: () => _startEditSection(section),
+                      onPressed: () => _showQuickEditSectionDialog(section),
                     ),
                     IconButton(
                       icon: const Icon(Icons.delete_outline_rounded, size: 20, color: AppColors.error),
@@ -2298,7 +2593,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                   IconButton(
                     icon: const Icon(Icons.edit_rounded, size: 20),
                     tooltip: 'Edit Section',
-                    onPressed: () => _startEditSection(section),
+                    onPressed: () => _showQuickEditSectionDialog(section),
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline_rounded, size: 20, color: AppColors.error),
@@ -2559,18 +2854,34 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                   child: Row(
                     children: <Widget>[
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
                           color: AppColors.primary.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: AppColors.primary),
                         ),
-                        child: Text(
-                          'TYPE: ${_detectedSourceType!.toUpperCase()}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.primaryLight,
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: <String>['playlist', 'album', 'artist', 'song']
+                                    .contains(_detectedSourceType?.toLowerCase())
+                                ? _detectedSourceType!.toLowerCase()
+                                : 'playlist',
+                            isDense: true,
+                            dropdownColor: isDark ? AppColors.surfaceContainerHigh : Colors.white,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primaryLight,
+                            ),
+                            items: const <DropdownMenuItem<String>>[
+                              DropdownMenuItem<String>(value: 'song', child: Text('TYPE: SONG / TRACK')),
+                              DropdownMenuItem<String>(value: 'playlist', child: Text('TYPE: PLAYLIST')),
+                              DropdownMenuItem<String>(value: 'album', child: Text('TYPE: ALBUM')),
+                              DropdownMenuItem<String>(value: 'artist', child: Text('TYPE: ARTIST')),
+                            ],
+                            onChanged: (String? val) {
+                              if (val != null) setState(() => _detectedSourceType = val);
+                            },
                           ),
                         ),
                       ),
@@ -3632,14 +3943,30 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              Text(
-                                groupTitle,
-                                style: TextStyle(
-                                  fontFamily: 'Plus Jakarta Sans',
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: context.textPrimary,
-                                ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  Flexible(
+                                    child: Text(
+                                      groupTitle,
+                                      style: TextStyle(
+                                        fontFamily: 'Plus Jakarta Sans',
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color: context.textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  IconButton(
+                                    tooltip: 'Rename Category Group "$group"',
+                                    icon: const Icon(Icons.edit_rounded, size: 16),
+                                    visualDensity: VisualDensity.compact,
+                                    constraints: const BoxConstraints(),
+                                    padding: const EdgeInsets.all(4),
+                                    onPressed: () => _showRenameGroupDialog(group),
+                                  ),
+                                ],
                               ),
                               Text(
                                 'Frontend Group: "$group" • ${groupSections.length} ${groupSections.length == 1 ? "item" : "items"}',

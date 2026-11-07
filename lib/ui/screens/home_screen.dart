@@ -1072,6 +1072,18 @@ class _HomeScreenState extends State<HomeScreen> {
         }
 
         void openSection(CatalogSection section) {
+          final int count = section.itemCount > 0
+              ? section.itemCount
+              : section.items.length;
+          final bool isSingleTrack = section.sourceType == 'song' ||
+              section.sourceType == 'track' ||
+              (count == 1 &&
+                  section.sourceType != 'album' &&
+                  section.sourceType != 'artist');
+          if (isSingleTrack && section.items.isNotEmpty) {
+            TrackActions.play(context, section.items.first, queue: section.items);
+            return;
+          }
           if (section.sourceType == 'artist') {
             Navigator.of(context).push(
               MaterialPageRoute<void>(
@@ -1185,39 +1197,60 @@ class _HomeScreenState extends State<HomeScreen> {
                         sec.items.isEmpty) {
                       return const SizedBox.shrink();
                     }
+                    final bool isSingleTrack = sec.sourceType == 'song' ||
+                        sec.sourceType == 'track' ||
+                        (count == 1 &&
+                            sec.sourceType != 'album' &&
+                            sec.sourceType != 'artist');
                     final bool shelfDark = context.isDarkMode;
                     return MediaCard(
                       title: sec.displayTitle,
-                      subtitle:
-                          sec.subtitle ??
-                          (sec.sourceType == 'artist'
-                              ? 'Artist'
-                              : '$count songs'),
-                      imageUrl:
-                          sec.effectiveArtworkUrl ??
+                      subtitle: sec.subtitle ??
+                          (isSingleTrack
+                              ? (sec.items.isNotEmpty
+                                  ? sec.items.first.artistNames
+                                  : 'Single Track')
+                              : (sec.sourceType == 'artist'
+                                  ? 'Artist'
+                                  : '$count songs')),
+                      imageUrl: sec.effectiveArtworkUrl ??
                           (sec.items.isNotEmpty
                               ? sec.items.first.artworkUrl
                               : null),
-                      fallbackIcon: sec.sourceType == 'artist'
-                          ? Icons.person_rounded
-                          : (sec.sourceType == 'album'
-                                ? Icons.album_rounded
-                                : Icons.queue_music_rounded),
+                      fallbackIcon: isSingleTrack
+                          ? Icons.music_note_rounded
+                          : (sec.sourceType == 'artist'
+                              ? Icons.person_rounded
+                              : (sec.sourceType == 'album'
+                                  ? Icons.album_rounded
+                                  : Icons.queue_music_rounded)),
                       circle: sec.sourceType == 'artist',
                       badgeText: sec.isBanner
                           ? 'SPECIAL'
-                          : (sec.sourceType == 'artist'
-                                ? 'ARTIST'
-                                : (sec.sourceType == 'album'
+                          : (isSingleTrack
+                              ? 'TRACK'
+                              : (sec.sourceType == 'artist'
+                                  ? 'ARTIST'
+                                  : (sec.sourceType == 'album'
                                       ? 'ALBUM'
-                                      : 'PLAYLIST')),
+                                      : 'PLAYLIST'))),
                       badgeColor: sec.isBanner
                           ? (shelfDark
                               ? AppColors.primaryLight
                               : AppColors.lightPrimaryAccent)
-                          : AppColors.secondary,
+                          : (isSingleTrack ? AppColors.tertiary : AppColors.secondary),
                       width: cardWidth,
-                      onTap: () => openSection(sec),
+                      onTap: () {
+                        if (isSingleTrack && sec.items.isNotEmpty) {
+                          TrackActions.play(
+                            context,
+                            sec.items.first,
+                            queue: sec.items,
+                          );
+                        } else {
+                          openSection(sec);
+                        }
+                      },
                       onPlay: sec.items.isNotEmpty
                           ? () => TrackActions.play(
                               context,

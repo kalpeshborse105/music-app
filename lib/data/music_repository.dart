@@ -1016,6 +1016,7 @@ class MusicRepository {
     required String sourceUrl,
     required String displayTitle,
     required String displayGroup,
+    String? sourceType,
     String? subtitle,
     String language = 'all',
     int? position,
@@ -1035,6 +1036,7 @@ class MusicRepository {
       'source_url': sourceUrl,
       'display_title': displayTitle,
       'display_group': displayGroup,
+      if (sourceType != null && sourceType.isNotEmpty) 'source_type': sourceType,
       if (subtitle != null && subtitle.isNotEmpty) 'subtitle': subtitle,
       'language': language,
       if (position != null) 'position': position,
@@ -1066,8 +1068,9 @@ class MusicRepository {
     String? sourceUrl,
     String? displayTitle,
     String? displayGroup,
+    String? sourceType,
     String? subtitle,
-    String? language,
+    String language = 'all',
     int? position,
     bool? isEnabled,
     String? customArtworkUrl,
@@ -1085,8 +1088,9 @@ class MusicRepository {
       if (sourceUrl != null) 'source_url': sourceUrl,
       if (displayTitle != null) 'display_title': displayTitle,
       if (displayGroup != null) 'display_group': displayGroup,
+      if (sourceType != null && sourceType.isNotEmpty) 'source_type': sourceType,
       if (subtitle != null) 'subtitle': subtitle,
-      if (language != null) 'language': language,
+      'language': language,
       if (position != null) 'position': position,
       if (isEnabled != null) 'is_enabled': isEnabled,
       if (customArtworkUrl != null) 'custom_artwork_url': customArtworkUrl,
@@ -1191,6 +1195,14 @@ class MusicRepository {
     final Map<String, dynamic> res = await provider.toggleCatalogSection(key);
     await invalidateCatalogCache();
     return CatalogSection.fromJson(res);
+  }
+
+  Future<bool> renameCatalogGroup(String oldName, String newName) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return false;
+    final bool ok = await provider.renameCatalogGroup(oldName, newName);
+    if (ok) await invalidateCatalogCache();
+    return ok;
   }
 
   // ---------------------------------------------------------------------------
