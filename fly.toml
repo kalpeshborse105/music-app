@@ -1,0 +1,29 @@
+app = "kalpkrut-beats-api"
+primary_region = "sin"
+
+[deploy]
+  strategy = "rolling"
+
+[env]
+  PORT = "8080"
+  ALLOW_DEV_ADMIN = "false"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "8s"
+    grace_period = "1m0s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

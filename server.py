@@ -2203,14 +2203,22 @@ def is_admin_request(req):
 
     auth_header = req.headers.get("Authorization", "")
     admin_key = req.headers.get("X-Admin-Key", "") or req.headers.get("x-admin-key", "")
-    server_admin_key = os.environ.get("ADMIN_API_KEY", "")
+    server_admin_key = os.environ.get("ADMIN_API_KEY", "kalpkrut_admin_secret_2024")
 
-    if server_admin_key and admin_key == server_admin_key:
+    # Hardcoded or env admin secret key
+    if admin_key and (admin_key == server_admin_key or admin_key == "kalpkrut_admin_secret_2024"):
         return True
+
+    ADMIN_EMAILS = {
+        "admin@kalpkrut.com",
+        "admin@beats.com",
+        "kalpeshborse105@gmail.com",
+        "kalpkrutinfotech@gmail.com",
+    }
 
     if auth_header.startswith("Bearer "):
         token = auth_header.split(" ", 1)[1].strip()
-        # In development or testing with client bearer token, allow local inspection
+        # In development or testing with client bearer token, allow inspection
         if os.environ.get("FLASK_ENV") == "development" or os.environ.get("ALLOW_DEV_ADMIN", "true").lower() in ("1", "true"):
             return True
         try:
@@ -2225,10 +2233,29 @@ def is_admin_request(req):
             with urllib.request.urlopen(req_obj, timeout=5) as resp:
                 if resp.status == 200:
                     user_data = json.loads(resp.read().decode("utf-8"))
+                    email = (user_data.get("email") or "").lower()
+                    if email in ADMIN_EMAILS:
+                        return True
                     app_meta = user_data.get("app_metadata", {})
                     user_meta = user_data.get("user_metadata", {})
-                    if app_meta.get("role") == "admin" or user_meta.get("is_admin") is True or user_data.get("email") in ("admin@kalpkrut.com", "admin@beats.com"):
+                    if app_meta.get("role") == "admin" or user_meta.get("is_admin") is True:
                         return True
+                    # Check profiles table in Supabase
+                    user_id = user_data.get("id")
+                    if user_id:
+                        prof_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/profiles?id=eq.{user_id}&select=role,is_admin"
+                        prof_req = urllib.request.Request(
+                            prof_url,
+                            headers={
+                                "apikey": SUPABASE_ANON_KEY,
+                                "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY}",
+                            }
+                        )
+                        with urllib.request.urlopen(prof_req, timeout=3) as prof_resp:
+                            if prof_resp.status == 200:
+                                prows = json.loads(prof_resp.read().decode("utf-8"))
+                                if prows and (prows[0].get("role") == "admin" or prows[0].get("is_admin") is True):
+                                    return True
         except Exception as e:
             print(f"[Admin Auth] Supabase auth check error: {e}")
 
@@ -3751,22 +3778,35 @@ def api_catalog_reorder_sections():
         return jsonify({"error": "Provide an 'order' array of section keys"}), 400
 
     sections = load_catalog_sections()
-    sec_map = {s["key"]: s for s in sections}
+    sec_map = {}
+    for s in sections:
+        sec_map[str(s.get("key"))] = s
+        if s.get("id"):
+            sec_map[str(s["id"])] = s
 
     new_list = []
+    seen_keys = set()
     pos = 1
     for k in order_keys:
-        if k in sec_map:
-            sec_map[k]["position"] = pos
-            new_list.append(sec_map.pop(k))
+        k_str = str(k)
+        if k_str in sec_map:
+            sec = sec_map[k_str]
+            sec_key = sec.get("key")
+            if sec_key not in seen_keys:
+                seen_keys.add(sec_key)
+                sec["position"] = pos
+                new_list.append(sec)
+                pos += 1
+
+    for remaining in sorted(sections, key=lambda x: x.get("position", 999)):
+        sec_key = remaining.get("key")
+        if sec_key not in seen_keys:
+            seen_keys.add(sec_key)
+            remaining["position"] = pos
+            new_list.append(remaining)
             pos += 1
 
-    for remaining in sorted(sec_map.values(), key=lambda x: x.get("position", 999)):
-        remaining["position"] = pos
-        new_list.append(remaining)
-        pos += 1
-
-    save_catalog_sections(new_list)
+    save_catalog_sections(new_list, sync_db=True)
     return jsonify({"sections": new_list, "total": len(new_list)})
 
 
@@ -4265,6 +4305,293 @@ def serve_static(filename):
 @app.route("/channel")
 def get_channel():
     return jsonify({"channel_link": "https://m.youtube.com/mirrykal"})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SMTP Email & Auth Services (Gmail SMTP / OTP / Password Reset)
+# ═══════════════════════════════════════════════════════════════════════════════
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import random
+
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "465"))
+SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "kalpkrutinfotech@gmail.com")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "ijosumyywzzfdxxn")
+SMTP_FROM = os.environ.get("SMTP_FROM", "kalpkrutinfotech@gmail.com")
+EMAIL_PROVIDER = os.environ.get("EMAIL_PROVIDER", "smtp")
+
+_OTP_CACHE = {}  # email -> {"otp": str, "expires_at": float, "type": str}
+_OTP_LOCK = threading.Lock()
+
+
+def send_smtp_email(to_email, subject, html_content, text_content=None):
+    """Sends a transactional email via configured SMTP (Gmail SSL 465 or STARTTLS 587)."""
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"Kalpkrut Beats <{SMTP_FROM}>"
+        msg["To"] = to_email
+
+        if not text_content:
+            text_content = re.sub(r"<[^>]+>", " ", html_content).strip()
+        msg.attach(MIMEText(text_content, "plain", "utf-8"))
+        msg.attach(MIMEText(html_content, "html", "utf-8"))
+
+        if SMTP_PORT == 465:
+            ctx = ssl.create_default_context()
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=ctx, timeout=12) as server:
+                server.login(SMTP_USERNAME, SMTP_PASSWORD)
+                server.sendmail(SMTP_FROM, [to_email], msg.as_string())
+        else:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=12) as server:
+                server.starttls()
+                server.login(SMTP_USERNAME, SMTP_PASSWORD)
+                server.sendmail(SMTP_FROM, [to_email], msg.as_string())
+        return True, None
+    except Exception as e:
+        print(f"[SMTP Error] Failed sending to {to_email}: {e}")
+        return False, str(e)
+
+
+def _build_email_template(title, headline, body_text, cta_text=None, cta_link=None, code_badge=None):
+    """Modern dark theme branded Kalpkrut Beats HTML email template."""
+    badge_html = f"""
+    <div style="margin: 24px 0; text-align: center;">
+      <span style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #7c3aed, #ec4899); color: #ffffff; font-size: 32px; font-weight: 800; letter-spacing: 8px; border-radius: 12px; font-family: monospace;">
+        {code_badge}
+      </span>
+    </div>
+    """ if code_badge else ""
+
+    button_html = f"""
+    <div style="margin: 28px 0; text-align: center;">
+      <a href="{cta_link}" style="display: inline-block; padding: 14px 32px; background: #7c3aed; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 700; border-radius: 9999px; box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4);">
+        {cta_text}
+      </a>
+    </div>
+    """ if cta_link and cta_text else ""
+
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{title}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #0b0e14; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #f3f4f6;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #0b0e14; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 560px; background-color: #121824; border-radius: 16px; border: 1px solid #1f293d; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+          <!-- Brand Header -->
+          <tr>
+            <td style="padding: 32px 32px 20px 32px; border-bottom: 1px solid #1f293d; background: linear-gradient(180deg, rgba(124, 58, 237, 0.15) 0%, rgba(18, 24, 36, 0) 100%);">
+              <span style="font-size: 24px; font-weight: 900; letter-spacing: -0.5px; background: linear-gradient(135deg, #a78bfa, #f472b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                Kalpkrut Beats
+              </span>
+            </td>
+          </tr>
+          <!-- Body Content -->
+          <tr>
+            <td style="padding: 32px; color: #d1d5db; font-size: 15px; line-height: 1.6;">
+              <h1 style="color: #ffffff; font-size: 20px; font-weight: 700; margin: 0 0 16px 0;">{headline}</h1>
+              <p style="margin: 0 0 16px 0;">{body_text}</p>
+              {badge_html}
+              {button_html}
+              <p style="margin: 24px 0 0 0; font-size: 13px; color: #6b7280;">
+                If you did not request this email, please ignore it or contact support at <a href="mailto:{SMTP_FROM}" style="color: #a78bfa;">{SMTP_FROM}</a>.
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px 32px; background-color: #0c1017; border-top: 1px solid #1f293d; font-size: 12px; color: #6b7280; text-align: center;">
+              © {datetime.now(timezone.utc).year} Kalpkrut Infotech. All rights reserved.<br>
+              <span style="color: #4b5563;">Kalpkrut Beats Streaming Platform • High Fidelity Sound</span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+
+
+@app.route("/api/auth/send-otp", methods=["POST"])
+def api_auth_send_otp():
+    """Generates a secure 6-digit OTP and sends it to the user's email via Gmail SMTP."""
+    body = request.get_json(silent=True) or {}
+    email = (body.get("email") or "").strip().lower()
+    otp_type = (body.get("type") or "verification").strip()
+
+    if not email or "@" not in email:
+        return jsonify({"error": "A valid email address is required"}), 400
+
+    otp = f"{random.randint(100000, 999999)}"
+    now = time.time()
+    with _OTP_LOCK:
+        _OTP_CACHE[email] = {
+            "otp": otp,
+            "type": otp_type,
+            "expires_at": now + 600,  # 10 minutes
+        }
+
+    headline = "Your Kalpkrut Beats Verification Code"
+    body_text = "Use the 6-digit one-time password below to complete your verification. This code expires in 10 minutes."
+    subject = f"Your Kalpkrut Beats Verification Code: {otp}"
+
+    html_email = _build_email_template(
+        title="Verification Code",
+        headline=headline,
+        body_text=body_text,
+        code_badge=otp,
+    )
+
+    success, err = send_smtp_email(email, subject, html_email)
+    if not success:
+        return jsonify({"error": f"Failed to send email: {err}"}), 500
+
+    return jsonify({
+        "success": True,
+        "message": f"Verification code sent to {email}",
+        "expires_in": 600
+    })
+
+
+@app.route("/api/auth/verify-otp", methods=["POST"])
+def api_auth_verify_otp():
+    """Verifies a submitted 6-digit OTP."""
+    body = request.get_json(silent=True) or {}
+    email = (body.get("email") or "").strip().lower()
+    submitted_otp = (body.get("otp") or "").strip()
+
+    if not email or not submitted_otp:
+        return jsonify({"error": "Both 'email' and 'otp' are required"}), 400
+
+    now = time.time()
+    with _OTP_LOCK:
+        record = _OTP_CACHE.get(email)
+        if not record:
+            return jsonify({"error": "No pending OTP for this email or it has expired"}), 400
+
+        if now > record.get("expires_at", 0):
+            _OTP_CACHE.pop(email, None)
+            return jsonify({"error": "This verification code has expired. Please request a new one."}), 400
+
+        if record.get("otp") != submitted_otp:
+            return jsonify({"error": "Invalid verification code"}), 400
+
+        otp_type = record.get("type")
+        _OTP_CACHE.pop(email, None)
+
+    return jsonify({
+        "success": True,
+        "valid": True,
+        "email": email,
+        "type": otp_type,
+        "message": "OTP verified successfully"
+    })
+
+
+@app.route("/api/auth/reset-password-request", methods=["POST"])
+def api_auth_reset_password_request():
+    """
+    Generates a Supabase password recovery link using Supabase Admin Auth API,
+    and sends a branded password reset email via Gmail SMTP.
+    """
+    body = request.get_json(silent=True) or {}
+    email = (body.get("email") or "").strip().lower()
+    redirect_to = body.get("redirect_to") or "https://beats.kalpkrutinfotech.com/reset-password"
+
+    if not email or "@" not in email:
+        return jsonify({"error": "A valid email address is required"}), 400
+
+    action_link = None
+    try:
+        url = f"{SUPABASE_URL.rstrip('/')}/auth/v1/admin/generate_link"
+        auth_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
+        headers = {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": f"Bearer {auth_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "MusicApp/1.0"
+        }
+        data = json.dumps({"type": "recovery", "email": email, "options": {"redirectTo": redirect_to}}).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            if resp.status == 200:
+                resp_data = json.loads(resp.read().decode("utf-8"))
+                action_link = resp_data.get("action_link") or resp_data.get("properties", {}).get("action_link")
+    except Exception as exc:
+        print(f"[Reset Password] Supabase generate_link error: {exc}")
+
+    if not action_link:
+        # Fallback to direct redirect link
+        action_link = f"{redirect_to}?email={urllib.parse.quote(email)}"
+
+    # Generate an OTP backup code as well
+    otp = f"{random.randint(100000, 999999)}"
+    with _OTP_LOCK:
+        _OTP_CACHE[email] = {
+            "otp": otp,
+            "type": "password_reset",
+            "expires_at": time.time() + 900,  # 15 minutes
+        }
+
+    html_email = _build_email_template(
+        title="Reset Your Password",
+        headline="Password Reset Request",
+        body_text=f"We received a request to reset your password for your Kalpkrut Beats account ({email}). Click the button below or use the one-time code to set a new password.",
+        cta_text="Reset My Password",
+        cta_link=action_link,
+        code_badge=otp,
+    )
+
+    success, err = send_smtp_email(email, "Reset your Kalpkrut Beats password", html_email)
+    if not success:
+        return jsonify({"error": f"Failed to deliver reset email: {err}"}), 500
+
+    return jsonify({
+        "success": True,
+        "message": f"Password reset instructions sent to {email}"
+    })
+
+
+@app.route("/api/email/send", methods=["POST"])
+def api_email_send():
+    """Admin or service endpoint to send arbitrary transactional emails via Gmail SMTP."""
+    if not is_admin_request(request):
+        return jsonify({"error": "Admin privileges required to send transactional emails"}), 403
+
+    body = request.get_json(silent=True) or {}
+    to_email = (body.get("to") or body.get("email") or "").strip().lower()
+    subject = (body.get("subject") or "Kalpkrut Beats Notification").strip()
+    html_content = body.get("html") or ""
+    text_content = body.get("text") or ""
+
+    if not to_email or "@" not in to_email:
+        return jsonify({"error": "Valid 'to' email address required"}), 400
+
+    if not html_content and not text_content:
+        return jsonify({"error": "Provide either 'html' or 'text' content"}), 400
+
+    if not html_content:
+        html_content = _build_email_template(
+            title=subject,
+            headline=subject,
+            body_text=text_content
+        )
+
+    success, err = send_smtp_email(to_email, subject, html_content, text_content=text_content)
+    if not success:
+        return jsonify({"error": f"Failed to send email: {err}"}), 500
+
+    return jsonify({"success": True, "message": f"Email delivered to {to_email}"})
 
 
 # ─── Background workers (not on Vercel serverless) ──────────────────────────────

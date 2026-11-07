@@ -1572,12 +1572,13 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     setState(() => _catalogSections = renumbered);
     try {
       final MusicRepository repo = context.read<MusicRepository>();
-      await repo.reorderCatalogSections(orderedKeys);
-      // Force-pull so disk/API cache matches the new Home order
-      await repo.getCatalogSections(includeDisabled: true, forceRefresh: true);
-      await repo.getCatalogSections(forceRefresh: true);
-      await _loadCatalogSections();
-      HomeScreen.silentRefreshLatest();
+      final bool ok = await repo.reorderCatalogSections(orderedKeys);
+      if (ok) {
+        // Force-pull so disk/API cache matches the new Home order
+        await repo.getCatalogSections(includeDisabled: true, forceRefresh: true);
+        await repo.getCatalogSections(forceRefresh: true);
+        HomeScreen.silentRefreshLatest();
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

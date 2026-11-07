@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -198,8 +199,24 @@ class SupabaseService {
         (kIsWeb && !kReleaseMode
             ? '${Uri.base.origin}/reset-password'
             : 'https://beats.kalpkrutinfotech.com/reset-password');
+    // Primary: Custom API with Gmail SMTP & Supabase Recovery Link (zero rate limiting)
+    try {
+      final Uri uri = Uri.parse('${AppConfig.customApiUrl.replaceAll(RegExp(r"/+$"), "")}/api/auth/reset-password-request');
+      final http.Response res = await http.post(
+        uri,
+        headers: <String, String>{'Content-Type': 'application/json'},
+        body: jsonEncode(<String, dynamic>{
+          'email': email.trim(),
+          'redirect_to': redirect,
+        }),
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        return;
+      }
+    } catch (_) {}
+    // Fallback: Supabase direct client mailer
     await client.auth.resetPasswordForEmail(
-      email,
+      email.trim(),
       redirectTo: redirect,
     );
   }

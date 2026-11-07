@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.kalpkrut.beats",
+      "sha256_cert_fingerprints": [
+        "16:5E:F2:79:13:A6:DE:95:04:06:8A:8A:EF:50:59:29:02:3F:7D:D7:9A:8D:7F:A4:BE:AA:1A:83:15:18:9A:CB"
+      ]
+    }
+  }
+]

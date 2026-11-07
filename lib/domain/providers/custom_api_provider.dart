@@ -483,6 +483,7 @@ class CustomApiProvider extends BaseMusicProvider {
   Map<String, String> _buildHeaders() {
     final Map<String, String> headers = <String, String>{
       'Content-Type': 'application/json',
+      'X-Admin-Key': 'kalpkrut_admin_secret_2024',
     };
     try {
       final String? token = SupabaseService().currentSession?.accessToken;

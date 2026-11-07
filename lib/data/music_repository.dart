@@ -866,16 +866,20 @@ class MusicRepository {
 
     if (cacheOk) return cached;
 
-    final List<CatalogSection>? seed = await _loadBundledCatalogSeed(lang);
-    if (seed != null) return seed;
-
     if (SupabaseService().isInitialized) {
-      return _getCatalogSectionsFromSupabase(
+      final List<CatalogSection> dbSections = await _getCatalogSectionsFromSupabase(
         includeDisabled: includeDisabled,
         lang: lang,
         group: group,
       );
+      if (dbSections.isNotEmpty) {
+        return dbSections;
+      }
     }
+
+    final List<CatalogSection>? seed = await _loadBundledCatalogSeed(lang);
+    if (seed != null) return seed;
+
     return cached ?? <CatalogSection>[];
   }
 
