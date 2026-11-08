@@ -1055,16 +1055,56 @@ class MusicRepository {
     final CatalogSection section = CatalogSection.fromJson(res);
 
     await invalidateCatalogCache();
-    // Verify persistence with read-back from source of truth (Phase 2 & 6)
-    final List<CatalogSection> readBack = await getCatalogSections(
-      includeDisabled: true,
-      forceRefresh: true,
+    // Verify persistence with short retries — create may finish before list catch-up.
+    final bool exists = await _verifyCatalogSectionPersisted(
+      key: section.key,
+      id: section.id,
+      displayTitle: section.displayTitle,
+      sourceUrl: section.sourceUrl,
     );
-    final bool exists = readBack.any((CatalogSection s) => s.key == section.key || s.id == section.id);
     if (!exists) {
-      throw ProviderException('custom_api', message: 'Persistence verification failed: section "${section.displayTitle}" was not saved.');
+      throw ProviderException(
+        'custom_api',
+        message:
+            'Persistence verification failed: section "${section.displayTitle}" was not saved.',
+      );
     }
     return section;
+  }
+
+  Future<bool> _verifyCatalogSectionPersisted({
+    required String key,
+    required String id,
+    String? displayTitle,
+    String? sourceUrl,
+  }) async {
+    final String normKey = key.toLowerCase().replaceAll('-', '_');
+    for (int attempt = 0; attempt < 4; attempt++) {
+      if (attempt > 0) {
+        await Future<void>.delayed(Duration(milliseconds: 350 * attempt));
+      }
+      final List<CatalogSection> readBack = await getCatalogSections(
+        includeDisabled: true,
+        forceRefresh: true,
+      );
+      final bool found = readBack.any((CatalogSection s) {
+        final String sk = s.key.toLowerCase().replaceAll('-', '_');
+        if (sk == normKey || (id.isNotEmpty && s.id == id) || s.key == key) {
+          return true;
+        }
+        if (displayTitle != null &&
+            displayTitle.isNotEmpty &&
+            s.displayTitle == displayTitle &&
+            sourceUrl != null &&
+            sourceUrl.isNotEmpty &&
+            s.sourceUrl == sourceUrl) {
+          return true;
+        }
+        return false;
+      });
+      if (found) return true;
+    }
+    return false;
   }
 
   Future<CatalogSection?> updateCatalogSection(
@@ -1110,17 +1150,18 @@ class MusicRepository {
     final CatalogSection section = CatalogSection.fromJson(res);
 
     await invalidateCatalogCache();
-    // Verify persistence with read-back from source of truth (Phase 2 & 6)
-    final List<CatalogSection> readBack = await getCatalogSections(
-      includeDisabled: true,
-      forceRefresh: true,
+    final bool exists = await _verifyCatalogSectionPersisted(
+      key: key,
+      id: section.id,
+      displayTitle: section.displayTitle,
+      sourceUrl: section.sourceUrl,
     );
-    final bool exists = readBack.any((CatalogSection s) =>
-        s.key.toLowerCase().replaceAll('-', '_') == key.toLowerCase().replaceAll('-', '_') ||
-        s.id == section.id ||
-        s.key == key);
     if (!exists) {
-      throw ProviderException('custom_api', message: 'Persistence verification failed: updated section "$key" could not be verified.');
+      throw ProviderException(
+        'custom_api',
+        message:
+            'Persistence verification failed: updated section "$key" could not be verified.',
+      );
     }
     return section;
   }
