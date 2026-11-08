@@ -1147,6 +1147,16 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     }
   }
 
+  String _catalogTypeBadge(CatalogSection section) {
+    final String mode = section.displayMode.toLowerCase();
+    final String type = section.sourceType.toLowerCase();
+    if (mode == 'tracks' || mode == 'songs' || mode == 'song' || type == 'song' || type == 'track') {
+      return 'TRACK';
+    }
+    if (type == 'new_releases') return 'NEW_RELEASES';
+    return section.sourceType.toUpperCase();
+  }
+
   String _inferSourceType(String url) {
     final String lower = url.toLowerCase();
     if (lower.contains('/artist/')) return 'artist';
@@ -1349,11 +1359,17 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
     try {
       if (_editingSection != null) {
+        final String saveType = (_detectedSourceType ?? 'playlist').toLowerCase() == 'track'
+            ? 'song'
+            : (_detectedSourceType ?? 'playlist');
+        final String? saveMode =
+            (saveType == 'song' || saveType == 'track') ? 'tracks' : null;
         await repo.updateCatalogSection(
           _editingSection!.sectionKey,
           displayTitle: title,
           displayGroup: group,
-          sourceType: _detectedSourceType,
+          sourceType: saveType,
+          displayMode: saveMode,
           subtitle: subtitle.isNotEmpty ? subtitle : null,
           language: _catalogLanguage,
           position: pos,
@@ -1368,11 +1384,14 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       } else {
         // Omit position — API inserts new shelf first inside this display group
         // without moving other Home groups.
+        final String saveType = (_detectedSourceType ?? 'playlist').toLowerCase() == 'track'
+            ? 'song'
+            : (_detectedSourceType ?? 'playlist');
         await repo.createCatalogSection(
           sourceUrl: url,
           displayTitle: title,
           displayGroup: group,
-          sourceType: _detectedSourceType,
+          sourceType: saveType,
           subtitle: subtitle.isNotEmpty ? subtitle : null,
           language: _catalogLanguage,
           isEnabled: _catalogIsEnabled,
@@ -2245,7 +2264,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        section.sourceType.toUpperCase(),
+                        _catalogTypeBadge(section),
                         style: TextStyle(
                           fontSize: 9.5,
                           fontWeight: FontWeight.w800,
@@ -2516,7 +2535,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            section.sourceType.toUpperCase(),
+                            _catalogTypeBadge(section),
                             style: TextStyle(
                               fontSize: 9.5,
                               fontWeight: FontWeight.w800,
@@ -2942,10 +2961,15 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
-                            value: <String>['playlist', 'album', 'artist', 'song']
-                                    .contains(_detectedSourceType?.toLowerCase())
-                                ? _detectedSourceType!.toLowerCase()
-                                : 'playlist',
+                            value: () {
+                              final String t = (_detectedSourceType ?? 'playlist').toLowerCase();
+                              if (t == 'track' || t == 'tracks') return 'song';
+                              if (t == 'new_releases') return 'song'; // Home tracks shelf for new-releases feeds
+                              if (<String>['playlist', 'album', 'artist', 'song'].contains(t)) {
+                                return t;
+                              }
+                              return 'playlist';
+                            }(),
                             isDense: true,
                             dropdownColor: isDark ? AppColors.surfaceContainerHigh : Colors.white,
                             style: const TextStyle(

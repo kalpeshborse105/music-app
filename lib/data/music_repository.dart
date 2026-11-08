@@ -1016,6 +1016,7 @@ class MusicRepository {
     required String displayTitle,
     required String displayGroup,
     String? sourceType,
+    String? displayMode,
     String? subtitle,
     String language = 'all',
     int? position,
@@ -1031,11 +1032,15 @@ class MusicRepository {
     if (provider == null) {
       throw const ProviderException('custom_api', message: 'Custom API provider unavailable.');
     }
+    final String? normalizedType = sourceType?.toLowerCase() == 'track' ? 'song' : sourceType;
+    final String? mode = displayMode ??
+        ((normalizedType == 'song' || normalizedType == 'track') ? 'tracks' : null);
     final Map<String, dynamic> res = await provider.createCatalogSection(<String, dynamic>{
       'source_url': sourceUrl,
       'display_title': displayTitle,
       'display_group': displayGroup,
-      if (sourceType != null && sourceType.isNotEmpty) 'source_type': sourceType,
+      if (normalizedType != null && normalizedType.isNotEmpty) 'source_type': normalizedType,
+      if (mode != null && mode.isNotEmpty) 'display_mode': mode,
       if (subtitle != null && subtitle.isNotEmpty) 'subtitle': subtitle,
       'language': language,
       if (position != null) 'position': position,
