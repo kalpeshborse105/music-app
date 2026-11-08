@@ -1078,26 +1078,33 @@ class MusicRepository {
     String? displayTitle,
     String? sourceUrl,
   }) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null) return false;
     final String normKey = key.toLowerCase().replaceAll('-', '_');
     for (int attempt = 0; attempt < 4; attempt++) {
       if (attempt > 0) {
         await Future<void>.delayed(Duration(milliseconds: 350 * attempt));
       }
-      final List<CatalogSection> readBack = await getCatalogSections(
+      // Lite list only — never refresh=1 (that re-resolves every shelf and times out).
+      final List<Map<String, dynamic>> raw = await provider.getCatalogSections(
         includeDisabled: true,
-        forceRefresh: true,
+        lite: true,
       );
-      final bool found = readBack.any((CatalogSection s) {
-        final String sk = s.key.toLowerCase().replaceAll('-', '_');
-        if (sk == normKey || (id.isNotEmpty && s.id == id) || s.key == key) {
+      final bool found = raw.any((Map<String, dynamic> m) {
+        final String sk =
+            (m['key'] as String? ?? '').toLowerCase().replaceAll('-', '_');
+        final String sid = m['id'] as String? ?? '';
+        if (sk == normKey || (id.isNotEmpty && sid == id) || sk == key) {
           return true;
         }
+        final String title = m['display_title'] as String? ?? '';
+        final String url = m['source_url'] as String? ?? '';
         if (displayTitle != null &&
             displayTitle.isNotEmpty &&
-            s.displayTitle == displayTitle &&
+            title == displayTitle &&
             sourceUrl != null &&
             sourceUrl.isNotEmpty &&
-            s.sourceUrl == sourceUrl) {
+            url == sourceUrl) {
           return true;
         }
         return false;

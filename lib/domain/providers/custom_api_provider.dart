@@ -433,6 +433,7 @@ class CustomApiProvider extends BaseMusicProvider {
     String? lang,
     String? group,
     bool refresh = false,
+    bool lite = false,
   }) async {
     if (_baseUrl.isEmpty) return <Map<String, dynamic>>[];
     try {
@@ -443,6 +444,7 @@ class CustomApiProvider extends BaseMusicProvider {
       }
       if (group != null && group.isNotEmpty) queryParams['group'] = group;
       if (refresh) queryParams['refresh'] = '1';
+      if (lite) queryParams['lite'] = '1';
 
       final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections').replace(
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
@@ -450,7 +452,7 @@ class CustomApiProvider extends BaseMusicProvider {
       final http.Response res = await http.get(
         uri,
         headers: _buildHeaders(),
-      ).timeout(Duration(seconds: refresh ? 45 : 10));
+      ).timeout(Duration(seconds: refresh ? 45 : (lite ? 20 : 10)));
       if (res.statusCode == 200) {
         final dynamic data = jsonDecode(res.body);
         if (data is Map && data['sections'] is List) {
