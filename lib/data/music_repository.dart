@@ -637,7 +637,7 @@ class MusicRepository {
     String? lang,
     String? group,
   }) {
-    return 'catalog_sections_v3:'
+    return 'catalog_sections_v4:'
         '${includeDisabled ? 'all' : 'on'}:'
         '${(lang ?? 'all').toLowerCase()}:'
         '${(group ?? 'all').toLowerCase()}';
@@ -820,22 +820,8 @@ class MusicRepository {
       return cached;
     }
 
-    // Cold install: paint bundled seed immediately, then refresh in background
-    if (!forceRefresh && !includeDisabled) {
-      final List<CatalogSection>? seed = await _loadBundledCatalogSeed(lang);
-      if (seed != null) {
-        _revalidateCatalogSections(cacheKey, includeDisabled, lang, group);
-        // Persist seed so next launch hits disk cache without asset decode cost
-        try {
-          await _writeCatalogCache(
-            cacheKey,
-            seed.map((CatalogSection s) => s.toJson()).toList(),
-          );
-        } catch (_) {}
-        return seed;
-      }
-    }
-
+    // Network / Supabase first — never paint or persist the APK bundled seed as
+    // the live catalogue (that made new installs show deleted/old admin shelves).
     final CustomApiProvider? provider = _customApiProvider;
     if (provider != null) {
       try {
@@ -849,10 +835,11 @@ class MusicRepository {
           final List<CatalogSection> fresh = raw
               .map((Map<String, dynamic> m) => CatalogSection.fromJson(m))
               .toList();
-          // Always apply network meta on forceRefresh — never keep stale
-          // position / display_group from disk just because items were empty.
-          final List<CatalogSection> merged =
-              _mergeCatalogNetworkMeta(fresh, cached);
+          // On forceRefresh use network rows as-is. Otherwise keep track payloads
+          // from disk only when network returned empty live items.
+          final List<CatalogSection> merged = forceRefresh
+              ? fresh
+              : _mergeCatalogNetworkMeta(fresh, cached);
           if (forceRefresh || _catalogLooksHealthy(merged) || !cacheOk) {
             _catalogLastFetched[cacheKey] = DateTime.now();
             if (!includeDisabled) {
@@ -870,7 +857,7 @@ class MusicRepository {
       }
     }
 
-    if (cacheOk) return cached;
+    if (cacheOk) return cached!;
 
     if (SupabaseService().isInitialized) {
       final List<CatalogSection> dbSections = await _getCatalogSectionsFromSupabase(
@@ -879,10 +866,18 @@ class MusicRepository {
         group: group,
       );
       if (dbSections.isNotEmpty) {
+        if (!includeDisabled) {
+          await _writeCatalogCache(
+            cacheKey,
+            dbSections.map((CatalogSection s) => s.toJson()).toList(),
+          );
+        }
+        _catalogLastFetched[cacheKey] = DateTime.now();
         return dbSections;
       }
     }
 
+    // Last resort offline paint only — do NOT write seed into disk cache.
     final List<CatalogSection>? seed = await _loadBundledCatalogSeed(lang);
     if (seed != null) return seed;
 
