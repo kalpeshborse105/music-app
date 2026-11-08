@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
@@ -185,6 +188,35 @@ class MusicRepository {
         return p.getTrending(limit: limit, offset: offset);
       }, limit: limit, language: language);
 
+  static const String _trendingHomeCacheKey = 'home_trending_v1';
+
+  List<Track> readTrendingHomeCache() {
+    final List<dynamic>? raw = _cache?.getList(_trendingHomeCacheKey);
+    if (raw == null || raw.isEmpty) return const <Track>[];
+    try {
+      return raw
+          .whereType<Map>()
+          .map((Map m) => Track.fromJson(Map<String, dynamic>.from(m)))
+          .toList();
+    } catch (_) {
+      return const <Track>[];
+    }
+  }
+
+  Future<void> _writeTrendingHomeCache(List<Track> tracks) async {
+    final CacheStore? cache = _cache;
+    if (cache == null || tracks.isEmpty) return;
+    try {
+      await cache.set(
+        _trendingHomeCacheKey,
+        tracks.map((Track t) => t.toJson()).toList(),
+        AppConstants.catalogCacheTtl,
+      );
+    } catch (e) {
+      debugPrint('[MusicRepository] trending cache write failed: $e');
+    }
+  }
+
   /// Paged trending feed preserving truthful has_more and total from backend
   Future<PagedResult<Track>> trendingPaged({int limit = 20, int offset = 0, String? language}) async {
     final bool isRegionalFilter = language != null &&
@@ -208,6 +240,9 @@ class MusicRepository {
               ? p.getTrending(limit: limit, offset: offset, language: language)
               : p.getTrending(limit: limit, offset: offset));
           final List<Track> deduped = _dedupeTracks(res.items);
+          if (offset == 0 && !isRegionalFilter && deduped.isNotEmpty) {
+            unawaited(_writeTrendingHomeCache(deduped));
+          }
           return PagedResult<Track>(
             items: deduped,
             total: res.total,
@@ -221,7 +256,23 @@ class MusicRepository {
       }
     }
 
+    // Network miss: serve last good Home page so bottom list is never blank.
+    if (offset == 0 && !isRegionalFilter) {
+      final List<Track> cached = readTrendingHomeCache();
+      if (cached.isNotEmpty) {
+        return PagedResult<Track>(
+          items: cached.take(limit).toList(),
+          total: cached.length,
+          nextOffset: math.min(limit, cached.length),
+          hasMore: true,
+        );
+      }
+    }
+
     final List<Track> tracks = await trending(limit: limit, offset: offset, language: language);
+    if (offset == 0 && !isRegionalFilter && tracks.isNotEmpty) {
+      unawaited(_writeTrendingHomeCache(tracks));
+    }
     return PagedResult<Track>(
       items: tracks,
       total: tracks.length,
@@ -678,7 +729,8 @@ class MusicRepository {
   bool _catalogLooksHealthy(List<CatalogSection> sections) {
     if (sections.isEmpty) return false;
     final int filled = _catalogFilledCount(sections);
-    return filled >= 1 && filled >= (sections.length / 3).ceil();
+    // Accept metadata-heavy catalogues (items may fill later via revalidate).
+    return filled >= 1 || sections.length >= 5;
   }
 
   /// Keep track payloads from cache only when network returned live empty
@@ -825,11 +877,13 @@ class MusicRepository {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider != null) {
       try {
+        // forceRefresh = bypass local disk only. Never send refresh=1 here —
+        // that re-resolves every Jio shelf and makes Home show "Loading…" forever.
         final List<Map<String, dynamic>> raw = await provider.getCatalogSections(
           includeDisabled: includeDisabled,
           lang: lang,
           group: group,
-          refresh: forceRefresh,
+          refresh: false,
         );
         if (raw.isNotEmpty) {
           final List<CatalogSection> fresh = raw
@@ -898,7 +952,7 @@ class MusicRepository {
           includeDisabled: includeDisabled,
           lang: lang,
           group: group,
-          refresh: true,
+          refresh: false,
         );
         if (raw.isNotEmpty) {
           final List<CatalogSection> fresh = raw

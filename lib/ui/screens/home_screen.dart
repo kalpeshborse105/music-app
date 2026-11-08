@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -101,17 +102,20 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final MusicRepository repo = context.read<MusicRepository>();
       final LibraryController library = context.read<LibraryController>();
-      final List<Object> results = await Future.wait(<Future<Object>>[
-        repo.getCatalogSections(forceRefresh: true),
-        library.syncWithSupabase().then((_) => true),
-      ]);
+      // Bypass disk cache, but do NOT hard-refresh every Jio shelf (that stalls Home).
+      final List<CatalogSection> fresh =
+          await repo.getCatalogSections(forceRefresh: true);
       if (!mounted) return;
       setState(() {
-        _catalogSectionsFuture = Future<List<CatalogSection>>.value(
-          results[0] as List<CatalogSection>,
-        );
+        _catalogSectionsFuture = Future<List<CatalogSection>>.value(fresh);
       });
-      await _loadInitialTracks();
+      // Refresh trending only if empty — never wipe a good list on a soft reopen.
+      if (_infiniteTracks.isEmpty) {
+        await _loadInitialTracks();
+      } else {
+        unawaited(_loadInitialTracks(preserveExisting: true));
+      }
+      unawaited(library.syncWithSupabase());
     } catch (e) {
       debugPrint('[HomeScreen] silent refresh skipped: $e');
     }
@@ -128,12 +132,14 @@ class _HomeScreenState extends State<HomeScreen> {
     _refreshData();
   }
 
-  Future<void> _loadInitialTracks() async {
+  Future<void> _loadInitialTracks({bool preserveExisting = false}) async {
     if (_isLoadingInitial) return;
     setState(() {
       _isLoadingInitial = true;
-      _currentOffset = 0;
-      _hasMore = true;
+      if (!preserveExisting) {
+        _currentOffset = 0;
+        _hasMore = true;
+      }
     });
     try {
       final MusicRepository repo = context.read<MusicRepository>();
@@ -143,11 +149,15 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       if (mounted) {
         setState(() {
-          _currentOffset = paged.items.length;
-          _infiniteTracks.clear();
-          _infiniteTracks.addAll(paged.items);
-          _hasMore = paged.hasMore || paged.items.isNotEmpty;
-          if (paged.items.isEmpty) _hasMore = true;
+          if (paged.items.isNotEmpty) {
+            _currentOffset = paged.items.length;
+            _infiniteTracks
+              ..clear()
+              ..addAll(paged.items);
+            _hasMore = paged.hasMore || paged.items.isNotEmpty;
+          } else if (!preserveExisting && _infiniteTracks.isEmpty) {
+            _hasMore = true;
+          }
         });
       }
     } catch (e) {
@@ -208,9 +218,17 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_initialized) {
       _initialized = true;
       final MusicRepository repo = context.read<MusicRepository>();
-      // Always fetch network catalogue first so admin edits show without a long stale flash.
-      _catalogSectionsFuture = repo.getCatalogSections(forceRefresh: true);
-      _loadInitialTracks();
+      // Cache-first: paint local catalogue + last trending page immediately.
+      _catalogSectionsFuture = repo.getCatalogSections(forceRefresh: false);
+      final List<Track> cachedTrending = repo.readTrendingHomeCache();
+      if (cachedTrending.isNotEmpty) {
+        _infiniteTracks
+          ..clear()
+          ..addAll(cachedTrending);
+        _currentOffset = cachedTrending.length;
+        _hasMore = true;
+      }
+      _loadInitialTracks(preserveExisting: cachedTrending.isNotEmpty);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _silentBackgroundRefresh();
       });
