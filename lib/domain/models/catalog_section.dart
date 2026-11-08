@@ -74,29 +74,32 @@ class CatalogSection {
     this.customTracks = const <Track>[],
   });
 
+  static bool _isJunkCatalogTrack(Map<String, dynamic> item) {
+    if (item['is_mock'] == true) return true;
+    final String title = (item['title'] as String? ?? '').trim();
+    final String artist = (item['artist'] as String? ?? '').trim();
+    final String id = (item['id'] as String? ?? item['token'] as String? ?? '').trim();
+    if (title.isEmpty) return true;
+    final String tl = title.toLowerCase();
+    final String al = artist.toLowerCase();
+    if (tl.contains('sample trailer') || tl.startsWith('this is a sample')) {
+      return true;
+    }
+    if (al == 'null' || al == 'none' || al == 'undefined' || al == 'n/a') {
+      return true;
+    }
+    if (artist.toUpperCase() == 'NULL') return true;
+    if (id.isEmpty || id.toLowerCase() == 'null') return true;
+    return false;
+  }
+
   factory CatalogSection.fromJson(Map<String, dynamic> json) {
     final List<dynamic> rawItems = (json['items'] as List<dynamic>?) ?? <dynamic>[];
-    final List<Track> parsedItems = rawItems.map((dynamic item) {
-      if (item is! Map<String, dynamic>) {
-        return Track(
-          id: 'custom_api:track:unknown',
-          providerId: 'custom_api',
-          providerTrackId: 'unknown',
-          title: 'Unknown Track',
-          artists: const <Artist>[],
-          duration: Duration.zero,
-          explicit: false,
-          mediaType: MediaType.audio,
-          isStreamable: false,
-          isDownloadable: false,
-          hasLyrics: false,
-          qualityOptions: const <AudioQuality>[],
-          commercialUseAllowed: false,
-          backgroundPlaybackAllowed: true,
-          license: 'Mock',
-          attributionRequired: false,
-        );
-      }
+    final List<Track> parsedItems = rawItems
+        .whereType<Map>()
+        .map((Map m) => Map<String, dynamic>.from(m))
+        .where((Map<String, dynamic> item) => !_isJunkCatalogTrack(item))
+        .map((Map<String, dynamic> item) {
       final String trackId = item['id'] as String? ?? '';
       final String title = item['title'] as String? ?? 'Untitled';
       final String artist = item['artist'] as String? ?? 'Unknown Artist';
