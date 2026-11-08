@@ -1174,60 +1174,60 @@ class _HomeScreenState extends State<HomeScreen> {
                   final String groupTitle = entry.key;
                   final List<CatalogSection> groupSections = entry.value;
 
-                  // All admin shelves as entity cards (never dump raw track grids
-                  // for new_releases — that caused broken Bhojpuri/NULL songs).
+                  // Split TRACK shelves from entity cards inside the same group.
+                  // Before: track shelf only if group had exactly 1 section — so
+                  // "New Releases (Hindi)" TRACK sat as one card next to playlists.
                   final List<CatalogSection> shelfSections = groupSections;
                   if (shelfSections.isEmpty) {
                     return const SizedBox.shrink();
                   }
 
-                  // Track shelf: display_mode=tracks OR sourceType song/track with 2+ songs
-                  final CatalogSection shelfHead = shelfSections.first;
-                  final String mode = shelfHead.displayMode.toLowerCase();
-                  final bool wantsTrackShelf = mode == 'tracks' ||
-                      mode == 'songs' ||
-                      mode == 'song' ||
-                      shelfHead.sourceType == 'song' ||
-                      shelfHead.sourceType == 'track';
-                  final int trackN = shelfHead.items.length > shelfHead.itemCount
-                      ? shelfHead.items.length
-                      : shelfHead.itemCount;
-                  final bool isTrackShelf = shelfSections.length == 1 &&
-                      wantsTrackShelf &&
-                      (shelfHead.items.length > 1 || trackN > 1);
+                  bool wantsTrackShelf(CatalogSection s) {
+                    final String mode = s.displayMode.toLowerCase();
+                    return mode == 'tracks' ||
+                        mode == 'songs' ||
+                        mode == 'song' ||
+                        s.sourceType == 'song' ||
+                        s.sourceType == 'track';
+                  }
 
-                  final CatalogSection? trackSection =
-                      isTrackShelf ? shelfSections.first : null;
-                  final List<Track> tracks =
-                      trackSection != null ? trackSection.items : const <Track>[];
+                  bool hasPlayableTracks(CatalogSection s) {
+                    final int n =
+                        s.items.length > s.itemCount ? s.items.length : s.itemCount;
+                    return s.items.length > 1 || n > 1;
+                  }
 
-                  final String effectiveTitle = isTrackShelf
-                      ? (trackSection!.displayTitle.isNotEmpty
-                          ? trackSection.displayTitle
-                          : groupTitle)
-                      : groupTitle;
+                  final List<CatalogSection> trackShelves = shelfSections
+                      .where(
+                        (CatalogSection s) =>
+                            wantsTrackShelf(s) && hasPlayableTracks(s),
+                      )
+                      .toList();
+                  final List<CatalogSection> entitySections = shelfSections
+                      .where(
+                        (CatalogSection s) =>
+                            !(wantsTrackShelf(s) && hasPlayableTracks(s)),
+                      )
+                      .toList();
 
-                  final int effectiveItemCount =
-                      isTrackShelf ? tracks.length : shelfSections.length;
-
-                  // Entity Shelves (Playlists, Albums, Artists, Charts):
-                  final bool isArtistGroup = !isTrackShelf && shelfSections.every(
-                    (CatalogSection s) => s.sourceType == 'artist',
-                  );
+                  final bool isArtistGroup = entitySections.isNotEmpty &&
+                      entitySections.every(
+                        (CatalogSection s) => s.sourceType == 'artist',
+                      );
                   final double shelfHeight = isArtistGroup ? 185 : 215;
                   final double cardWidth = isArtistGroup ? 130 : 148;
 
-                  Widget cardForTrack(Track track) {
+                  Widget cardForTrack(Track track, List<Track> queue) {
                     return MediaCard(
                       title: track.title,
                       subtitle: track.artistNames,
-                      imageUrl: track.artworkUrl ?? trackSection?.effectiveArtworkUrl,
+                      imageUrl: track.artworkUrl,
                       fallbackIcon: Icons.music_note_rounded,
                       badgeText: 'TRACK',
                       badgeColor: AppColors.tertiary,
                       width: cardWidth,
-                      onTap: () => TrackActions.play(context, track, queue: tracks),
-                      onPlay: () => TrackActions.play(context, track, queue: tracks),
+                      onTap: () => TrackActions.play(context, track, queue: queue),
+                      onPlay: () => TrackActions.play(context, track, queue: queue),
                     );
                   }
 
@@ -1241,12 +1241,26 @@ class _HomeScreenState extends State<HomeScreen> {
                         sec.items.isEmpty) {
                       return const SizedBox.shrink();
                     }
-                    final bool isSingleTrack = sec.sourceType == 'song' ||
-                        sec.sourceType == 'track' ||
-                        (count == 1 &&
-                            sec.sourceType != 'album' &&
-                            sec.sourceType != 'artist');
+                    // Never badge a multi-song TRACK shelf as a single TRACK card —
+                    // those render above via cardForTrack. Lone 1-song shelves only.
+                    final bool isSingleTrack = (sec.sourceType == 'song' ||
+                            sec.sourceType == 'track') &&
+                        count <= 1;
                     final bool shelfDark = context.isDarkMode;
+                    String badge;
+                    if (sec.isBanner) {
+                      badge = 'SPECIAL';
+                    } else if (isSingleTrack) {
+                      badge = 'TRACK';
+                    } else if (sec.sourceType == 'artist') {
+                      badge = 'ARTIST';
+                    } else if (sec.sourceType == 'album') {
+                      badge = 'ALBUM';
+                    } else if (sec.sourceType == 'new_releases') {
+                      badge = 'NEW';
+                    } else {
+                      badge = 'PLAYLIST';
+                    }
                     return MediaCard(
                       title: sec.displayTitle,
                       subtitle: sec.subtitle ??
@@ -1269,15 +1283,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ? Icons.album_rounded
                                   : Icons.queue_music_rounded)),
                       circle: sec.sourceType == 'artist',
-                      badgeText: sec.isBanner
-                          ? 'SPECIAL'
-                          : (isSingleTrack
-                              ? 'TRACK'
-                              : (sec.sourceType == 'artist'
-                                  ? 'ARTIST'
-                                  : (sec.sourceType == 'album'
-                                      ? 'ALBUM'
-                                      : 'PLAYLIST'))),
+                      badgeText: badge,
                       badgeColor: sec.isBanner
                           ? (shelfDark
                               ? AppColors.primaryLight
@@ -1305,51 +1311,89 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   }
 
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      SectionHeader(
-                        title: effectiveTitle,
-                        topPadding: AppSpacing.sm,
-                        actionLabel: effectiveItemCount > 1 ? 'See all' : null,
-                        onAction: isTrackShelf && tracks.isNotEmpty
-                            ? () => Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => TrackListScreen(
-                                      title: effectiveTitle,
-                                      tracks: tracks,
+                  Widget buildTrackShelf(CatalogSection trackSection) {
+                    final List<Track> tracks = trackSection.items;
+                    final String title = trackSection.displayTitle.isNotEmpty
+                        ? trackSection.displayTitle
+                        : groupTitle;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        SectionHeader(
+                          title: title,
+                          topPadding: AppSpacing.sm,
+                          actionLabel: tracks.length > 1 ? 'See all' : null,
+                          onAction: tracks.isNotEmpty
+                              ? () => Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => TrackListScreen(
+                                        title: title,
+                                        tracks: tracks,
+                                      ),
                                     ),
-                                  ),
-                                )
-                            : null,
-                      ),
-                      // Artists stay single-row horizontal; other shelves use 2 rows
-                      if (isArtistGroup)
-                        SizedBox(
-                          height: shelfHeight,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.lg,
-                            ),
-                            itemCount: shelfSections.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(width: AppSpacing.md),
-                            itemBuilder: (BuildContext cardCtx, int i) =>
-                                cardFor(shelfSections[i]),
-                          ),
-                        )
-                      else
+                                  )
+                              : null,
+                        ),
                         _buildDoubleRowShelf(
                           context: context,
-                          itemCount: effectiveItemCount,
+                          itemCount: tracks.length,
                           rowHeight: shelfHeight,
                           itemWidth: cardWidth,
                           itemBuilder: (BuildContext cardCtx, int i) =>
-                              isTrackShelf
-                                  ? cardForTrack(tracks[i])
-                                  : cardFor(shelfSections[i]),
+                              cardForTrack(tracks[i], tracks),
                         ),
+                      ],
+                    );
+                  }
+
+                  Widget buildEntityShelf(List<CatalogSection> sections) {
+                    if (sections.isEmpty) return const SizedBox.shrink();
+                    final bool artistsOnly = sections.every(
+                      (CatalogSection s) => s.sourceType == 'artist',
+                    );
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        SectionHeader(
+                          title: groupTitle,
+                          topPadding: AppSpacing.sm,
+                          actionLabel: sections.length > 1 ? 'See all' : null,
+                        ),
+                        if (artistsOnly)
+                          SizedBox(
+                            height: shelfHeight,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.lg,
+                              ),
+                              itemCount: sections.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(width: AppSpacing.md),
+                              itemBuilder: (BuildContext cardCtx, int i) =>
+                                  cardFor(sections[i]),
+                            ),
+                          )
+                        else
+                          _buildDoubleRowShelf(
+                            context: context,
+                            itemCount: sections.length,
+                            rowHeight: shelfHeight,
+                            itemWidth: cardWidth,
+                            itemBuilder: (BuildContext cardCtx, int i) =>
+                                cardFor(sections[i]),
+                          ),
+                      ],
+                    );
+                  }
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      for (final CatalogSection ts in trackShelves)
+                        buildTrackShelf(ts),
+                      if (entitySections.isNotEmpty)
+                        buildEntityShelf(entitySections),
                     ],
                   );
                 },

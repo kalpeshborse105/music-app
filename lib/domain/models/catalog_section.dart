@@ -156,12 +156,20 @@ class CatalogSection {
       slug: json['slug'] as String? ?? '',
       displayTitle: json['display_title'] as String? ?? 'Untitled Section',
       displayGroup: json['display_group'] as String? ?? 'Featured',
-      displayMode: (json['display_mode'] as String?)?.trim().isNotEmpty == true
-          ? (json['display_mode'] as String).trim().toLowerCase()
-          : ((json['source_type'] as String?)?.toLowerCase() == 'song' ||
-                  (json['source_type'] as String?)?.toLowerCase() == 'track')
-              ? 'tracks'
-              : 'entity',
+      displayMode: () {
+        final String raw =
+            (json['display_mode'] as String?)?.trim().toLowerCase() ?? '';
+        if (raw == 'tracks' || raw == 'songs' || raw == 'song') {
+          return 'tracks';
+        }
+        final String st =
+            (json['source_type'] as String?)?.trim().toLowerCase() ?? '';
+        // Treat song/track as tracks shelf; ignore bogus "None"/null strings from API.
+        if (st == 'song' || st == 'track') {
+          return 'tracks';
+        }
+        return 'entity';
+      }(),
       subtitle: json['subtitle'] as String?,
       language: json['language'] as String? ?? 'all',
       position: (json['position'] as num?)?.toInt() ?? 1,
