@@ -1394,14 +1394,18 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           displayGroup: group,
           sourceType: saveType,
           displayMode: saveMode,
-          subtitle: subtitle.isNotEmpty ? subtitle : null,
+          subtitle: subtitle,
+          clearSubtitle: subtitle.isEmpty,
           language: _catalogLanguage,
           position: pos,
           isEnabled: _catalogIsEnabled,
-          customArtworkUrl: customArt.isNotEmpty ? customArt : null,
+          customArtworkUrl: customArt,
+          clearCustomArtwork: customArt.isEmpty,
           isBanner: _catalogIsBanner,
           campaignStart: campStart,
+          clearCampaignStart: campStart == null,
           campaignEnd: campEnd,
+          clearCampaignEnd: campEnd == null,
           sourceUrl: url,
           excludedTrackIds: _excludedTrackIds.toList(),
         );
@@ -1983,8 +1987,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           displayGroup: newGroup,
           sourceType: selectedType,
           displayMode: displayMode,
-          subtitle: newSub.isNotEmpty ? newSub : null,
-          customArtworkUrl: newArt.isNotEmpty ? newArt : null,
+          subtitle: newSub,
+          clearSubtitle: newSub.isEmpty,
+          customArtworkUrl: newArt,
+          clearCustomArtwork: newArt.isEmpty,
           language: sec.language,
           isEnabled: sec.isEnabled,
           isBanner: sec.isBanner,
@@ -2007,7 +2013,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to update section: $e'),
+              content: Text('Failed to update section: ${_formatErrorMessage(e)}'),
               backgroundColor: AppColors.error,
             ),
           );
@@ -2047,7 +2053,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to reorder: $e'),
+            content: Text('Failed to reorder: ${_formatErrorMessage(e)}'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -2159,7 +2165,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to refresh section: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Failed to refresh section: ${_formatErrorMessage(e)}'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     } finally {
@@ -2173,9 +2182,11 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     setState(() => _isLoadingCatalog = true);
     final MusicRepository repo = context.read<MusicRepository>();
     try {
-      final List<CatalogSection> list = await repo.refreshAllCatalogSections();
-      // Keep refresh-all stamps — do not immediately re-GET (old song-cache
-      // timestamps used to overwrite "Just now" back to "11d ago").
+      final Map<String, dynamic> detailed = await repo.refreshAllCatalogSectionsDetailed();
+      final List<CatalogSection> list = (detailed['sections'] as List<CatalogSection>?) ?? <CatalogSection>[];
+      final int completed = (detailed['completed'] as num?)?.toInt() ?? list.length;
+      final int failed = (detailed['failed'] as num?)?.toInt() ?? 0;
+      final int pending = (detailed['pending'] as num?)?.toInt() ?? 0;
       await repo.invalidateCatalogCache();
       HomeScreen.silentRefreshLatest();
       if (!mounted) return;
@@ -2183,12 +2194,13 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         _catalogSections = list;
         _isLoadingCatalog = false;
       });
+      final String msg = failed > 0 || pending > 0
+          ? 'Refreshed $completed live, $failed failed, $pending pending'
+          : 'Refreshed $completed catalogue shelves from live sources';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Refreshed ${list.length} catalogue shelves from live sources (Just now)',
-          ),
-          backgroundColor: AppColors.success,
+          content: Text(msg),
+          backgroundColor: failed > 0 ? AppColors.warning : AppColors.success,
         ),
       );
     } catch (e) {
@@ -2196,12 +2208,20 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         setState(() => _isLoadingCatalog = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Refresh all failed: $e'),
+            content: Text('Refresh all failed: ${_formatErrorMessage(e)}'),
             backgroundColor: AppColors.error,
           ),
         );
       }
     }
+  }
+
+  static String _formatErrorMessage(Object error) {
+    final String str = error.toString();
+    if (str.contains('TimeoutException') || str.contains('Future not completed')) {
+      return 'Server request timed out. Please check your connection and retry.';
+    }
+    return str.replaceFirst(RegExp(r'^(Exception|ProviderException):\s*(\[[^\]]+\]\s*)?'), '');
   }
 
   /// Supabase sync packs meta JSON into last_error — never show that as ERR.

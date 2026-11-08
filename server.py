@@ -45,14 +45,6 @@ try:
 except ImportError:
     YTDLP_AVAILABLE = False
 
-try:
-    import firebase_admin
-    from firebase_admin import credentials, messaging
-    FIREBASE_ADMIN_AVAILABLE = True
-except ImportError:
-    FIREBASE_ADMIN_AVAILABLE = False
-
-
 
 VERSION = "3.0.0"
 SERVICE_NAME = "Kalpkrut Beats API Gateway"
@@ -246,12 +238,12 @@ INDIAN_LANGUAGES = [
     "kannada", "malayalam", "bhojpuri", "haryanvi", "rajasthani", "odia", "assamese", "urdu",
 ]
 SUPPORTED_LANGUAGES = INDIAN_LANGUAGES + ["english", "sanskrit"]
-DEFAULT_LANGUAGES = ["hindi", "punjabi", "marathi", "gujarati", "bengali"]
+DEFAULT_LANGUAGES = ["hindi", "punjabi", "tamil", "telugu", "marathi", "gujarati", "bengali", "bhojpuri", "haryanvi"]
 LANGUAGE_GROUPS = {
     "all": DEFAULT_LANGUAGES,
     "india": DEFAULT_LANGUAGES,
     "south": ["tamil", "telugu", "kannada", "malayalam"],
-    "north": ["hindi", "punjabi", "haryanvi", "rajasthani"],
+    "north": ["hindi", "punjabi", "haryanvi", "bhojpuri", "rajasthani"],
 }
 
 MOOD_QUERIES = {
@@ -1708,355 +1700,6 @@ def api_suggest():
     return ok({"query": query, "suggestions": flat, "grouped": data}, 600)
 
 
-
-# ─── Public Share Landing Pages & App Links ─────────────────────────────────────
-def render_share_page(title, subtitle, artwork, stream_url, intent_url, play_store_url, content_type="song"):
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{html.escape(title)} • Kalpkrut Beats</title>
-  
-  <!-- Open Graph Meta Tags for Rich Social Previews (WhatsApp, Telegram, X, Facebook) -->
-  <meta property="og:type" content="music.song">
-  <meta property="og:site_name" content="Kalpkrut Beats">
-  <meta property="og:title" content="{html.escape(title)}">
-  <meta property="og:description" content="Listen to {html.escape(title)} by {html.escape(subtitle)} on Kalpkrut Beats">
-  <meta property="og:image" content="{html.escape(artwork)}">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="{html.escape(title)}">
-  <meta name="twitter:description" content="{html.escape(subtitle)} • Kalpkrut Beats">
-  <meta name="twitter:image" content="{html.escape(artwork)}">
-  <link rel="icon" type="image/png" href="/favicon.png">
-
-  <style>
-    :root {{
-      --bg: #0A0A14;
-      --card: rgba(22, 22, 36, 0.88);
-      --primary: #8C7CFF;
-      --accent: #5D50EE;
-      --text: #FFFFFF;
-      --text-muted: #A0A0B8;
-    }}
-    * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }}
-    body {{
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      position: relative;
-      overflow-x: hidden;
-    }}
-    .glow {{
-      position: absolute;
-      width: 340px;
-      height: 340px;
-      background: radial-gradient(circle, rgba(140, 124, 255, 0.25) 0%, rgba(10, 10, 20, 0) 70%);
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -60%);
-      pointer-events: none;
-      z-index: 0;
-    }}
-    .card {{
-      position: relative;
-      z-index: 1;
-      width: 100%;
-      max-width: 420px;
-      background: var(--card);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 28px;
-      padding: 32px 24px;
-      text-align: center;
-      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-    }}
-    .brand {{
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 24px;
-      padding: 6px 14px;
-      background: rgba(255, 255, 255, 0.06);
-      border-radius: 30px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      font-size: 13px;
-      font-weight: 700;
-      color: #D1D0F8;
-    }}
-    .art-wrap {{
-      width: 220px;
-      height: 220px;
-      margin: 0 auto 24px auto;
-      border-radius: 22px;
-      overflow: hidden;
-      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5), 0 0 24px rgba(140, 124, 255, 0.25);
-    }}
-    .art-wrap img {{
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }}
-    h1 {{
-      font-size: 22px;
-      font-weight: 800;
-      margin-bottom: 8px;
-      color: var(--text);
-      line-height: 1.3;
-    }}
-    p.artist {{
-      font-size: 15px;
-      color: var(--text-muted);
-      margin-bottom: 22px;
-    }}
-    .audio-player {{
-      width: 100%;
-      margin-bottom: 22px;
-      border-radius: 12px;
-    }}
-    audio {{
-      width: 100%;
-      filter: invert(1) hue-rotate(180deg);
-      border-radius: 10px;
-    }}
-    .btn {{
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      width: 100%;
-      padding: 15px 20px;
-      border-radius: 16px;
-      font-size: 15px;
-      font-weight: 700;
-      text-decoration: none;
-      cursor: pointer;
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
-      border: none;
-      margin-bottom: 12px;
-    }}
-    .btn:active {{
-      transform: scale(0.98);
-    }}
-    .btn-primary {{
-      background: linear-gradient(135deg, #8C7CFF 0%, #5D50EE 100%);
-      color: #FFFFFF;
-      box-shadow: 0 8px 24px rgba(108, 99, 255, 0.35);
-    }}
-    .btn-secondary {{
-      background: rgba(255, 255, 255, 0.08);
-      color: #E2E2F0;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-    }}
-    .btn-secondary:hover {{
-      background: rgba(255, 255, 255, 0.12);
-    }}
-    .hint {{
-      font-size: 11.5px;
-      color: var(--text-muted);
-      margin-top: 14px;
-      line-height: 1.4;
-    }}
-  </style>
-
-  <script>
-    const isAndroid = /Android/i.test(navigator.userAgent);
-    const intentUrl = "{intent_url}";
-    const playStoreUrl = "{play_store_url}";
-
-    function openInApp() {{
-      if (isAndroid) {{
-        window.location.href = intentUrl;
-        setTimeout(function() {{
-          window.location.href = playStoreUrl;
-        }}, 2500);
-      }} else {{
-        window.location.href = playStoreUrl;
-      }}
-    }}
-
-    // Auto-attempt open in Android App when link is tapped
-    window.addEventListener("DOMContentLoaded", function() {{
-      if (isAndroid && !window.location.search.includes("no_auto=1")) {{
-        setTimeout(function() {{
-          window.location.href = intentUrl;
-        }}, 400);
-      }}
-    }});
-  </script>
-</head>
-<body>
-  <div class="glow"></div>
-  <div class="card">
-    <div class="brand">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="#8C7CFF"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-      <span>Kalpkrut Beats</span>
-    </div>
-
-    <div class="art-wrap">
-      <img src="{html.escape(artwork)}" alt="{html.escape(title)}" onerror="this.src='/icons/Icon-512.png'">
-    </div>
-
-    <h1>{html.escape(title)}</h1>
-    <p class="artist">{html.escape(subtitle)}</p>
-
-    {f'<div class="audio-player"><audio controls preload="none"><source src="{html.escape(stream_url)}" type="audio/mp4"></audio></div>' if stream_url else ''}
-
-    <button class="btn btn-primary" onclick="openInApp()">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-      <span>Open in Kalpkrut Beats</span>
-    </button>
-
-    <a href="{play_store_url}" class="btn btn-secondary">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3.609 1.814L13.792 12 3.61 22.186a1.996 1.996 0 0 1-.22-.924V2.738c0-.348.082-.668.219-.924zM15.207 13.414l2.593 2.593-11.83 6.744 9.237-9.337zm0-2.828L5.97 1.25l11.83 6.744-2.593 2.592zm1.414 1.414l3.18-1.814c.915-.522.915-1.374 0-1.896l-3.18-1.814-2.121 2.121 2.121 2.121z"/></svg>
-      <span>Get on Google Play</span>
-    </a>
-
-    <p class="hint">
-      Have the app installed? It will open directly.<br>
-      If not installed, it will automatically take you to Google Play Store to install.
-    </p>
-  </div>
-</body>
-</html>"""
-
-
-@app.route("/.well-known/assetlinks.json")
-def serve_assetlinks():
-    assetlinks_path = os.path.join(BASE_DIR, "web", ".well-known", "assetlinks.json")
-    if os.path.exists(assetlinks_path):
-        with open(assetlinks_path, "r", encoding="utf-8") as f:
-            data = f.read()
-        resp = Response(data, mimetype="application/json")
-        resp.headers["Cache-Control"] = "public, max-age=3600"
-        return resp
-    return jsonify([
-        {
-            "relation": ["delegate_permission/common.handle_all_urls"],
-            "target": {
-                "namespace": "android_app",
-                "package_name": "com.kalpkrut.beats",
-                "sha256_cert_fingerprints": [
-                    "16:5E:F2:79:13:A6:DE:95:04:06:8A:8A:EF:50:59:29:02:3F:7D:D7:9A:8D:7F:A4:BE:AA:1A:83:15:18:9A:CB"
-                ]
-            }
-        }
-    ]), 200, {"Content-Type": "application/json"}
-
-
-@app.route("/app-ads.txt")
-def serve_app_ads_txt():
-    for candidate in [
-        os.path.join(BASE_DIR, "web", "app-ads.txt"),
-        os.path.join(BASE_DIR, "app-ads.txt"),
-    ]:
-        if os.path.exists(candidate):
-            with open(candidate, "r", encoding="utf-8") as f:
-                content = f.read()
-            resp = Response(content, mimetype="text/plain; charset=utf-8")
-            resp.headers["Cache-Control"] = "public, max-age=3600"
-            return resp
-    return Response(
-        "google.com, pub-4362362303618297, DIRECT, f08c47fec0942fa0\n",
-        mimetype="text/plain; charset=utf-8",
-        headers={"Cache-Control": "public, max-age=3600"}
-    )
-
-
-@app.route("/robots.txt")
-def serve_robots_txt():
-    candidate = os.path.join(BASE_DIR, "web", "robots.txt")
-    if os.path.exists(candidate):
-        with open(candidate, "r", encoding="utf-8") as f:
-            content = f.read()
-        resp = Response(content, mimetype="text/plain; charset=utf-8")
-        resp.headers["Cache-Control"] = "public, max-age=3600"
-        return resp
-    return Response("User-agent: *\nAllow: /\n", mimetype="text/plain; charset=utf-8")
-
-
-@app.route("/share/song/<track_id>")
-@app.route("/song/<track_id>")
-def share_song(track_id):
-    clean_id = track_id.split(":")[-1] if ":" in track_id else track_id
-    track = song_details(clean_id) or {}
-    
-    title = track.get("title") or track.get("song") or "Kalpkrut Beats Song"
-    artist = track.get("artist") or track.get("singers") or track.get("artistNames") or "Kalpkrut Beats"
-    artwork = track.get("artwork_url") or track.get("image") or "https://beats.kalpkrutinfotech.com/icons/Icon-512.png"
-    stream_url = f"/api/play/{clean_id}"
-    play_store_url = "https://play.google.com/store/apps/details?id=com.kalpkrut.beats"
-    intent_url = f"intent://beats.kalpkrutinfotech.com/song/{clean_id}#Intent;scheme=https;package=com.kalpkrut.beats;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kalpkrut.beats;end"
-    
-    return render_share_page(
-        title=title,
-        subtitle=artist,
-        artwork=artwork,
-        stream_url=stream_url,
-        intent_url=intent_url,
-        play_store_url=play_store_url,
-        content_type="song"
-    )
-
-
-@app.route("/share/album/<album_id>")
-@app.route("/album/<album_id>")
-def share_album(album_id):
-    clean_id = album_id.split(":")[-1] if ":" in album_id else album_id
-    play_store_url = "https://play.google.com/store/apps/details?id=com.kalpkrut.beats"
-    intent_url = f"intent://beats.kalpkrutinfotech.com/album/{clean_id}#Intent;scheme=https;package=com.kalpkrut.beats;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kalpkrut.beats;end"
-    return render_share_page(
-        title="Album on Kalpkrut Beats",
-        subtitle="Listen in High-Fidelity Audio",
-        artwork="https://beats.kalpkrutinfotech.com/icons/Icon-512.png",
-        stream_url="",
-        intent_url=intent_url,
-        play_store_url=play_store_url,
-        content_type="album"
-    )
-
-
-@app.route("/share/artist/<artist_id>")
-@app.route("/artist/<artist_id>")
-def share_artist(artist_id):
-    clean_id = artist_id.split(":")[-1] if ":" in artist_id else artist_id
-    play_store_url = "https://play.google.com/store/apps/details?id=com.kalpkrut.beats"
-    intent_url = f"intent://beats.kalpkrutinfotech.com/artist/{clean_id}#Intent;scheme=https;package=com.kalpkrut.beats;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kalpkrut.beats;end"
-    return render_share_page(
-        title="Artist on Kalpkrut Beats",
-        subtitle="Top Tracks, Albums & Radio",
-        artwork="https://beats.kalpkrutinfotech.com/icons/Icon-512.png",
-        stream_url="",
-        intent_url=intent_url,
-        play_store_url=play_store_url,
-        content_type="artist"
-    )
-
-
-@app.route("/share/playlist/<playlist_id>")
-@app.route("/playlist/<playlist_id>")
-def share_playlist(playlist_id):
-    clean_id = playlist_id.split(":")[-1] if ":" in playlist_id else playlist_id
-    play_store_url = "https://play.google.com/store/apps/details?id=com.kalpkrut.beats"
-    intent_url = f"intent://beats.kalpkrutinfotech.com/playlist/{clean_id}#Intent;scheme=https;package=com.kalpkrut.beats;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.kalpkrut.beats;end"
-    return render_share_page(
-        title="Playlist on Kalpkrut Beats",
-        subtitle="Curated High-Fidelity Beats",
-        artwork="https://beats.kalpkrutinfotech.com/icons/Icon-512.png",
-        stream_url="",
-        intent_url=intent_url,
-        play_store_url=play_store_url,
-        content_type="playlist"
-    )
-
-
 # ─── Songs, albums, playlists, artists ──────────────────────────────────────────
 @app.route("/api/track/<track_id>")
 @app.route("/api/song/<track_id>")
@@ -2202,7 +1845,11 @@ SUPABASE_SERVICE_ROLE_KEY = os.environ.get(
 
 
 def is_admin_request(req):
-    """Enforces admin authorization for catalog mutating endpoints and admin data views."""
+    """Enforces admin authorization for catalog mutating endpoints and admin data views.
+
+    Must match Flutter [SupabaseService.isUserAdmin]: app/user metadata role,
+    profiles.role == admin, or known admin emails.
+    """
     if app.config.get("TESTING"):
         return True
 
@@ -2211,23 +1858,15 @@ def is_admin_request(req):
 
     auth_header = req.headers.get("Authorization", "")
     admin_key = req.headers.get("X-Admin-Key", "") or req.headers.get("x-admin-key", "")
-    server_admin_key = os.environ.get("ADMIN_API_KEY", "kalpkrut_admin_secret_2024")
+    server_admin_key = os.environ.get("ADMIN_API_KEY", "")
 
-    # Hardcoded or env admin secret key
-    if admin_key and (admin_key == server_admin_key or admin_key == "kalpkrut_admin_secret_2024"):
+    if server_admin_key and admin_key == server_admin_key:
         return True
-
-    ADMIN_EMAILS = {
-        "admin@kalpkrut.com",
-        "admin@beats.com",
-        "kalpeshborse105@gmail.com",
-        "kalpkrutinfotech@gmail.com",
-    }
 
     if auth_header.startswith("Bearer "):
         token = auth_header.split(" ", 1)[1].strip()
-        # In development or testing with client bearer token, allow inspection
-        if os.environ.get("FLASK_ENV") == "development" or os.environ.get("ALLOW_DEV_ADMIN", "true").lower() in ("1", "true"):
+        # Local / explicit dev override
+        if os.environ.get("FLASK_ENV") == "development" or os.environ.get("ALLOW_DEV_ADMIN", "true").lower() in ("1", "true", "yes"):
             return True
         try:
             req_url = f"{SUPABASE_URL.rstrip('/')}/auth/v1/user"
@@ -2241,35 +1880,46 @@ def is_admin_request(req):
             with urllib.request.urlopen(req_obj, timeout=5) as resp:
                 if resp.status == 200:
                     user_data = json.loads(resp.read().decode("utf-8"))
-                    email = (user_data.get("email") or "").lower()
-                    if email in ADMIN_EMAILS:
-                        return True
-                    app_meta = user_data.get("app_metadata", {})
-                    user_meta = user_data.get("user_metadata", {})
-                    if app_meta.get("role") == "admin" or user_meta.get("is_admin") is True:
-                        return True
-                    # Check profiles table in Supabase
-                    user_id = user_data.get("id")
-                    if user_id:
-                        prof_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/profiles?id=eq.{user_id}&select=role,is_admin"
-                        prof_req = urllib.request.Request(
-                            prof_url,
-                            headers={
-                                "apikey": SUPABASE_ANON_KEY,
-                                "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY}",
-                            }
+                    app_meta = user_data.get("app_metadata", {}) or {}
+                    user_meta = user_data.get("user_metadata", {}) or {}
+                    email = (user_data.get("email") or "").strip().lower()
+                    uid = user_data.get("id") or ""
+
+                    if (
+                        app_meta.get("role") == "admin"
+                        or user_meta.get("role") == "admin"
+                        or user_meta.get("is_admin") is True
+                        or email in (
+                            "admin@kalpkrut.com",
+                            "admin@beats.com",
+                            "kalpkrutinfotech@gmail.com",
                         )
-                        with urllib.request.urlopen(prof_req, timeout=3) as prof_resp:
-                            if prof_resp.status == 200:
-                                prows = json.loads(prof_resp.read().decode("utf-8"))
-                                if prows and (prows[0].get("role") == "admin" or prows[0].get("is_admin") is True):
+                        or email.endswith("@kalpkrutinfotech.com")
+                    ):
+                        return True
+
+                    # Same source of truth as the Flutter Admin Console
+                    if uid and SUPABASE_URL and (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY):
+                        try:
+                            prof_url = (
+                                f"{SUPABASE_URL.rstrip('/')}/rest/v1/profiles"
+                                f"?id=eq.{urllib.parse.quote(str(uid))}&select=role"
+                            )
+                            prof_req = urllib.request.Request(
+                                prof_url,
+                                headers={
+                                    "apikey": SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY,
+                                    "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY}",
+                                },
+                            )
+                            with urllib.request.urlopen(prof_req, timeout=5) as pref:
+                                rows = json.loads(pref.read().decode("utf-8"))
+                                if isinstance(rows, list) and rows and rows[0].get("role") == "admin":
                                     return True
+                        except Exception as pe:
+                            print(f"[Admin Auth] profiles role check error: {pe}")
         except Exception as e:
             print(f"[Admin Auth] Supabase auth check error: {e}")
-
-    # Fallback for local loopback in development mode
-    if req.remote_addr in ("127.0.0.1", "::1", "localhost") and (os.environ.get("FLASK_ENV") == "development" or os.environ.get("ALLOW_DEV_ADMIN", "true").lower() in ("1", "true")):
-        return True
 
     return False
 
@@ -2626,23 +2276,103 @@ def get_mock_catalog_items(source_type, source_id, slug, language="all"):
     return []
 
 
-def _apply_source_url_identity(section):
-    """Admin source_url is authority — re-derive type/id/slug from the full Jio URL."""
+def _is_junk_catalog_track(track):
+    """Drop Jio junk / mock / test rows that must never reach Home (NULL artist, sample trailer)."""
+    if not isinstance(track, dict):
+        return True
+    if track.get("is_mock") is True:
+        return True
+    title = str(track.get("title") or "").strip()
+    artist = str(track.get("artist") or "").strip()
+    if not title:
+        return True
+    tl = title.lower()
+    al = artist.lower()
+    if "sample trailer" in tl or tl.startswith("this is a sample"):
+        return True
+    if al in ("null", "none", "undefined", "n/a", "-"):
+        return True
+    if artist.upper() == "NULL":
+        return True
+    tid = str(track.get("id") or track.get("token") or "").strip().lower()
+    if tid in ("null", "none", ""):
+        return True
+    return False
+
+
+def _filter_live_catalog_tracks(tracks):
+    if not isinstance(tracks, list):
+        return []
+    return [t for t in tracks if not _is_junk_catalog_track(t)]
+
+
+def _normalize_new_releases_identity(source_type, source_id, slug, source_url=None):
+    """Never resolve /new-releases as playlist/song — that returns garbage tracks."""
+    blob = " ".join(
+        [
+            str(source_type or ""),
+            str(source_id or ""),
+            str(slug or ""),
+            str(source_url or ""),
+        ]
+    ).lower()
+    if "new-releases" in blob or "new_releases" in blob:
+        sid = str(source_id or slug or "new-releases").strip() or "new-releases"
+        if not sid.startswith("new-releases"):
+            sid = "new-releases"
+        return "new_releases", sid, sid.replace("_", "-")
+    return source_type, source_id, slug
+
+
+def _apply_source_url_identity(section, preserve_admin_display_type=False):
+    """
+    Re-derive fetch identity (id/slug / new-releases) from the full Jio URL.
+    When preserve_admin_display_type=True, keep admin song/track choice for the
+    Home tracks shelf + admin badge — URL still drives how songs are resolved.
+    """
     if not isinstance(section, dict):
         return section
+    admin_st = str(section.get("source_type") or "").strip().lower()
+    wants_tracks = admin_st in ("song", "track") or str(section.get("display_mode") or "").lower() in (
+        "tracks",
+        "songs",
+        "song",
+    )
     url = str(section.get("source_url") or "").strip()
     if not url:
+        st, sid, slug = _normalize_new_releases_identity(
+            section.get("source_type"),
+            section.get("source_id"),
+            section.get("slug"),
+        )
+        section["source_id"] = sid
+        section["slug"] = slug
+        if not (preserve_admin_display_type and wants_tracks):
+            section["source_type"] = st
         return section
     parsed, _ = parse_catalog_url(url)
     if not parsed:
         return section
-    section["source_type"] = parsed.get("source_type") or section.get("source_type")
     section["source_id"] = parsed.get("source_id") or section.get("source_id")
     section["slug"] = parsed.get("slug") or section.get("slug")
     if parsed.get("language") and (
         not section.get("language") or str(section.get("language")).lower() == "all"
     ):
         section["language"] = parsed.get("language")
+    st, sid, slug = _normalize_new_releases_identity(
+        parsed.get("source_type") or section.get("source_type"),
+        section.get("source_id"),
+        section.get("slug"),
+        url,
+    )
+    section["source_id"] = sid
+    section["slug"] = slug
+    if preserve_admin_display_type and wants_tracks:
+        # Admin chose SONG/TRACK — keep it for UI/Home; resolve still uses source_url
+        section["source_type"] = "song"
+        section["display_mode"] = "tracks"
+    else:
+        section["source_type"] = st
     return section
 
 
@@ -2651,7 +2381,14 @@ def resolve_catalog_items(source_type, source_id, slug, language="all", source_u
     Fetches live items from JioSaavn in real-time.
     Returns (items, is_mock, provider_status, detected_title, detected_artwork).
     Falls back gracefully to clean tracks if network is unavailable.
-    When source_url is set, the full admin URL wins over stored id/slug.
+
+    When source_url is set (admin catalogue), the full URL wins over stored
+    source_id/slug so refresh always hits the same Jio page the admin saved.
+
+    Language rules (no multi-language mix hardcode):
+    - Explicit section language (not "all") → that language only
+    - new_releases slug "new-releases-{lang}" → that language only
+    - Otherwise → hindi only (admin should set language when pasting a Jio link)
     """
     if source_url:
         parsed, _ = parse_catalog_url(str(source_url))
@@ -2661,36 +2398,52 @@ def resolve_catalog_items(source_type, source_id, slug, language="all", source_u
             slug = parsed.get("slug") or slug
             if parsed.get("language") and (not language or str(language).lower() == "all"):
                 language = parsed.get("language")
+
     slug = slug or ""
-    if source_type in ("song", "track") and "new-releases" in slug.lower():
-        source_type = "new_releases"
-        source_id = slug if slug.startswith("new-releases") else "new-releases"
-    langs = [language] if (language and language != "all") else ["hindi", "punjabi", "marathi", "gujarati"]
+    source_type, source_id, slug = _normalize_new_releases_identity(
+        source_type, source_id, slug, source_url
+    )
+
+    lang = (language or "all").strip().lower()
+    if lang and lang != "all":
+        langs = [lang]
+    elif source_type == "new_releases" and "new-releases-" in slug:
+        langs = [slug.replace("new-releases-", "").split("-")[0] or "hindi"]
+    else:
+        langs = ["hindi"]
     detected_artwork = None
     try:
         if source_type in ("mix", "jiosaavn_mix") and source_id:
-            # JioSaavn Daily Mix / Dynamic Mix via webapi.get with type='mix'
-            res = jio_call("webapi.get", {"token": source_id, "type": "mix", "n": "50", "p": "1"}, langs)
-            raw_songs = []
+            # JioSaavn Daily Mix / Dynamic Mix — try mix, then playlist, then trending
             detected_title = slug.replace("-", " ").replace("_", " ").title()
-            detected_artwork = None
-            if isinstance(res, dict):
-                detected_title = res.get("title") or res.get("name") or detected_title
-                detected_artwork = res.get("image") or res.get("artwork_url") or res.get("header_image")
-                raw_songs = res.get("list") or res.get("songs") or res.get("tracks") or []
-            if not raw_songs:
-                # Fallback to playlist call if type=mix yielded nothing
-                info = entity_details("playlist", token=source_id, limit=50, languages=langs)
-                raw_songs = info.get("tracks") or []
+            for call_type in ("mix", "playlist"):
+                res = jio_call(
+                    "webapi.get",
+                    {"token": source_id, "type": call_type, "n": "50", "p": "1"},
+                    langs,
+                )
+                raw_songs = []
+                if isinstance(res, dict):
+                    detected_title = res.get("title") or res.get("name") or detected_title
+                    detected_artwork = (
+                        res.get("image")
+                        or res.get("artwork_url")
+                        or res.get("header_image")
+                        or detected_artwork
+                    )
+                    raw_songs = res.get("list") or res.get("songs") or res.get("tracks") or []
                 if raw_songs:
-                    detected_artwork = info.get("artwork_url") or info.get("image") or detected_artwork
-                    detected_title = info.get("title") or detected_title
-            if raw_songs:
-                tracks = dedupe(_tracks(raw_songs)) if not isinstance(raw_songs[0], dict) or "stream_url" not in raw_songs[0] else raw_songs
-                if tracks:
-                    detected_artwork = detected_artwork or (tracks[0].get("artwork_url") if isinstance(tracks[0], dict) else None)
-                    return tracks, False, "ok", detected_title, detected_artwork
-            # Real Jio trending — never mock Daily Mix
+                    tracks = dedupe(_tracks(raw_songs))
+                    if tracks:
+                        detected_artwork = detected_artwork or tracks[0].get("artwork_url")
+                        return tracks, False, "ok", detected_title, detected_artwork
+            # Playlist-details path (some mix tokens resolve as playlists)
+            info_pl = entity_details("playlist", token=source_id, limit=50, languages=langs)
+            pl_tracks = info_pl.get("tracks") or []
+            if pl_tracks:
+                detected_artwork = info_pl.get("artwork_url") or info_pl.get("image")
+                return pl_tracks, False, "ok", info_pl.get("title") or detected_title, detected_artwork
+            # Last resort: live trending (real Jio songs — never mock)
             trend = live_trending(languages=langs or ["hindi"])
             songs = trend if isinstance(trend, list) else (trend.get("songs") or [])
             if songs:
@@ -2720,22 +2473,11 @@ def resolve_catalog_items(source_type, source_id, slug, language="all", source_u
                 detected_artwork = tracks[0].get("artwork_url") if tracks else None
                 detected_title = tracks[0].get("title") if tracks else slug.replace("-", " ").title()
                 return tracks, False, "ok", detected_title, detected_artwork
-            # 3. Playlist with 0–1 tracks already tried above — fall through
 
         elif source_type == "playlist" and source_id:
-            info = entity_details("playlist", token=source_id, limit=50, languages=langs)
+            info = entity_details("playlist", token=source_id, limit=40, languages=langs)
             tracks = info.get("tracks") or []
             detected_artwork = info.get("artwork_url") or info.get("image")
-            if not tracks:
-                # Fallback to type=mix for dynamic/daily mixes saved under playlist
-                res = jio_call("webapi.get", {"token": source_id, "type": "mix", "n": "50", "p": "1"}, langs)
-                if isinstance(res, dict):
-                    raw_songs = res.get("list") or res.get("songs") or res.get("tracks") or []
-                    if raw_songs:
-                        tracks = dedupe(_tracks(raw_songs))
-                        detected_artwork = res.get("image") or res.get("artwork_url") or (tracks[0].get("artwork_url") if tracks else None)
-                        detected_title = res.get("title") or res.get("name") or info.get("title") or slug.replace("-", " ").title()
-                        return tracks, False, "ok", detected_title, detected_artwork
             if tracks:
                 return tracks, False, "ok", info.get("title"), detected_artwork
 
@@ -2765,9 +2507,9 @@ def resolve_catalog_items(source_type, source_id, slug, language="all", source_u
                 return songs, False, "ok", info.get("name"), detected_artwork
 
         elif source_type == "new_releases":
-            req_lang = [slug.replace("new-releases-", "")] if "new-releases-" in slug else (langs or ["hindi"])
+            req_lang = langs or ["hindi"]
             res = live_new_releases(languages=req_lang, limit=30)
-            songs = res.get("songs") or []
+            songs = _filter_live_catalog_tracks(res.get("songs") or [])
             if songs:
                 detected_artwork = songs[0].get("artwork_url") if songs else None
                 title_lang = req_lang[0].title() if req_lang else "Hindi"
@@ -2801,9 +2543,29 @@ def resolve_catalog_items(source_type, source_id, slug, language="all", source_u
     except Exception as e:
         print(f"[Catalog Live Fetch Exception] {source_type} ({source_id}): {e}")
 
-    # Never inject fake/mock tracks into production
+    # Never inject fake/mock tracks into production — empty + unavailable status.
     print(f"[Catalog] live resolve empty for {source_type}/{source_id} — no mock fallback")
     return [], True, "unavailable", None, detected_artwork
+
+
+def _purge_junk_from_items_cache():
+    """Remove sample-trailer / NULL-artist junk already sitting in RAM song cache."""
+    purged = 0
+    for key, entry in list(_CATALOG_ITEMS_CACHE.items()):
+        if not isinstance(entry, tuple) or len(entry) < 2:
+            continue
+        ts, items = entry[0], entry[1]
+        meta = entry[2] if len(entry) > 2 and isinstance(entry[2], dict) else {}
+        if not isinstance(items, list) or not items:
+            continue
+        cleaned = _filter_live_catalog_tracks(items)
+        if len(cleaned) != len(items):
+            purged += len(items) - len(cleaned)
+            _CATALOG_ITEMS_CACHE[key] = (ts, cleaned, dict(meta))
+    if purged:
+        print(f"[Catalog] purged {purged} junk track(s) from items cache")
+        _mark_catalog_items_dirty()
+    return purged
 
 
 def _generate_default_catalog_sections():
@@ -2832,13 +2594,32 @@ def _generate_default_catalog_sections():
             "url": "https://www.jiosaavn.com/top-artists",
             "group": "Spotlight",
             "title": "Top Artists"
-        }
+        },
     ]
+    for lang, title in (
+        ("hindi", "Hindi Hits"),
+        ("punjabi", "Punjabi Hits"),
+        ("bhojpuri", "Bhojpuri Hits"),
+        ("haryanvi", "Haryanvi Hits"),
+        ("marathi", "Marathi Hits"),
+        ("gujarati", "Gujarati Hits"),
+        ("tamil", "Tamil Hits"),
+        ("telugu", "Telugu Hits"),
+        ("bengali", "Bengali Hits"),
+    ):
+        default_seeds.append({
+            "url": f"https://www.jiosaavn.com/new-releases/{lang}",
+            "group": "Browse Languages",
+            "title": title,
+            "language": lang,
+        })
     sections = []
     for i, s in enumerate(default_seeds, 1):
         parsed, _ = parse_catalog_url(s["url"])
         if parsed:
-            lang = "hindi" if parsed["source_type"] in ("artist", "playlist") else "all"
+            lang = s.get("language") or (
+                "hindi" if parsed["source_type"] in ("artist", "playlist") else "all"
+            )
             items, is_mock, provider_status, detected_title, detected_art = resolve_catalog_items(
                 parsed["source_type"], parsed["source_id"], parsed["slug"], lang
             )
@@ -2926,7 +2707,7 @@ def sync_catalog_from_supabase():
 
                         # Unpack encoded metadata from last_error if present
                         err = r.get("last_error")
-                        if err and isinstance(err, str) and err.startswith("{"):
+                        if err and isinstance(err, str) and err.strip().startswith("{"):
                             try:
                                 extra = json.loads(err)
                                 if isinstance(extra, dict):
@@ -2940,21 +2721,43 @@ def sync_catalog_from_supabase():
                                         r["display_mode"] = extra["display_mode"]
                                     if extra.get("updated_at") is not None:
                                         r["updated_at"] = extra["updated_at"]
-                                    if any(k in extra for k in (
-                                        "excluded_track_ids", "custom_tracks",
-                                        "original_source_type", "display_mode",
-                                    )):
-                                        r["last_error"] = None
+                                    if extra.get("item_count") is not None:
+                                        r["item_count"] = extra["item_count"]
+                                    # Metadata bag was stuffed into last_error — never show as ERR
+                                    real = extra.get("real_last_error")
+                                    r["last_error"] = real if isinstance(real, str) and real.strip() else None
                             except Exception:
-                                pass
+                                # Corrupt JSON in last_error — clear so admin UI stays clean
+                                r["last_error"] = None
                     return rows
     except Exception as e:
         print(f"[Catalog Supabase Sync] error: {e}")
     return None
 
 
-def sync_catalog_to_supabase(sections):
+_CATALOG_SUPABASE_SYNC_LOCK = threading.Lock()
+
+
+def sync_catalog_to_supabase(sections=None):
+    """
+    Upsert local catalogue to Supabase, then prune orphans.
+
+    MUST be serialized: a stale bg sync of N rows was pruning a just-created
+    N+1 shelf (create returned 201, then verify 404 / Persistence failed).
+    Always push the latest RAM/disk snapshot under the lock.
+    """
+    with _CATALOG_SUPABASE_SYNC_LOCK:
+        return _sync_catalog_to_supabase_unlocked(sections)
+
+
+def _sync_catalog_to_supabase_unlocked(sections=None):
     try:
+        # Prefer live mem so a queued/stale caller cannot prune newer creates.
+        latest = _CATALOG_SECTIONS_MEM.get("data")
+        if isinstance(latest, list) and latest:
+            sections = latest
+        if not sections:
+            return False
         auth_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
         headers = {
             "apikey": SUPABASE_ANON_KEY,
@@ -2963,8 +2766,7 @@ def sync_catalog_to_supabase(sections):
             "Prefer": "resolution=merge-duplicates",
             "User-Agent": "MusicApp/1.0"
         }
-        # Specify on_conflict=key so PostgREST resolves merge-duplicates against unique key column
-        url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections?on_conflict=key"
+        url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections"
         cols = [
             "id", "key", "source_url", "source_type", "provider", "source_id", "slug",
             "display_title", "display_group", "subtitle", "language", "position",
@@ -2979,9 +2781,9 @@ def sync_catalog_to_supabase(sections):
                 uuid.UUID(str(sec_id))
             except Exception:
                 sec_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, str(s.get("key", uuid.uuid4()))))
-            s["id"] = sec_id
 
-            # 2. Pack extra metadata if present
+            # 2. Pack extra metadata into last_error column (schema has no meta JSON col).
+            # Real human errors go in extra.real_last_error so UI never shows the bag as ERR.
             extra = {}
             if s.get("excluded_track_ids"):
                 extra["excluded_track_ids"] = s.get("excluded_track_ids")
@@ -2991,13 +2793,19 @@ def sync_catalog_to_supabase(sections):
                 extra["display_mode"] = s.get("display_mode")
             if s.get("updated_at") is not None:
                 extra["updated_at"] = s.get("updated_at")
+            if s.get("item_count") is not None:
+                extra["item_count"] = s.get("item_count")
+
             raw_stype = str(s.get("source_type") or "playlist")
             if raw_stype in ("mix", "jiosaavn_mix", "radio", "song", "track"):
                 extra["original_source_type"] = raw_stype
                 allowed_stype = "playlist"
             else:
                 allowed_stype = raw_stype
-            encoded_extra = json.dumps(extra) if extra else None
+
+            real_err = s.get("last_error")
+            if isinstance(real_err, str) and real_err.strip() and not real_err.strip().startswith("{"):
+                extra["real_last_error"] = real_err.strip()
 
             row = {k: s.get(k) for k in cols}
             row["id"] = sec_id
@@ -3012,8 +2820,8 @@ def sync_catalog_to_supabase(sections):
             row["position"] = int(s.get("position") or 1)
             row["is_enabled"] = bool(s.get("is_enabled", True))
             row["is_banner"] = bool(s.get("is_banner", False))
-            if encoded_extra:
-                row["last_error"] = encoded_extra
+            # Always JSON-bag or null — never leave raw meta string as a fake "error"
+            row["last_error"] = json.dumps(extra) if extra else None
 
             for ts_col in ("campaign_start", "campaign_end", "last_refresh"):
                 val = row.get(ts_col)
@@ -3025,35 +2833,131 @@ def sync_catalog_to_supabase(sections):
             payload.append(row)
 
         if payload:
-            chunk_size = 50
-            for i in range(0, len(payload), chunk_size):
-                chunk = payload[i:i + chunk_size]
-                data = json.dumps(chunk).encode("utf-8")
-                req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-                with urllib.request.urlopen(req, timeout=12) as resp:
-                    print(f"[Catalog Supabase Upsert] Synced chunk {i//chunk_size + 1} ({len(chunk)} sections), HTTP {resp.status}")
-            # Upsert never removes deleted shelves — prune orphans or they resurrect.
-            prune_catalog_sections_from_supabase([r.get("key") for r in payload])
+            data = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+            # 90+ shelves need more than 5s — short timeout left creates "saved" then verify-miss.
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                print(f"[Catalog Supabase Upsert] Synced {len(payload)} sections, HTTP {resp.status}")
+            # Prune orphans only outside the admin-edit window. A stale concurrent
+            # sync of N rows was deleting the just-created N+1 row during create.
+            if time.time() >= _CATALOG_LOCAL_AUTHORITY_UNTIL:
+                prune_catalog_sections_from_supabase([r.get("key") for r in payload])
+            else:
+                print(
+                    f"[Catalog] upserted {len(payload)} — prune skipped "
+                    "(admin authority window active)"
+                )
             return True
-    except urllib.error.HTTPError as he:
-        body = ""
-        try:
-            body = he.read().decode("utf-8")
-        except Exception:
-            pass
-        print(f"[Catalog Supabase Upsert] HTTP {he.code} error: {body}")
-        return False
     except Exception as e:
         print(f"[Catalog Supabase Upsert] error: {e}")
         return False
+    return True
+
+
+def upsert_single_catalog_section_to_supabase(section):
+    """
+    Directly upsert ONE section to Supabase and confirm persistence.
+    Returns (True, saved_row) on success, (False, error_message) on failure.
+    """
+    if not SUPABASE_URL or not (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY):
+        return True, section
+
+    auth_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {auth_key}",
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates,return=representation",
+        "User-Agent": "MusicApp/1.0",
+    }
+    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections"
+
+    sec_id = section.get("id")
+    try:
+        uuid.UUID(str(sec_id))
+    except Exception:
+        sec_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, str(section.get("key", uuid.uuid4()))))
+
+    extra = {}
+    if section.get("excluded_track_ids"):
+        extra["excluded_track_ids"] = section.get("excluded_track_ids")
+    if section.get("custom_tracks"):
+        extra["custom_tracks"] = section.get("custom_tracks")
+    if section.get("display_mode"):
+        extra["display_mode"] = section.get("display_mode")
+    if section.get("updated_at") is not None:
+        extra["updated_at"] = section.get("updated_at")
+    if section.get("item_count") is not None:
+        extra["item_count"] = section.get("item_count")
+
+    raw_stype = str(section.get("source_type") or "playlist")
+    if raw_stype in ("mix", "jiosaavn_mix", "radio", "song", "track"):
+        extra["original_source_type"] = raw_stype
+        allowed_stype = "playlist"
+    else:
+        allowed_stype = raw_stype
+
+    real_err = section.get("last_error")
+    if isinstance(real_err, str) and real_err.strip() and not real_err.strip().startswith("{"):
+        extra["real_last_error"] = real_err.strip()
+
+    cols = [
+        "id", "key", "source_url", "source_type", "provider", "source_id", "slug",
+        "display_title", "display_group", "subtitle", "language", "position",
+        "is_enabled", "custom_artwork_url", "is_banner", "campaign_start", "campaign_end",
+        "provider_status", "last_refresh", "last_error"
+    ]
+    row = {k: section.get(k) for k in cols}
+    row["id"] = sec_id
+    row["key"] = str(section.get("key") or sec_id)
+    row["source_url"] = str(section.get("source_url") or "")
+    row["source_type"] = allowed_stype
+    row["provider"] = "custom_api"
+    row["source_id"] = str(section.get("source_id") or section.get("slug") or section.get("key") or sec_id)
+    row["display_title"] = str(section.get("display_title") or section.get("key") or "Section")
+    row["display_group"] = str(section.get("display_group") or "Curated")
+    row["language"] = str(section.get("language") or "all")
+    row["position"] = int(section.get("position") or 1)
+    row["is_enabled"] = bool(section.get("is_enabled", True))
+    row["is_banner"] = bool(section.get("is_banner", False))
+    row["last_error"] = json.dumps(extra) if extra else None
+
+    for ts_col in ("campaign_start", "campaign_end", "last_refresh"):
+        val = row.get(ts_col)
+        if isinstance(val, (int, float)):
+            row[ts_col] = datetime.fromtimestamp(val, tz=timezone.utc).isoformat()
+        elif val == "" or val is False:
+            row[ts_col] = None
+
+    payload = [row]
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+
+    for attempt in range(2):
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                if resp.status in (200, 201):
+                    body = resp.read().decode("utf-8")
+                    saved_rows = json.loads(body) if body else []
+                    print(f"[Catalog Supabase Upsert] Single row '{row['key']}' persisted, HTTP {resp.status}")
+                    return True, (saved_rows[0] if saved_rows else row)
+        except Exception as e:
+            print(f"[Catalog Supabase Upsert] Single row attempt {attempt+1} failed: {e}")
+            if attempt == 0:
+                time.sleep(0.5)
+
+    return False, "Database write timeout or error"
 
 
 def delete_catalog_section_from_supabase(section_key, section_id=None, source_id=None, slug=None):
     """
-    Hard-delete a catalogue row from Supabase by every known identifier.
-    Upsert-only sync cannot remove orphans — without this, deleted shelves
-    resurrect via bg pull / admin Supabase fallback (UI shows item, DELETE 404).
+    Hard-delete a catalogue row from Supabase by its unique key and/or UUID id.
+    Never deletes by source_id or slug to avoid deleting other shelves sharing the source.
+    Returns True if remote deletion is confirmed (HTTP 200/204), False on failure.
     """
+    if not SUPABASE_URL or not (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY):
+        return True
+
     deleted_any = False
     try:
         auth_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
@@ -3064,20 +2968,17 @@ def delete_catalog_section_from_supabase(section_key, section_id=None, source_id
             "User-Agent": "MusicApp/1.0",
         }
         filters = []
-        if section_key:
-            filters.append(f"key=eq.{urllib.parse.quote(str(section_key), safe='')}")
         if section_id:
             try:
                 uuid.UUID(str(section_id))
                 filters.append(f"id=eq.{urllib.parse.quote(str(section_id), safe='')}")
             except Exception:
                 pass
-            if str(section_id) != str(section_key or ""):
-                filters.append(f"key=eq.{urllib.parse.quote(str(section_id), safe='')}")
-        if source_id:
-            filters.append(f"source_id=eq.{urllib.parse.quote(str(source_id), safe='')}")
-        if slug:
-            filters.append(f"slug=eq.{urllib.parse.quote(str(slug), safe='')}")
+        if section_key:
+            filters.append(f"key=eq.{urllib.parse.quote(str(section_key), safe='')}")
+
+        if not filters:
+            return False
 
         seen = set()
         for filt in filters:
@@ -3088,10 +2989,20 @@ def delete_catalog_section_from_supabase(section_key, section_id=None, source_id
                 url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections?{filt}"
                 req = urllib.request.Request(url, headers=headers, method="DELETE")
                 with urllib.request.urlopen(req, timeout=8) as resp:
-                    deleted_any = True
-                    print(f"[Catalog Supabase Delete] {filt} → HTTP {resp.status}")
+                    if resp.status in (200, 204):
+                        deleted_any = True
+                        print(f"[Catalog Supabase Delete] {filt} → HTTP {resp.status}")
             except Exception as e:
                 print(f"[Catalog Supabase Delete] {filt} error: {e}")
+                # Retry once
+                try:
+                    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections?{filt}"
+                    req = urllib.request.Request(url, headers=headers, method="DELETE")
+                    with urllib.request.urlopen(req, timeout=8) as resp:
+                        if resp.status in (200, 204):
+                            deleted_any = True
+                except Exception as e2:
+                    print(f"[Catalog Supabase Delete] retry {filt} error: {e2}")
     except Exception as e:
         print(f"[Catalog Supabase Delete] error: {e}")
     return deleted_any
@@ -3101,6 +3012,7 @@ def prune_catalog_sections_from_supabase(keep_keys):
     """Remove remote rows whose key is not in the current local catalogue."""
     keep = {str(k).strip() for k in (keep_keys or []) if k and str(k).strip()}
     if len(keep) < 1:
+        # Never wipe the whole table on an empty accidental save
         return 0
     try:
         auth_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
@@ -3115,15 +3027,23 @@ def prune_catalog_sections_from_supabase(keep_keys):
             remote = json.loads(resp.read().decode("utf-8") or "[]")
         if not isinstance(remote, list):
             return 0
+        orphan_ids = [
+            str(row.get("id")) for row in remote
+            if isinstance(row, dict) and row.get("id") and str(row.get("key") or "").strip() not in keep
+        ]
         removed = 0
-        for row in remote:
-            if not isinstance(row, dict):
-                continue
-            key = str(row.get("key") or "").strip()
-            if not key or key in keep:
-                continue
-            if delete_catalog_section_from_supabase(key, row.get("id")):
-                removed += 1
+        if orphan_ids:
+            for i in range(0, len(orphan_ids), 40):
+                chunk = orphan_ids[i:i+40]
+                id_filter = f"id=in.({','.join(chunk)})"
+                del_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_sections?{id_filter}"
+                del_req = urllib.request.Request(del_url, headers=headers, method="DELETE")
+                try:
+                    with urllib.request.urlopen(del_req, timeout=10) as del_resp:
+                        if del_resp.status in (200, 204):
+                            removed += len(chunk)
+                except Exception as e:
+                    print(f"[Catalog Supabase Prune] batch delete error: {e}")
         if removed:
             print(f"[Catalog Supabase Prune] removed {removed} orphan section(s)")
         return removed
@@ -3132,38 +3052,101 @@ def prune_catalog_sections_from_supabase(keep_keys):
         return 0
 
 
-_CATALOG_MEM_TTL = 45          # serve section list from RAM for 45s
-_CATALOG_SUPABASE_TTL = 180    # pull Supabase at most every 3 minutes (background)
-_CATALOG_ITEMS_TTL = int(os.environ.get("CATALOG_ITEMS_TTL", 3600))         # Fresh for 1 hour (3600s)
-_CATALOG_ITEMS_STALE = int(os.environ.get("CATALOG_ITEMS_STALE", 604800))   # Retain stale up to 7 days (604800s)
-
+# Section metadata: Supabase is membership truth for users (no timed "wait then update").
+# Admin-edit window still serves local RAM so just-saved order never flickers.
+_CATALOG_SUPABASE_TTL = 0  # 0 = always reconcile from DB when not in admin-edit window
+_CATALOG_RECONCILE_LOCK = threading.Lock()
+_CATALOG_ITEMS_TTL = 21600       # bg-refresh songs after 6h
+_CATALOG_ITEMS_STALE = 604800    # still serve disk/RAM songs up to 7 days
+_CATALOG_WARM_LOCK = threading.Lock()
+_CATALOG_WARMING = False
 CATALOG_ITEMS_CACHE_FILE = os.path.join(DATA_DIR, "catalog_items_cache.json")
-_CATALOG_ITEMS_DISK_LOCK = threading.Lock()
 _CATALOG_ITEMS_DISK_LOADED = False
+_CATALOG_ITEMS_DISK_LOCK = threading.Lock()
 _CATALOG_ITEMS_DISK_DIRTY = False
 _CATALOG_ITEMS_PERSIST_SCHEDULED = False
 
-_SECTION_RESOLVE_LOCKS = {}
-_SECTION_LOCKS_GUARD = threading.Lock()
 
-
-def _get_section_lock(key):
-    with _SECTION_LOCKS_GUARD:
-        if key not in _SECTION_RESOLVE_LOCKS:
-            _SECTION_RESOLVE_LOCKS[key] = threading.RLock()
-        return _SECTION_RESOLVE_LOCKS[key]
-
-
-def _get_cached_section_entry(key):
-    entry = _CATALOG_ITEMS_CACHE.get(key)
-    if not entry:
+def _read_local_catalog_sections():
+    if not os.path.exists(CATALOG_STORAGE_FILE):
         return None
-    if isinstance(entry, tuple):
-        ts = entry[0]
-        items = entry[1]
-        meta = entry[2] if len(entry) > 2 and isinstance(entry[2], dict) else {}
-        return ts, list(items), dict(meta)
+    try:
+        with open(CATALOG_STORAGE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, list) and data:
+                return sorted(data, key=lambda x: x.get("position", 999))
+    except Exception as e:
+        print(f"[Catalog] Failed to load {CATALOG_STORAGE_FILE}: {e}")
     return None
+
+
+def _write_local_catalog_sections(sections):
+    try:
+        with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
+            json.dump(sections, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"[Catalog] Failed to write {CATALOG_STORAGE_FILE}: {e}")
+
+
+def _ensure_unique_catalog_positions(sections):
+    """
+    Assign unique 1..N positions in current list order.
+    Duplicate ranks (many shelves at position=1) make Home group order unstable —
+    Devotional/Top Charts/Trending all tie and Flutter picks insertion order.
+    """
+    if not isinstance(sections, list) or not sections:
+        return sections or []
+    positions = [s.get("position") for s in sections if isinstance(s, dict)]
+    if len(positions) == len(set(int(p) if p is not None else -1 for p in positions)):
+        # Already unique — keep relative order by position
+        return sorted(sections, key=lambda x: int(x.get("position") or 999))
+    # Preserve group blocks: sort by (position, first-seen group order, title)
+    group_rank = {}
+    for s in sections:
+        if not isinstance(s, dict):
+            continue
+        g = str(s.get("display_group") or "Curated").strip() or "Curated"
+        if g not in group_rank:
+            group_rank[g] = len(group_rank)
+    ordered = sorted(
+        [s for s in sections if isinstance(s, dict)],
+        key=lambda s: (
+            int(s.get("position") or 999),
+            group_rank.get(str(s.get("display_group") or "Curated").strip() or "Curated", 999),
+            str(s.get("display_title") or ""),
+        ),
+    )
+    for i, s in enumerate(ordered, start=1):
+        s["position"] = i
+    return ordered
+
+
+def _dedupe_catalog_section_rows(sections):
+    """
+    Keep one shelf per catalogue key only.
+
+    Previously collapsed by (source_type, source_id), which deleted brand-new admin
+    saves that reused a Jio playlist URL under a new key/title (create returned 201,
+    then the next load wiped the row → Persistence verification failed).
+    Home still dedupes display cards client-side when needed.
+    """
+    if not isinstance(sections, list) or len(sections) < 2:
+        return _ensure_unique_catalog_positions(sections or [])
+    ordered = sorted(sections, key=lambda x: x.get("position", 999))
+    seen = set()
+    out = []
+    for s in ordered:
+        if not isinstance(s, dict):
+            continue
+        key = str(s.get("key") or s.get("id") or "").strip()
+        if not key:
+            out.append(s)
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(s)
+    return _ensure_unique_catalog_positions(out)
 
 
 def _ensure_catalog_items_disk_loaded():
@@ -3259,161 +3242,247 @@ def _mark_catalog_items_dirty():
         finally:
             with _CATALOG_ITEMS_DISK_LOCK:
                 _CATALOG_ITEMS_PERSIST_SCHEDULED = False
+                # Another resolve landed while we wrote — schedule once more.
                 if _CATALOG_ITEMS_DISK_DIRTY:
                     _mark_catalog_items_dirty()
 
     threading.Thread(target=_delayed, daemon=True).start()
 
 
-def _read_local_catalog_sections():
-    if not os.path.exists(CATALOG_STORAGE_FILE):
-        return None
-    try:
-        with open(CATALOG_STORAGE_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            if isinstance(data, list) and data:
-                return sorted(data, key=lambda x: x.get("position", 999))
-    except Exception as e:
-        print(f"[Catalog] Failed to load {CATALOG_STORAGE_FILE}: {e}")
-    return None
-
-
-def _write_local_catalog_sections(sections):
-    try:
-        with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
-            json.dump(sections, f, indent=2, ensure_ascii=False)
-    except Exception as e:
-        print(f"[Catalog] Failed to write {CATALOG_STORAGE_FILE}: {e}")
-
-
-# After admin save/refresh/rename, local disk wins — skip remote pull briefly.
+# After admin save/reorder, local disk is authority — skip remote pull briefly
+# so a slower Supabase sync cannot wipe the new Home order.
 _CATALOG_LOCAL_AUTHORITY_UNTIL = 0.0
 
 
-def _bg_sync_catalog_from_supabase():
-    """Non-blocking Supabase → local disk sync. Never wipe admin timestamps/order."""
-    global _CATALOG_LOCAL_AUTHORITY_UNTIL
-    try:
-        if time.time() < _CATALOG_LOCAL_AUTHORITY_UNTIL:
-            print("[Catalog] skip bg Supabase pull — local admin changes authoritative")
-            return
-        remote_rows = sync_catalog_from_supabase()
-        if not remote_rows:
-            return
-        with CATALOG_LOCK:
-            if time.time() < _CATALOG_LOCAL_AUTHORITY_UNTIL:
-                return
-            local = _CATALOG_SECTIONS_MEM.get("data") or _read_local_catalog_sections() or []
-            local_map = {
-                str(row.get("key") or row.get("id") or ""): row
-                for row in local
-                if str(row.get("key") or row.get("id") or "")
-            }
-            by_key = {}
-            for row in remote_rows:
-                key = str(row.get("key") or row.get("id") or "")
-                if not key:
-                    continue
-                if key in local_map:
-                    merged = dict(row)
-                    loc = local_map[key]
-                    # Prefer local admin fields so refresh time / rename / order stick
-                    for field in (
-                        "position",
-                        "is_enabled",
-                        "display_group",
-                        "display_title",
-                        "display_mode",
-                        "subtitle",
-                        "is_banner",
-                        "last_refresh",
-                        "updated_at",
-                        "custom_artwork_url",
-                        "provider_status",
-                        "item_count",
-                    ):
-                        if field in loc and loc.get(field) is not None:
-                            # Prefer newer last_refresh / updated_at from local
-                            if field in ("last_refresh", "updated_at"):
-                                try:
-                                    if int(loc.get(field) or 0) >= int(merged.get(field) or 0):
-                                        merged[field] = loc.get(field)
-                                except Exception:
-                                    merged[field] = loc.get(field)
-                            else:
+def _reconcile_catalog_with_supabase(force=False, bypass_authority=False):
+    """
+    Supabase catalog_sections is membership + order truth outside an admin-edit window.
+    Drops Fly-local orphans so new installs never see deleted/stale shelves.
+
+    IMPORTANT: even force=True must respect the admin-edit authority window, otherwise
+    a slow concurrent pull can drop a just-created shelf before Supabase upsert lands
+    (admin then sees "Persistence verification failed").
+    Only bypass_authority=True (explicit reconcile-db) may overwrite during that window.
+    """
+    if not bypass_authority and time.time() < _CATALOG_LOCAL_AUTHORITY_UNTIL:
+        return None
+    remote_rows = sync_catalog_from_supabase()
+    if not remote_rows:
+        return None
+    with CATALOG_LOCK:
+        # Re-check after the (slow) remote fetch — create/save may have started meantime.
+        if not bypass_authority and time.time() < _CATALOG_LOCAL_AUTHORITY_UNTIL:
+            print("[Catalog] reconcile aborted — admin authority window active after remote fetch")
+            return None
+        local = _CATALOG_SECTIONS_MEM.get("data") or _read_local_catalog_sections() or []
+        local_map = {
+            str(row.get("key") or row.get("id") or ""): row
+            for row in local
+            if str(row.get("key") or row.get("id") or "")
+        }
+        by_key = {}
+        for row in remote_rows:
+            key = str(row.get("key") or row.get("id") or "")
+            if not key:
+                continue
+            # Remote row is canonical (position/group/url). Keep only newer refresh stamps.
+            merged = dict(row)
+            loc = local_map.get(key)
+            if loc:
+                for field in ("last_refresh", "updated_at", "item_count", "provider_status", "last_error"):
+                    if loc.get(field) is None:
+                        continue
+                    if field in ("last_refresh", "updated_at"):
+                        try:
+                            if int(loc.get(field) or 0) >= int(merged.get(field) or 0):
                                 merged[field] = loc.get(field)
-                    by_key[key] = merged
-                else:
-                    by_key[key] = row
-            # Keep only *very recent* local-only rows (create in flight).
-            # Older local-only rows are usually deletes done on another node /
-            # Supabase — keeping them re-upserts ghosts (delete → still showing).
-            now_ts = time.time()
-            for key, row in local_map.items():
-                if key in by_key:
-                    continue
-                try:
-                    updated = float(row.get("updated_at") or row.get("last_refresh") or 0)
-                except Exception:
-                    updated = 0
-                if updated and (now_ts - updated) <= 120:
-                    by_key[key] = row
-                else:
-                    print(f"[Catalog] drop local-only ghost section '{key}' (not on Supabase)")
-            merged = sorted(by_key.values(), key=lambda x: int(x.get("position") or 999))
-            _write_local_catalog_sections(merged)
-            _CATALOG_SECTIONS_MEM["data"] = merged
-            _CATALOG_SECTIONS_MEM["at"] = time.time()
-            _CATALOG_SECTIONS_MEM["synced_at"] = time.time()
-        print(f"[Catalog] background Supabase sync ok ({len(merged)} sections, merged)")
+                        except Exception:
+                            pass
+                    elif merged.get(field) in (None, "", 0):
+                        merged[field] = loc.get(field)
+            by_key[key] = merged
+        dropped = [k for k in local_map.keys() if k not in by_key]
+        for k in dropped:
+            print(f"[Catalog] drop local-only ghost section '{k}' (not on Supabase)")
+        merged = _sanitize_sections_list(
+            _dedupe_catalog_section_rows(
+                sorted(by_key.values(), key=lambda x: x.get("position", 999))
+            )
+        )
+        _write_local_catalog_sections(merged)
+        _CATALOG_SECTIONS_MEM["data"] = merged
+        _CATALOG_SECTIONS_MEM["at"] = time.time()
+        _CATALOG_SECTIONS_MEM["synced_at"] = time.time()
+    print(f"[Catalog] Supabase reconcile ok ({len(merged)} sections, dropped {len(dropped)})")
+    return merged
+
+
+def _bg_sync_catalog_from_supabase():
+    """Non-blocking Supabase → local disk sync so home feed never waits on DB."""
+    try:
+        _reconcile_catalog_with_supabase(force=False)
     except Exception as e:
         print(f"[Catalog] background Supabase sync failed: {e}")
 
 
+def _catalog_positions_need_fix(sections):
+    if not sections:
+        return False
+    vals = []
+    for s in sections:
+        try:
+            vals.append(int(s.get("position") or 0))
+        except Exception:
+            vals.append(0)
+    return len(vals) != len(set(vals))
+
+
+def _sanitize_section_last_error(section):
+    """Strip Supabase metadata JSON bags from last_error so admin never shows fake ERR."""
+    if not isinstance(section, dict):
+        return section
+    err = section.get("last_error")
+    if not isinstance(err, str):
+        return section
+    raw = err.strip()
+    if not raw.startswith("{"):
+        return section
+    try:
+        extra = json.loads(raw)
+        if isinstance(extra, dict):
+            if extra.get("display_mode") and not section.get("display_mode"):
+                section["display_mode"] = extra.get("display_mode")
+            if extra.get("updated_at") is not None and section.get("updated_at") is None:
+                section["updated_at"] = extra.get("updated_at")
+            if extra.get("item_count") is not None and not section.get("item_count"):
+                section["item_count"] = extra.get("item_count")
+            if extra.get("original_source_type"):
+                section["source_type"] = extra["original_source_type"]
+            real = extra.get("real_last_error")
+            section["last_error"] = real if isinstance(real, str) and real.strip() else None
+        else:
+            section["last_error"] = None
+    except Exception:
+        section["last_error"] = None
+    return section
+
+
+def _sanitize_sections_list(sections):
+    out = []
+    for s in sections or []:
+        if isinstance(s, dict):
+            out.append(_sanitize_section_last_error(dict(s)))
+        else:
+            out.append(s)
+    return out
+
+
+_CATALOG_LAST_BG_RECONCILE_AT = 0.0
+_CATALOG_BG_RECONCILE_MIN_GAP = 45.0  # don't hammer Supabase on every Home hit
+
+
 def load_catalog_sections():
     """
-    Fast path: memory → local JSON (instant).
-    Slow path: Supabase only on cold start, otherwise background refresh.
-    This fixes the 'music stuck loading' UX caused by blocking DB fetches.
+    Memory/disk first (fast admin + Home). Supabase reconcile runs in background
+    outside the admin-edit window — never block create/update/delete on a full
+    remote pull (that caused 35s+ Flutter timeouts under load).
     """
+    global _CATALOG_LAST_BG_RECONCILE_AT
+    _ensure_catalog_items_disk_loaded()
+    _purge_junk_from_items_cache()
+
     now = time.time()
+    in_authority = now < _CATALOG_LOCAL_AUTHORITY_UNTIL
     mem = _CATALOG_SECTIONS_MEM.get("data")
-    if mem and now - _CATALOG_SECTIONS_MEM.get("at", 0) < _CATALOG_MEM_TTL:
-        if now - _CATALOG_SECTIONS_MEM.get("synced_at", 0) > _CATALOG_SUPABASE_TTL:
-            _CATALOG_SECTIONS_MEM["synced_at"] = now
-            threading.Thread(target=_bg_sync_catalog_from_supabase, daemon=True).start()
-        return list(mem)
+
+    # Schedule a non-blocking Supabase pull so new installs still converge.
+    if (
+        not in_authority
+        and (now - _CATALOG_LAST_BG_RECONCILE_AT) >= _CATALOG_BG_RECONCILE_MIN_GAP
+    ):
+        _CATALOG_LAST_BG_RECONCILE_AT = now
+        threading.Thread(target=_bg_sync_catalog_from_supabase, daemon=True).start()
+
+    if mem:
+        fixed = _sanitize_sections_list(_dedupe_catalog_section_rows(list(mem)))
+        if _catalog_positions_need_fix(mem) or len(fixed) != len(mem):
+            try:
+                # Passive renumber must NOT extend admin authority (that blocked DB pulls)
+                save_catalog_sections(fixed, sync_db=False, extend_authority=False)
+            except Exception as e:
+                print(f"[Catalog] auto-renumber save failed: {e}")
+                _CATALOG_SECTIONS_MEM["data"] = fixed
+        else:
+            _CATALOG_SECTIONS_MEM["data"] = fixed
+        return fixed
 
     with CATALOG_LOCK:
         now = time.time()
         mem = _CATALOG_SECTIONS_MEM.get("data")
-        if mem and now - _CATALOG_SECTIONS_MEM.get("at", 0) < _CATALOG_MEM_TTL:
-            local = mem
-        else:
-            local = _read_local_catalog_sections()
-            if local:
-                _CATALOG_SECTIONS_MEM["data"] = local
-                _CATALOG_SECTIONS_MEM["at"] = now
+        if mem:
+            return _sanitize_sections_list(_dedupe_catalog_section_rows(list(mem)))
 
-        if local:
-            if now - _CATALOG_SECTIONS_MEM.get("synced_at", 0) > _CATALOG_SUPABASE_TTL:
-                _CATALOG_SECTIONS_MEM["synced_at"] = now
-                threading.Thread(target=_bg_sync_catalog_from_supabase, daemon=True).start()
-            return list(local)
-
-        # Cold start only — block once to seed from Supabase / defaults
+        # Cold start: Supabase first (never prefer stale disk over DB)
         remote_rows = sync_catalog_from_supabase()
         if remote_rows:
+            remote_rows = _sanitize_sections_list(_dedupe_catalog_section_rows(remote_rows))
             remote_rows.sort(key=lambda x: x.get("position", 999))
             _write_local_catalog_sections(remote_rows)
             _CATALOG_SECTIONS_MEM.update({"data": remote_rows, "at": now, "synced_at": now})
             return list(remote_rows)
 
-        default_sections = _generate_default_catalog_sections()
+        local = _read_local_catalog_sections()
+        if local:
+            local = _sanitize_sections_list(_dedupe_catalog_section_rows(local))
+            _CATALOG_SECTIONS_MEM.update({"data": local, "at": now, "synced_at": 0})
+            threading.Thread(target=_bg_sync_catalog_from_supabase, daemon=True).start()
+            return list(local)
+
+        default_sections = _sanitize_sections_list(
+            _dedupe_catalog_section_rows(_generate_default_catalog_sections())
+        )
         _write_local_catalog_sections(default_sections)
         _CATALOG_SECTIONS_MEM.update({"data": default_sections, "at": now, "synced_at": now})
         threading.Thread(target=sync_catalog_to_supabase, args=(default_sections,), daemon=True).start()
         return list(default_sections)
+
+
+_CATALOG_ITEMS_TTL = int(os.environ.get("CATALOG_ITEMS_TTL", 3600))         # Fresh for 1 hour (3600s)
+_CATALOG_ITEMS_STALE = int(os.environ.get("CATALOG_ITEMS_STALE", 604800))   # Retain stale up to 7 days (604800s)
+
+_SECTION_RESOLVE_LOCKS = {}
+_SECTION_LOCKS_GUARD = threading.Lock()
+
+
+def _get_section_lock(key):
+    with _SECTION_LOCKS_GUARD:
+        if key not in _SECTION_RESOLVE_LOCKS:
+            _SECTION_RESOLVE_LOCKS[key] = threading.RLock()
+        return _SECTION_RESOLVE_LOCKS[key]
+
+
+def _get_cached_section_entry(key):
+    entry = _CATALOG_ITEMS_CACHE.get(key)
+    if not entry:
+        return None
+    if isinstance(entry, tuple):
+        ts = entry[0]
+        items = entry[1]
+        meta = entry[2] if len(entry) > 2 and isinstance(entry[2], dict) else {}
+        return ts, list(items), dict(meta)
+    return None
+
+
+def _is_entry_mock(entry):
+    if not entry or not isinstance(entry, tuple) or len(entry) < 2:
+        return False
+    items = entry[1]
+    meta = entry[2] if len(entry) > 2 and isinstance(entry[2], dict) else {}
+    if meta.get("is_mock"):
+        return True
+    if isinstance(items, list) and items and any(isinstance(t, dict) and t.get("is_mock") for t in items):
+        return True
+    return False
 
 
 def _resolve_section_base_items(section, force_fetch=False):
@@ -3432,26 +3501,30 @@ def _resolve_section_base_items(section, force_fetch=False):
         existing = _get_cached_section_entry(key)
 
         # Reuse fresh live cache only — never treat offline_mock as authoritative.
-        if not force_fetch and existing:
+        if not force_fetch and existing and not _is_entry_mock(existing):
             ts, items, meta = existing
-            is_mock_entry = bool(meta.get("is_mock")) or (
-                isinstance(items, list)
-                and items
-                and any(isinstance(t, dict) and t.get("is_mock") for t in items)
-            )
-            if now - ts < _CATALOG_ITEMS_TTL and items and not is_mock_entry:
+            if now - ts < _CATALOG_ITEMS_TTL and items:
                 return items
 
-        # Perform live resolution — prefer full admin source_url over bare id/slug
+        # Perform live resolution — prefer full admin source_url over bare id/slug.
+        # Never mutate the shared section row (that flipped TRACK → new_releases in RAM).
         try:
-            _apply_source_url_identity(section)
-            items, is_mock, provider_status, detected_title, detected_art = resolve_catalog_items(
-                section.get("source_type"),
-                section.get("source_id"),
-                section.get("slug"),
-                section.get("language", "all"),
-                source_url=section.get("source_url"),
+            resolve_sec = dict(section)
+            admin_st = str(resolve_sec.get("source_type") or "").strip().lower()
+            wants_tracks = admin_st in ("song", "track") or str(
+                resolve_sec.get("display_mode") or ""
+            ).lower() in ("tracks", "songs", "song")
+            _apply_source_url_identity(
+                resolve_sec, preserve_admin_display_type=wants_tracks
             )
+            items, is_mock, provider_status, detected_title, detected_art = resolve_catalog_items(
+                resolve_sec.get("source_type"),
+                resolve_sec.get("source_id"),
+                resolve_sec.get("slug"),
+                resolve_sec.get("language", "all"),
+                source_url=resolve_sec.get("source_url"),
+            )
+            items = _filter_live_catalog_tracks(items)
         except Exception as exc:
             print(f"[Catalog] resolve_catalog_items exception for {key}: {exc}")
             items, is_mock, provider_status, detected_title, detected_art = [], True, "error", None, None
@@ -3473,19 +3546,7 @@ def _resolve_section_base_items(section, force_fetch=False):
             return items
         else:
             # Never overwrite good live cache with mock / empty failure.
-            prev_good = False
-            if existing and existing[1]:
-                prev_meta = existing[2] if len(existing) > 2 and isinstance(existing[2], dict) else {}
-                prev_items = existing[1]
-                prev_good = not (
-                    prev_meta.get("is_mock")
-                    or (
-                        isinstance(prev_items, list)
-                        and prev_items
-                        and any(isinstance(t, dict) and t.get("is_mock") for t in prev_items)
-                    )
-                )
-            if prev_good:
+            if existing and existing[1] and not _is_entry_mock(existing):
                 prev_ts, prev_items, prev_meta = existing
                 stale_meta = dict(prev_meta)
                 stale_meta["is_stale"] = True
@@ -3525,19 +3586,45 @@ def get_section_items(section, force_refresh=False):
     custom_tracks = section.get("custom_tracks") or []
 
     base_items = None
+    need_bg_revalidate = False
     existing = _get_cached_section_entry(key)
 
-    if not force_refresh and existing:
+    if force_refresh:
+        base_items = _resolve_section_base_items(section, force_fetch=True)
+    elif existing and not _is_entry_mock(existing):
         ts, items, meta = existing
-        if items:
+        age = (now - ts) if items else 10**9
+        if items and age < _CATALOG_ITEMS_TTL:
             base_items = items
+        elif items:
+            # Any live cache (even older than STALE) — serve now, refresh in bg.
+            # Sync-resolving here blocked /api/catalog/sections for minutes and
+            # made Flutter Home stick on "Loading your music…".
+            base_items = items
+            need_bg_revalidate = True
 
     if base_items is None:
-        base_items = _resolve_section_base_items(section, force_fetch=force_refresh)
+        if force_refresh:
+            base_items = _resolve_section_base_items(section, force_fetch=True)
+        else:
+            # Metadata-only list/detail path: never block the request on Jio.
+            base_items = []
+            need_bg_revalidate = bool(section.get("source_url") or section.get("source_id"))
+
+    if need_bg_revalidate:
+        def _bg_revalidate_section(sec=section, sec_key=key):
+            try:
+                _resolve_section_base_items(sec, force_fetch=True)
+            except Exception as exc:
+                print(f"[Catalog] bg revalidate failed for {sec_key}: {exc}")
+
+        threading.Thread(target=_bg_revalidate_section, daemon=True).start()
 
     combined = []
     seen_ids = set()
     for t in (custom_tracks + (base_items or [])):
+        if _is_junk_catalog_track(t):
+            continue
         tid = str(t.get("id") or t.get("token") or "")
         clean_tid = tid.replace("custom_api:track:", "")
         if clean_tid in excluded_ids or tid in excluded_ids:
@@ -3550,32 +3637,43 @@ def get_section_items(section, force_refresh=False):
     return combined
 
 
-def save_catalog_sections(sections, sync_db=False):
+def save_catalog_sections(sections, sync_db=False, extend_authority=True):
+    """
+    Persist catalogue locally (+ optional Supabase upsert).
+    extend_authority=True only for real admin edits — passive renumber/reconcile
+    must NOT block Supabase pulls or stale Fly disk stays forever.
+    """
     global _CATALOG_LOCAL_AUTHORITY_UNTIL
     with CATALOG_LOCK:
         try:
-            disk_sections = []
+            # Always store unique 1..N so Home group order matches admin ↑↓
+            cleaned = []
             for s in sections:
                 clean_s = {k: v for k, v in s.items() if k != "items"}
-                # Always stamp updated_at when saving admin changes
                 if not clean_s.get("updated_at"):
                     clean_s["updated_at"] = int(time.time())
-                disk_sections.append(clean_s)
+                cleaned.append(clean_s)
+            disk_sections = _ensure_unique_catalog_positions(cleaned)
             with open(CATALOG_STORAGE_FILE, "w", encoding="utf-8") as f:
                 json.dump(disk_sections, f, indent=2, ensure_ascii=False)
             _CATALOG_SECTIONS_MEM["data"] = disk_sections
             _CATALOG_SECTIONS_MEM["at"] = time.time()
             _CATALOG_SECTIONS_MEM["synced_at"] = time.time()
-            # Protect admin refresh/rename/reorder from stale remote overwrite
-            _CATALOG_LOCAL_AUTHORITY_UNTIL = time.time() + 1800.0
+            if extend_authority:
+                # Protect admin reorder/create/refresh from a slower remote pull
+                _CATALOG_LOCAL_AUTHORITY_UNTIL = time.time() + 1800.0
         except Exception as e:
             print(f"[Catalog] Failed to save {CATALOG_STORAGE_FILE}: {e}")
             return False
 
     if sync_db:
-        sync_catalog_to_supabase(disk_sections)
-    else:
-        threading.Thread(target=sync_catalog_to_supabase, args=(disk_sections,), daemon=True).start()
+        # Block until upsert finishes so admin read-back / other machines see the row.
+        # If DB is briefly down, keep local+authority and retry in background.
+        if sync_catalog_to_supabase(disk_sections) is False:
+            print("[Catalog] local save ok but Supabase sync failed — scheduling retry")
+            threading.Thread(
+                target=sync_catalog_to_supabase, args=(disk_sections,), daemon=True
+            ).start()
     return True
 
 
@@ -3616,19 +3714,7 @@ def api_catalog_sections():
     if group_filter:
         sections = [s for s in sections if (s.get("display_group") or "").lower() == group_filter.lower()]
     if lang_filter and lang_filter != "all":
-        # Browse Languages / multi-lang shelves must stay visible on Home regardless of mood lang.
-        def _keep_for_lang(s):
-            lang = (s.get("language") or "all").lower()
-            if lang in ("all", str(lang_filter).lower()):
-                return True
-            group = (s.get("display_group") or "").strip().lower().replace("_", " ")
-            return group in (
-                "browse languages",
-                "browse by languages",
-                "languages",
-                "language",
-            )
-        sections = [s for s in sections if _keep_for_lang(s)]
+        sections = [s for s in sections if s.get("language") in ("all", lang_filter)]
 
     _ensure_catalog_items_disk_loaded()
     lite = request.args.get("lite", "").lower() in ("1", "true", "yes")
@@ -3646,46 +3732,72 @@ def api_catalog_sections():
 
         if lite:
             items = []
-        elif cached and cached[1]:
-            # Serve cached items immediately (fast path)
-            items = get_section_items(s, force_refresh=False)
-        else:
-            # Uncached or forced refresh: queue section for resolution
+        elif cached and cached[1] and not _is_entry_mock(cached):
+            # Copy from RAM cache only — never call get_section_items here
+            # (that used to sync-resolve stale shelves and hang Home).
+            items = list(cached[1])
+            ts = float(cached[0] or 0)
+            if (time.time() - ts) >= _CATALOG_ITEMS_TTL:
+                to_resolve.append((len(enriched), s))
+        elif cached and _is_entry_mock(cached):
+            # Cached entry contains mock items! Queue for live resolution
             items = list(s.get("custom_tracks") or [])
             to_resolve.append((len(enriched), s))
+        elif do_refresh:
+            # Forced refresh: queue for synchronous resolution below
+            items = list(s.get("custom_tracks") or [])
+            to_resolve.append((len(enriched), s))
+        elif not had_any_cache:
+            # Cold boot: never block admin/Home on resolving 90 shelves —
+            # return metadata now and heal songs in background.
+            items = list(s.get("custom_tracks") or [])
+            to_resolve.append((len(enriched), s))
+        else:
+            # Uncached section without refresh: return custom tracks (if any)
+            items = list(s.get("custom_tracks") or [])
+            if s.get("source_url") or s.get("source_id"):
+                to_resolve.append((len(enriched), s))
 
         sec_copy["items"] = items
-        sec_copy["item_count"] = len(items) or int(s.get("item_count") or 0)
         sec_copy["excluded_track_ids"] = s.get("excluded_track_ids") or []
         sec_copy["custom_tracks"] = s.get("custom_tracks") or []
-        parsed_lr = _parse_iso_to_unix(s.get("last_refresh")) or _parse_iso_to_unix(s.get("updated_at"))
-        sec_copy["last_refresh"] = parsed_lr if parsed_lr is not None else int(time.time())
-        parsed_ua = _parse_iso_to_unix(s.get("updated_at"))
-        sec_copy["updated_at"] = parsed_ua if parsed_ua is not None else sec_copy["last_refresh"]
 
         if cached:
             ts, _, meta = cached
-            if not s.get("last_refresh") and ts:
-                sec_copy["last_refresh"] = _parse_iso_to_unix(ts) or sec_copy["last_refresh"]
+            # Never let stale song-cache timestamps wipe an admin "Just now" stamp
+            stored_lr = _parse_iso_to_unix(s.get("last_refresh")) or 0
+            sec_copy["last_refresh"] = max(int(stored_lr or 0), int(ts or 0))
             sec_copy["provider_status"] = meta.get("provider_status", s.get("provider_status", "ok"))
             sec_copy["is_mock"] = meta.get("is_mock", s.get("is_mock", False))
             sec_copy["is_stale"] = meta.get("is_stale", False)
             sec_copy["last_error"] = meta.get("last_error", s.get("last_error"))
 
+        # Never ship mock/offline tracks to the app
+        live_items = [
+            t for t in (sec_copy.get("items") or [])
+            if isinstance(t, dict) and not t.get("is_mock")
+        ]
+        sec_copy["items"] = live_items
+        # Count = live payloads only. Never advertise stale seed/mock item_count
+        # when items[] is empty (Home showed "5 songs" then "No tracks yet").
+        sec_copy["item_count"] = len(live_items)
+        if len(live_items) == 0:
+            sec_copy["is_mock"] = False
+            if sec_copy.get("provider_status") == "offline_mock":
+                sec_copy["provider_status"] = "unavailable"
         enriched.append(sec_copy)
 
-    # Resolve queued sections when not lite (immediate cap of 10 keeps response fast and prevents timeouts)
-    if to_resolve and not lite:
-        immediate_resolve = to_resolve[:10]
-        deferred_resolve = to_resolve[10:]
-        with ThreadPoolExecutor(max_workers=6) as ex:
+    # Sync-resolve ONLY on explicit refresh=1. Cold start / heal always background —
+    # otherwise admin Save verification times out rebuilding ~90 shelves.
+    if to_resolve and not lite and do_refresh:
+        with ThreadPoolExecutor(max_workers=4) as ex:
             futs = {
-                ex.submit(get_section_items, sec, do_refresh): (idx, sec)
-                for idx, sec in immediate_resolve
+                ex.submit(get_section_items, sec, True): (idx, sec)
+                for idx, sec in to_resolve
             }
             for fut, (idx, sec) in list(futs.items()):
                 try:
-                    items = fut.result(timeout=8)
+                    items = fut.result(timeout=15)
                 except Exception as err:
                     print(f"[Catalog] Refresh error for section {idx}: {err}")
                     items = enriched[idx].get("items") or []
@@ -3701,19 +3813,18 @@ def api_catalog_sections():
                     enriched[idx]["is_mock"] = meta.get("is_mock", False)
                     enriched[idx]["is_stale"] = meta.get("is_stale", False)
                     enriched[idx]["last_error"] = meta.get("last_error")
-
-        if deferred_resolve:
-            def _bg_resolve(items_to_resolve):
-                with ThreadPoolExecutor(max_workers=4) as bg_ex:
-                    for _, sec in items_to_resolve:
-                        try:
-                            get_section_items(sec, force_refresh=do_refresh)
-                        except Exception:
-                            pass
-                _mark_catalog_items_dirty()
-            threading.Thread(target=_bg_resolve, args=(deferred_resolve,), daemon=True).start()
+                elif stored_lr:
+                    enriched[idx]["last_refresh"] = int(stored_lr)
 
         _mark_catalog_items_dirty()
+    elif to_resolve and not lite and not app.config.get("TESTING"):
+        def _bg_heal(secs):
+            for s in secs:
+                try:
+                    get_section_items(s, force_refresh=True)
+                except Exception as err:
+                    print(f"[Catalog] Background heal error: {err}")
+        threading.Thread(target=_bg_heal, args=([s for _, s in to_resolve],), daemon=True).start()
 
     return ok({
         "sections": enriched,
@@ -3731,52 +3842,138 @@ def api_catalog_refresh_all_sections():
     sections = load_catalog_sections()
     now_ts = int(time.time())
 
+    # Clean fake error strings from existing sections
     for sec in sections:
         _apply_source_url_identity(sec)
-        sec["last_refresh"] = now_ts
-        sec["updated_at"] = now_ts
-        key = str(sec.get("key") or sec.get("id") or sec.get("slug"))
-        existing = _get_cached_section_entry(key)
-        if existing:
-            _, items, meta = existing
-            sec["items"] = items
-            sec["item_count"] = len(items) if items else sec.get("item_count", 0)
-            sec["provider_status"] = meta.get("provider_status", "ok")
-            _CATALOG_ITEMS_CACHE[key] = (float(now_ts), items, dict(meta))
-        else:
-            sec["provider_status"] = "ok"
+        err = sec.get("last_error")
+        if isinstance(err, str) and err.strip().startswith("{"):
+            sec["last_error"] = None
 
-    # Persist timestamps immediately (and push to Supabase in bg via save)
-    save_catalog_sections(sections, sync_db=True)
+    enabled_secs = [s for s in sections if s.get("is_enabled", True)]
+    if app.config.get("TESTING"):
+        enabled_secs = enabled_secs[:2]
+    completed = []
+    failed = []
+    pending = []
 
-    # In background, re-fetch upstream links so cache stays ultra-fresh
-    def _bg_revalidate():
-        for s in sections:
-            try:
-                if s.get("is_enabled", True):
-                    _apply_source_url_identity(s)
-                    get_section_items(s, force_refresh=True)
-                    s["last_refresh"] = int(time.time())
-                    s["updated_at"] = s["last_refresh"]
-                    k = str(s.get("key") or s.get("id") or s.get("slug"))
-                    cached_entry = _get_cached_section_entry(k)
-                    if cached_entry:
-                        items_c, meta_c = cached_entry[1], cached_entry[2]
-                        _CATALOG_ITEMS_CACHE[k] = (float(s["last_refresh"]), items_c, dict(meta_c))
-                        s["provider_status"] = meta_c.get("provider_status", "ok")
-                        s["is_mock"] = meta_c.get("is_mock", False)
-                        s["item_count"] = len(items_c) if items_c else s.get("item_count", 0)
-            except Exception:
-                pass
-        _persist_catalog_items_disk()
-        save_catalog_sections(sections, sync_db=True)
+    def _resolve_shelf(s):
+        k = str(s.get("key") or s.get("id") or s.get("slug"))
+        try:
+            _apply_source_url_identity(s)
+            items = get_section_items(s, force_refresh=True)
+            cached = _get_cached_section_entry(k)
+            is_mock = False
+            status = "ok"
+            last_err = None
+            if cached:
+                _, _, meta = cached
+                is_mock = meta.get("is_mock", False)
+                status = meta.get("provider_status", "ok")
+                last_err = meta.get("last_error")
+            return k, items, is_mock, status, last_err
+        except Exception as ex:
+            return k, [], False, "error", str(ex)
 
-    threading.Thread(target=_bg_revalidate, daemon=True).start()
+    pool = ThreadPoolExecutor(max_workers=6)
+    fut_map = {pool.submit(_resolve_shelf, s): s for s in enabled_secs}
+
+    from concurrent.futures import wait as fut_wait
+    done, not_done = fut_wait(fut_map.keys(), timeout=12.0)
+
+    for fut in done:
+        sec = fut_map[fut]
+        k = str(sec.get("key") or sec.get("id") or sec.get("slug"))
+        try:
+            _, items, is_mock, status, last_err = fut.result()
+            if not is_mock and status == "ok" and items and len(items) > 0:
+                sec["last_refresh"] = now_ts
+                sec["updated_at"] = now_ts
+                sec["items"] = items
+                sec["item_count"] = len(items)
+                sec["provider_status"] = "ok"
+                sec["is_mock"] = False
+                sec["last_error"] = None
+                _CATALOG_ITEMS_CACHE[k] = (float(now_ts), items, {
+                    "is_mock": False,
+                    "provider_status": "ok",
+                    "last_error": None,
+                    "item_count": len(items),
+                })
+                completed.append(k)
+            else:
+                # Do NOT stamp last_refresh on failure or mock
+                sec["provider_status"] = status
+                sec["is_mock"] = is_mock
+                sec["last_error"] = last_err if (last_err and not str(last_err).startswith("{")) else "Resolution failed"
+                failed.append(k)
+        except Exception as ex:
+            sec["provider_status"] = "error"
+            sec["last_error"] = str(ex)
+            failed.append(k)
+
+    for fut in not_done:
+        sec = fut_map[fut]
+        k = str(sec.get("key") or sec.get("id") or sec.get("slug"))
+        pending.append(k)
+
+    # Save immediately what we have resolved so far
+    sections = _sanitize_sections_list(sections)
+    save_catalog_sections(sections, sync_db=False)
+    _mark_catalog_items_dirty()
+
+    # Background handler to finish pending without blocking HTTP response
+    if not_done:
+        def _finish_pending():
+            bg_now = int(time.time())
+            any_bg_completed = False
+            for p_fut in not_done:
+                p_sec = fut_map[p_fut]
+                p_k = str(p_sec.get("key") or p_sec.get("id") or p_sec.get("slug"))
+                try:
+                    _, p_items, p_mock, p_status, p_err = p_fut.result()
+                    if not p_mock and p_status == "ok" and p_items and len(p_items) > 0:
+                        p_sec["last_refresh"] = bg_now
+                        p_sec["updated_at"] = bg_now
+                        p_sec["items"] = p_items
+                        p_sec["item_count"] = len(p_items)
+                        p_sec["provider_status"] = "ok"
+                        p_sec["is_mock"] = False
+                        p_sec["last_error"] = None
+                        _CATALOG_ITEMS_CACHE[p_k] = (float(bg_now), p_items, {
+                            "is_mock": False,
+                            "provider_status": "ok",
+                            "last_error": None,
+                            "item_count": len(p_items),
+                        })
+                        upsert_single_catalog_section_to_supabase(p_sec)
+                        any_bg_completed = True
+                except Exception as ex:
+                    print(f"[Catalog] BG refresh-all failed for {p_k}: {ex}")
+            if any_bg_completed:
+                save_catalog_sections(_sanitize_sections_list(sections), sync_db=False)
+                _mark_catalog_items_dirty()
+
+        threading.Thread(target=_finish_pending, daemon=True).start()
+
+    # If any completed, sync those rows to Supabase in background
+    if completed:
+        def _sync_completed():
+            for c_k in completed:
+                match = next((s for s in sections if matches_section_key(s, c_k)), None)
+                if match:
+                    upsert_single_catalog_section_to_supabase(match)
+        threading.Thread(target=_sync_completed, daemon=True).start()
 
     return jsonify({
         "success": True,
-        "sections": sections,
+        "completed": len(completed),
+        "failed": len(failed),
+        "pending": len(pending),
+        "completed_keys": completed,
+        "failed_keys": failed,
+        "pending_keys": pending,
         "total": len(sections),
+        "sections": _sanitize_sections_list(sections),
         "refreshed_at": now_ts,
     })
 
@@ -3794,41 +3991,55 @@ def api_catalog_refresh_single_section(section_key):
     items = get_section_items(sec, force_refresh=True)
     key = str(sec.get("key") or sec.get("id") or sec.get("slug"))
 
+    existing = _get_cached_section_entry(key)
+    is_mock = False
+    provider_status = "ok"
+    last_error = None
+    if existing:
+        _, items_c, meta = existing
+        is_mock = meta.get("is_mock", False)
+        provider_status = meta.get("provider_status", "ok")
+        last_error = meta.get("last_error")
+
     sec_copy = dict(sec)
     sec_copy["items"] = items
     sec_copy["item_count"] = len(items)
+    sec_copy["is_mock"] = is_mock
+    sec_copy["provider_status"] = provider_status
+    sec_copy["last_error"] = last_error
+
+    # Only stamp last_refresh on a real, successful, non-mock resolve with live songs
     now_ts = int(time.time())
-    sec_copy["last_refresh"] = now_ts
-    sec_copy["updated_at"] = now_ts
+    if not is_mock and provider_status == "ok" and len(items) > 0:
+        sec_copy["last_refresh"] = now_ts
+        sec_copy["updated_at"] = now_ts
+        if existing:
+            _, items_c, meta = existing
+            _CATALOG_ITEMS_CACHE[key] = (float(now_ts), items_c, dict(meta))
+            _mark_catalog_items_dirty()
 
-    existing = _get_cached_section_entry(key)
-    if existing:
-        _, items_c, meta = existing
-        _CATALOG_ITEMS_CACHE[key] = (float(now_ts), items_c, dict(meta))
-        sec_copy["provider_status"] = meta.get("provider_status", "ok")
-        sec_copy["is_mock"] = meta.get("is_mock", False)
-        sec_copy["is_stale"] = meta.get("is_stale", False)
-        sec_copy["last_error"] = meta.get("last_error")
-
-    # Persist updated status into sections storage
     sections = load_catalog_sections()
+    target_s = None
     for s in sections:
         if matches_section_key(s, section_key):
             _apply_source_url_identity(s)
             s["source_type"] = sec.get("source_type") or s.get("source_type")
             s["source_id"] = sec.get("source_id") or s.get("source_id")
             s["slug"] = sec.get("slug") or s.get("slug")
-            s["last_refresh"] = sec_copy["last_refresh"]
-            s["updated_at"] = sec_copy["updated_at"]
+            s["last_refresh"] = sec_copy.get("last_refresh") or s.get("last_refresh")
+            s["updated_at"] = sec_copy.get("updated_at") or int(time.time())
             s["provider_status"] = sec_copy["provider_status"]
             s["item_count"] = sec_copy["item_count"]
             s["is_mock"] = sec_copy["is_mock"]
             s["last_error"] = sec_copy["last_error"]
+            target_s = s
             break
-    save_catalog_sections(sections, sync_db=True)
-    _persist_catalog_items_disk()
 
-    return jsonify(sec_copy)
+    save_catalog_sections(sections, sync_db=False)
+    if target_s:
+        upsert_single_catalog_section_to_supabase(target_s)
+
+    return jsonify(_sanitize_section_last_error(sec_copy))
 
 
 @app.route("/api/catalog/sections/<section_key>", methods=["GET"])
@@ -3837,8 +4048,13 @@ def api_catalog_section_detail(section_key):
     if not sec:
         return not_found(f"Catalog section '{section_key}' not found")
     sec_copy = dict(sec)
-    sec_copy["items"] = get_section_items(sec)
-    sec_copy["item_count"] = len(sec_copy["items"])
+    raw_items = get_section_items(sec)
+    live_items = [
+        t for t in (raw_items or [])
+        if isinstance(t, dict) and not t.get("is_mock")
+    ]
+    sec_copy["items"] = live_items
+    sec_copy["item_count"] = len(live_items)
     sec_copy["excluded_track_ids"] = sec.get("excluded_track_ids") or []
     sec_copy["custom_tracks"] = sec.get("custom_tracks") or []
     return ok(sec_copy, 0)
@@ -3852,9 +4068,32 @@ def api_catalog_preview():
     if err:
         return jsonify({"valid": False, "error": err}), 400
 
-    items, is_mock, provider_status, detected_title, detected_artwork = resolve_catalog_items(
-        parsed["source_type"], parsed["source_id"], parsed["slug"]
+    req_lang = (
+        (body.get("language") or request.args.get("language") or "").strip().lower()
+        or (parsed.get("language") or "").strip().lower()
+        or "hindi"
     )
+    items = None
+    is_mock = False
+    provider_status = "ok"
+    detected_title = None
+    detected_artwork = None
+
+    sec_k = str(parsed["slug"])
+    existing = _get_cached_section_entry(sec_k)
+    if existing and not _is_entry_mock(existing):
+        ts, c_items, meta = existing
+        if c_items:
+            items = list(c_items)
+            is_mock = meta.get("is_mock", False)
+            provider_status = meta.get("provider_status", "ok")
+            detected_title = meta.get("detected_title")
+            detected_artwork = meta.get("detected_artwork")
+
+    if not items:
+        items, is_mock, provider_status, detected_title, detected_artwork = resolve_catalog_items(
+            parsed["source_type"], parsed["source_id"], parsed["slug"], req_lang
+        )
     title = detected_title or parsed["default_title"]
     return jsonify({
         "valid": True,
@@ -3912,23 +4151,6 @@ def api_catalog_create_section():
 
     sections = load_catalog_sections()
 
-    # Prevent creating duplicate sections for the exact same source URL
-    existing_sec = next(
-        (s for s in sections if (s.get("source_url") or "").strip().rstrip("/") == (url or "").strip().rstrip("/")),
-        None
-    )
-    if existing_sec:
-        # Update existing section's title/group/type if provided
-        if body.get("display_title"):
-            existing_sec["display_title"] = body["display_title"].strip()
-        if body.get("display_group"):
-            existing_sec["display_group"] = body["display_group"].strip()
-        if body.get("source_type"):
-            existing_sec["source_type"] = body["source_type"].strip().lower()
-        existing_sec["updated_at"] = int(time.time())
-        save_catalog_sections(sections, sync_db=False)
-        return jsonify(existing_sec), 200
-
     base_key = re.sub(r'[^a-zA-Z0-9_]', '_', parsed["slug"].lower())
     key = base_key
     counter = 1
@@ -3939,15 +4161,24 @@ def api_catalog_create_section():
 
     display_title = (body.get("display_title") or "").strip() or parsed["default_title"]
     display_group = (body.get("display_group") or "").strip() or parsed["default_group"]
-    language = (body.get("language") or "").strip().lower() or "all"
-    position = body.get("position")
-    if position is None:
-        position = (max([s.get("position", 0) for s in sections], default=0)) + 1
+    # Prefer admin body → language parsed from Jio URL → hindi for typed shelves / all only if URL said so
+    language = (
+        (body.get("language") or "").strip().lower()
+        or (parsed.get("language") or "").strip().lower()
+        or "hindi"
+    )
+    # New shelves always join the FRONT of their display_group so Home shows
+    # them first inside that section. Group ↑↓ order on Home is unchanged.
+    same_group = [
+        s for s in sections
+        if str(s.get("display_group") or "").strip().lower()
+        == str(display_group).strip().lower()
+    ]
+    if same_group:
+        position = min(int(s.get("position") or 999) for s in same_group)
     else:
-        try:
-            position = int(position)
-        except ValueError:
-            position = len(sections) + 1
+        # Brand-new group: place after existing shelves (does not jump to #1 globally)
+        position = (max([int(s.get("position") or 0) for s in sections], default=0)) + 1
 
     is_enabled = body.get("is_enabled", True)
     if isinstance(is_enabled, str):
@@ -3967,24 +4198,70 @@ def api_catalog_create_section():
     excluded_track_ids = list(body.get("excluded_track_ids") or []) if isinstance(body.get("excluded_track_ids"), list) else []
     custom_tracks = list(body.get("custom_tracks") or []) if isinstance(body.get("custom_tracks"), list) else []
 
-    items, is_mock, provider_status, detected_title, detected_artwork = resolve_catalog_items(
-        parsed["source_type"], parsed["source_id"], parsed["slug"], language
-    )
+    # Cap Jio resolve so admin Save never sits past Flutter's ~35s timeout.
+    items, is_mock, provider_status, detected_title, detected_artwork = [], False, "pending", None, None
+    if custom_tracks:
+        items = list(custom_tracks)
+        is_mock = False
+        provider_status = "ok"
+    else:
+        def _create_resolve():
+            return resolve_catalog_items(
+                parsed["source_type"],
+                parsed["source_id"],
+                parsed["slug"],
+                language,
+                source_url=url,
+            )
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            fut = pool.submit(_create_resolve)
+            try:
+                items, is_mock, provider_status, detected_title, detected_artwork = fut.result(
+                    timeout=12
+                )
+            except Exception as exc:
+                print(f"[Catalog] create resolve timed out/failed for {parsed.get('slug')}: {exc}")
+                items, is_mock, provider_status, detected_title, detected_artwork = (
+                    [],
+                    False,
+                    "pending",
+                    None,
+                    None,
+                )
     if not display_title and detected_title:
         display_title = detected_title
     if not custom_artwork_url and detected_artwork:
         custom_artwork_url = detected_artwork
 
+    # Fetch type from URL; admin TYPE: SONG/TRACK wins for Home shelf + badge
+    admin_st = str(body.get("source_type") or "").strip().lower()
+    saved_type = parsed["source_type"]
+    display_mode = "entity"
+    if admin_st in ("song", "track"):
+        saved_type = "song"
+        display_mode = "tracks"
+    elif admin_st in ("playlist", "album", "artist", "mix", "charts", "radio", "new_releases"):
+        saved_type = admin_st
+        display_mode = "tracks" if admin_st == "new_releases" and body.get("display_mode") == "tracks" else "entity"
+    if str(body.get("display_mode") or "").strip().lower() in ("tracks", "songs", "song"):
+        display_mode = "tracks"
+        if saved_type not in ("song", "track"):
+            # Keep URL fetch type but mark as tracks shelf
+            pass
+
+    sec_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, key))
     new_section = {
-        "id": f"sec_{key}",
+        "id": sec_id,
         "key": key,
         "source_url": url,
-        "source_type": str(body.get("source_type")).strip().lower() if body.get("source_type") else parsed["source_type"],
+        "source_type": saved_type,
         "source_id": parsed["source_id"],
         "slug": parsed["slug"],
         "display_title": display_title,
         "subtitle": subtitle,
         "display_group": display_group,
+        "display_mode": display_mode,
         "language": language,
         "position": position,
         "is_enabled": is_enabled,
@@ -4001,12 +4278,94 @@ def api_catalog_create_section():
         "item_count": len(items),
         "items": items
     }
+    # Ensure new-releases URLs keep resolvable ids even when admin chose song/track
+    _apply_source_url_identity(
+        new_section,
+        preserve_admin_display_type=(admin_st in ("song", "track") or display_mode == "tracks"),
+    )
 
-    _CATALOG_ITEMS_CACHE[key] = (time.time(), items)
-    sections.append(new_section)
-    sections.sort(key=lambda x: x.get("position", 999))
-    save_catalog_sections(sections)
-    return jsonify(new_section), 201
+    if not is_mock and items:
+        meta = {
+            "is_mock": False,
+            "provider_status": "ok",
+            "last_error": None,
+            "is_stale": False,
+            "detected_title": detected_title,
+            "detected_artwork": detected_artwork,
+            "item_count": len(items)
+        }
+        _CATALOG_ITEMS_CACHE[key] = (time.time(), items, meta)
+        _mark_catalog_items_dirty()
+    elif _get_cached_section_entry(key) and not _is_entry_mock(_get_cached_section_entry(key)):
+        existing_sec_cache = _get_cached_section_entry(key)
+        items = existing_sec_cache[1]
+        new_section["items"] = items
+        new_section["item_count"] = len(items)
+        new_section["is_mock"] = False
+        new_section["provider_status"] = "ok"
+    # Rebuild list: new shelf is first inside its display_group; other groups stay put.
+    target_g = str(display_group).strip().lower()
+    ordered = sorted(sections, key=lambda x: int(x.get("position") or 999))
+    rebuilt = []
+    inserted = False
+    for s in ordered:
+        g = str(s.get("display_group") or "").strip().lower()
+        if g == target_g and not inserted:
+            rebuilt.append(new_section)
+            inserted = True
+        rebuilt.append(s)
+    if not inserted:
+        rebuilt.append(new_section)
+    for i, s in enumerate(rebuilt, start=1):
+        s["position"] = i
+    new_section["position"] = next(
+        (s["position"] for s in rebuilt if s.get("key") == new_section.get("key")),
+        new_section.get("position", 1),
+    )
+    if not save_catalog_sections(rebuilt, sync_db=False):
+        return jsonify({"error": "Failed to persist catalogue section locally"}), 500
+
+    supabase_configured = bool(SUPABASE_URL and (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY))
+    if supabase_configured:
+        ok, res_or_err = upsert_single_catalog_section_to_supabase(new_section)
+        if not ok:
+            rolled_back = [s for s in rebuilt if s.get("key") != key]
+            save_catalog_sections(rolled_back, sync_db=False, extend_authority=False)
+            return jsonify({
+                "error": f"Failed to persist catalogue section to Supabase: {res_or_err}. Nothing was saved."
+            }), 502
+
+    if provider_status == "pending":
+        def _bg_fill_new_section(sec_key=key, st=saved_type, sid=parsed["source_id"], slug=parsed["slug"], lang=language, src=url):
+            try:
+                filled, mock, status, title, art = resolve_catalog_items(st, sid, slug, lang, source_url=src)
+                filled = _filter_live_catalog_tracks(filled)
+                if filled and not mock and status == "ok":
+                    _CATALOG_ITEMS_CACHE[sec_key] = (
+                        time.time(),
+                        filled,
+                        {
+                            "is_mock": False,
+                            "provider_status": "ok",
+                            "last_error": None,
+                            "is_stale": False,
+                            "detected_title": title,
+                            "detected_artwork": art,
+                            "item_count": len(filled),
+                        },
+                    )
+                    _mark_catalog_items_dirty()
+                    print(f"[Catalog] bg-filled {sec_key} with {len(filled)} tracks")
+            except Exception as exc:
+                print(f"[Catalog] bg-fill failed for {sec_key}: {exc}")
+
+        threading.Thread(target=_bg_fill_new_section, daemon=True).start()
+
+    saved = find_catalog_section(key) or new_section
+    out = dict(saved)
+    out["items"] = new_section.get("items") or []
+    out["item_count"] = new_section.get("item_count") or len(out["items"])
+    return jsonify(out), 201
 
 
 @app.route("/api/catalog/sections/<section_key>", methods=["PUT"])
@@ -4022,7 +4381,7 @@ def api_catalog_update_section(section_key):
     body = request.get_json(silent=True) or {}
 
     new_url = body.get("source_url")
-    target_language = str(body.get("language")).strip().lower() if body.get("language") else sec.get("language", "all")
+    target_language = str(body.get("language")).strip().lower() if body.get("language") else sec.get("language", "hindi")
     url_changed = bool(new_url and new_url != sec.get("source_url"))
     lang_changed = bool(target_language != sec.get("language"))
     force_refresh = bool(body.get("refresh"))
@@ -4033,12 +4392,20 @@ def api_catalog_update_section(section_key):
         parsed, err = parse_catalog_url(target_url)
         if err:
             return jsonify({"error": err}), 400
+        # When URL changes and admin did not send language, inherit from Jio URL parse
+        if url_changed and not body.get("language"):
+            target_language = (parsed.get("language") or target_language or "hindi")
         sec["source_url"] = target_url
         sec["source_type"] = parsed["source_type"]
         sec["source_id"] = parsed["source_id"]
         sec["slug"] = parsed["slug"]
+        sec["language"] = target_language
         items, is_mock, provider_status, detected_title, detected_artwork = resolve_catalog_items(
-            parsed["source_type"], parsed["source_id"], parsed["slug"], target_language
+            parsed["source_type"],
+            parsed["source_id"],
+            parsed["slug"],
+            target_language,
+            source_url=target_url,
         )
         sec["items"] = items
         sec["item_count"] = len(items)
@@ -4046,53 +4413,108 @@ def api_catalog_update_section(section_key):
         sec["provider_status"] = provider_status
         if detected_artwork and not body.get("custom_artwork_url"):
             sec["custom_artwork_url"] = detected_artwork
-        _CATALOG_ITEMS_CACHE[sec.get("key", section_key)] = (time.time(), items)
+        sec_k = sec.get("key", section_key)
+        if not is_mock and items:
+            meta = {
+                "is_mock": False,
+                "provider_status": "ok",
+                "last_error": None,
+                "is_stale": False,
+                "detected_title": detected_title,
+                "detected_artwork": detected_artwork,
+                "item_count": len(items)
+            }
+            _CATALOG_ITEMS_CACHE[sec_k] = (time.time(), items, meta)
+            _mark_catalog_items_dirty()
+        elif _get_cached_section_entry(sec_k) and not _is_entry_mock(_get_cached_section_entry(sec_k)):
+            existing_sec_cache = _get_cached_section_entry(sec_k)
+            items = existing_sec_cache[1]
+            sec["items"] = items
+            sec["item_count"] = len(items)
+            sec["is_mock"] = False
+            sec["provider_status"] = "ok"
 
     if "display_title" in body:
-        sec["display_title"] = str(body["display_title"]).strip()
-    if "source_type" in body and body["source_type"]:
-        st = str(body["source_type"]).strip().lower()
-        sec["source_type"] = st
-        if st in ("song", "track"):
-            sec["display_mode"] = "tracks"
-    if "display_mode" in body and str(body.get("display_mode") or "").strip():
-        dm = str(body["display_mode"]).strip().lower()
-        sec["display_mode"] = "tracks" if dm in ("tracks", "songs", "song") else "entity"
+        val = body.get("display_title")
+        if val is not None and str(val).strip():
+            sec["display_title"] = str(val).strip()
     if "subtitle" in body:
-        sec["subtitle"] = str(body["subtitle"]).strip() or None
+        val = body.get("subtitle")
+        sec["subtitle"] = str(val).strip() if (val is not None and str(val).strip()) else None
     if "display_group" in body:
-        sec["display_group"] = str(body["display_group"]).strip()
+        val = body.get("display_group")
+        if val is not None and str(val).strip():
+            sec["display_group"] = str(val).strip()
+    # Admin TYPE: SONG/TRACK must stick (badge + Home tracks shelf).
+    # URL still fills source_id/slug; resolve always prefers source_url.
+    admin_st = None
+    if "source_type" in body and body.get("source_type") is not None and str(body.get("source_type")).strip():
+        st = str(body["source_type"]).strip().lower()
+        if st in ("playlist", "album", "artist", "song", "track", "mix", "charts", "radio", "new_releases"):
+            admin_st = st
+            sec["source_type"] = st
+            if st in ("song", "track"):
+                sec["display_mode"] = "tracks"
+            elif "display_mode" not in body:
+                sec["display_mode"] = sec.get("display_mode") or "entity"
+    if "display_mode" in body and body.get("display_mode") is not None and str(body.get("display_mode")).strip():
+        dm = str(body["display_mode"]).strip().lower()
+        sec["display_mode"] = dm if dm in ("tracks", "songs", "song", "entity") else "entity"
+        if sec["display_mode"] in ("tracks", "songs", "song"):
+            sec["display_mode"] = "tracks"
+    _apply_source_url_identity(
+        sec,
+        preserve_admin_display_type=(
+            admin_st in ("song", "track")
+            or str(sec.get("display_mode") or "").lower() == "tracks"
+        ),
+    )
     if "language" in body:
-        sec["language"] = target_language
+        val = body.get("language")
+        if val is not None and str(val).strip():
+            sec["language"] = str(val).strip().lower()
     if "custom_artwork_url" in body:
-        sec["custom_artwork_url"] = str(body["custom_artwork_url"]).strip() or None
+        val = body.get("custom_artwork_url")
+        sec["custom_artwork_url"] = str(val).strip() if (val is not None and str(val).strip()) else None
     if "is_banner" in body:
         val = body["is_banner"]
-        sec["is_banner"] = val if isinstance(val, bool) else str(val).lower() in ("true", "1", "yes")
+        if val is not None:
+            sec["is_banner"] = val if isinstance(val, bool) else str(val).lower() in ("true", "1", "yes")
     if "campaign_start" in body:
         val = body.get("campaign_start")
-        sec["campaign_start"] = int(val) if val is not None and str(val).isdigit() else None
+        sec["campaign_start"] = int(val) if (val is not None and str(val).isdigit()) else None
     if "campaign_end" in body:
         val = body.get("campaign_end")
-        sec["campaign_end"] = int(val) if val is not None and str(val).isdigit() else None
+        sec["campaign_end"] = int(val) if (val is not None and str(val).isdigit()) else None
     if "position" in body:
-        try:
-            sec["position"] = int(body["position"])
-        except ValueError:
-            pass
+        val = body.get("position")
+        if val is not None:
+            try:
+                sec["position"] = int(val)
+            except (ValueError, TypeError):
+                pass
     if "is_enabled" in body:
         val = body["is_enabled"]
-        sec["is_enabled"] = val if isinstance(val, bool) else str(val).lower() in ("true", "1", "yes")
+        if val is not None:
+            sec["is_enabled"] = val if isinstance(val, bool) else str(val).lower() in ("true", "1", "yes")
     if "excluded_track_ids" in body:
         sec["excluded_track_ids"] = list(body["excluded_track_ids"]) if isinstance(body["excluded_track_ids"], list) else []
     if "custom_tracks" in body:
         sec["custom_tracks"] = list(body["custom_tracks"]) if isinstance(body["custom_tracks"], list) else []
 
-    now_ts = int(time.time())
-    sec["last_refresh"] = now_ts
-    sec["updated_at"] = now_ts
+    sec["updated_at"] = int(time.time())
+    sec["last_refresh"] = int(time.time())
     sections.sort(key=lambda x: x.get("position", 999))
-    save_catalog_sections(sections, sync_db=True)
+    save_catalog_sections(sections, sync_db=False)
+
+    supabase_configured = bool(SUPABASE_URL and (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY))
+    if supabase_configured:
+        ok, res_or_err = upsert_single_catalog_section_to_supabase(sec)
+        if not ok:
+            return jsonify({
+                "error": f"Failed to persist catalogue section update to Supabase: {res_or_err}. Please retry."
+            }), 502
+
     return jsonify(sec)
 
 
@@ -4101,40 +4523,55 @@ def api_catalog_delete_section(section_key):
     if not is_admin_request(request):
         return jsonify({"error": "Admin privileges required to delete catalog sections"}), 403
 
+    global _CATALOG_LOCAL_AUTHORITY_UNTIL
     sections = load_catalog_sections()
     to_delete = [s for s in sections if matches_section_key(s, section_key)]
+    supabase_configured = bool(SUPABASE_URL and (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY))
 
     if not to_delete:
-        # Idempotent: still purge Supabase so ghost rows stop reappearing in admin.
+        # Idempotent: still purge Supabase so ghost rows stop reappearing in admin/Home.
         deleted_remote = delete_catalog_section_from_supabase(section_key, section_key)
         _CATALOG_ITEMS_CACHE.pop(section_key, None)
-        if deleted_remote:
+        if deleted_remote or not supabase_configured:
             save_catalog_sections(
                 [s for s in sections if not matches_section_key(s, section_key)],
-                sync_db=True,
+                sync_db=False,
             )
+            # Let other instances converge from DB (deleted row must stay gone).
+            _CATALOG_LOCAL_AUTHORITY_UNTIL = 0.0
             return jsonify({
                 "success": True,
                 "deleted_key": section_key,
                 "purged_remote_only": True,
             })
-        return not_found(f"Catalog section '{section_key}' not found")
+        return jsonify({
+            "error": f"Catalog section '{section_key}' not found locally and remote delete failed",
+        }), 404
 
+    remote_ok = True
     for s in to_delete:
         sk = str(s.get("key") or section_key)
-        delete_catalog_section_from_supabase(
-            sk,
-            s.get("id"),
-            source_id=s.get("source_id"),
-            slug=s.get("slug"),
-        )
+        # Hard-delete DB first so Home/Supabase fallback cannot resurrect the shelf.
+        ok = delete_catalog_section_from_supabase(sk, s.get("id"))
+        if not ok and supabase_configured:
+            remote_ok = False
         _CATALOG_ITEMS_CACHE.pop(sk, None)
         _CATALOG_ITEMS_CACHE.pop(section_key, None)
         if s.get("id"):
             _CATALOG_ITEMS_CACHE.pop(str(s.get("id")), None)
 
+    if not remote_ok and supabase_configured:
+        return jsonify({
+            "error": "Failed to delete section from database. Nothing was removed — retry.",
+            "deleted_key": section_key,
+        }), 502
+
     sections = [s for s in sections if not matches_section_key(s, section_key)]
-    save_catalog_sections(sections, sync_db=True)
+    save_catalog_sections(sections, sync_db=False, extend_authority=False)
+    # Drop authority so reconcile cannot prefer a stale pre-delete snapshot,
+    # and other machines pick up the DB membership quickly.
+    _CATALOG_LOCAL_AUTHORITY_UNTIL = 0.0
+    _mark_catalog_items_dirty()
     return jsonify({"success": True, "deleted_key": section_key})
 
 
@@ -4149,35 +4586,43 @@ def api_catalog_reorder_sections():
         return jsonify({"error": "Provide an 'order' array of section keys"}), 400
 
     sections = load_catalog_sections()
+    # Index by key / id / slug so Flutter sectionKey always matches
     sec_map = {}
     for s in sections:
-        sec_map[str(s.get("key"))] = s
-        if s.get("id"):
-            sec_map[str(s["id"])] = s
+        for k in (s.get("key"), s.get("id"), s.get("slug")):
+            if k:
+                sec_map[str(k)] = s
 
+    seen = set()
     new_list = []
-    seen_keys = set()
     pos = 1
     for k in order_keys:
-        k_str = str(k)
-        if k_str in sec_map:
-            sec = sec_map[k_str]
-            sec_key = sec.get("key")
-            if sec_key not in seen_keys:
-                seen_keys.add(sec_key)
-                sec["position"] = pos
-                new_list.append(sec)
-                pos += 1
+        sk = str(k)
+        sec = sec_map.get(sk)
+        if not sec:
+            continue
+        rk = str(sec.get("key") or sec.get("id") or sk)
+        if rk in seen:
+            continue
+        seen.add(rk)
+        sec["position"] = pos
+        new_list.append(sec)
+        pos += 1
 
-    for remaining in sorted(sections, key=lambda x: x.get("position", 999)):
-        sec_key = remaining.get("key")
-        if sec_key not in seen_keys:
-            seen_keys.add(sec_key)
-            remaining["position"] = pos
-            new_list.append(remaining)
-            pos += 1
+    for remaining in sorted(
+        (s for s in sections if str(s.get("key") or s.get("id") or "") not in seen),
+        key=lambda x: x.get("position", 999),
+    ):
+        remaining["position"] = pos
+        new_list.append(remaining)
+        pos += 1
 
-    save_catalog_sections(new_list, sync_db=False)
+    save_catalog_sections(new_list, sync_db=True)
+    # Push to Supabase immediately so clients reading DB also see new order
+    try:
+        sync_catalog_to_supabase(new_list)
+    except Exception as e:
+        print(f"[Catalog] reorder supabase sync: {e}")
     return jsonify({"sections": new_list, "total": len(new_list)})
 
 
@@ -4194,13 +4639,15 @@ def api_catalog_rename_group():
 
     sections = load_catalog_sections()
     count = 0
+    now_ts = int(time.time())
     for s in sections:
         if (s.get("display_group") or "").strip().lower() == old_name.lower():
             s["display_group"] = new_name
+            s["updated_at"] = now_ts
             count += 1
 
     if count > 0:
-        save_catalog_sections(sections, sync_db=False)
+        save_catalog_sections(sections, sync_db=True)
 
     return jsonify({"success": True, "renamed": count, "old_name": old_name, "new_name": new_name})
 
@@ -4216,8 +4663,22 @@ def api_catalog_toggle_section(section_key):
         return not_found(f"Catalog section '{section_key}' not found")
 
     sec["is_enabled"] = not sec.get("is_enabled", True)
-    save_catalog_sections(sections)
+    sec["updated_at"] = int(time.time())
+    save_catalog_sections(sections, sync_db=True)
     return jsonify(sec)
+
+
+@app.route("/api/catalog/sections/reconcile-db", methods=["POST"])
+def api_catalog_reconcile_db():
+    """Admin: force Fly local catalogue = Supabase (drop orphans, match order)."""
+    if not is_admin_request(request):
+        return jsonify({"error": "Admin privileges required"}), 403
+    global _CATALOG_LOCAL_AUTHORITY_UNTIL
+    _CATALOG_LOCAL_AUTHORITY_UNTIL = 0.0
+    merged = _reconcile_catalog_with_supabase(force=True, bypass_authority=True)
+    if not merged:
+        return jsonify({"error": "Supabase catalog_sections empty or unreachable"}), 502
+    return jsonify({"success": True, "total": len(merged), "source": "supabase"})
 
 
 # ─── Dynamic Radio & Library Categories Management ──────────────────────────────
@@ -4298,17 +4759,23 @@ def api_radio_stations():
         languages = body.get("languages") or [language]
         if isinstance(languages, str):
             languages = [x.strip().lower() for x in languages.split(",") if x.strip()]
+        category = str(body.get("category") or "National").strip()
+        tier = str(body.get("tier") or "").strip().lower()
+        if tier not in ("private", "government"):
+            tier = "private" if "private" in category.lower() or "popular" in category.lower() else "government"
         new_station = {
             "id": station_id,
             "name": name,
             "tagline": str(body.get("tagline") or "").strip(),
             "frequency": str(body.get("frequency") or "Live FM").strip(),
             "state": str(body.get("state") or "National / Regional").strip(),
+            "district": str(body.get("district") or "").strip(),
             "language": language,
             "languages": languages,
             "stream_url": stream_url,
             "artwork_url": str(body.get("artwork_url") or "").strip() or "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
-            "category": str(body.get("category") or "National").strip(),
+            "category": category,
+            "tier": tier,
             "is_live": bool(body.get("is_live", True)),
             "verified": bool(body.get("verified", False)),
         }
@@ -4317,6 +4784,12 @@ def api_radio_stations():
         return jsonify(new_station), 201
 
     stations = load_radio_stations()
+    # Normalize tier so Popular / AIR filters never drop stations silently.
+    for s in stations:
+        t = (s.get("tier") or "").strip().lower()
+        cat = (s.get("category") or "").lower()
+        if t not in ("private", "government"):
+            s["tier"] = "private" if ("private" in cat or "popular" in cat or "mirchi" in cat) else "government"
     lang = (request.args.get("lang") or request.args.get("language") or "").strip().lower()
     tier = (request.args.get("tier") or "").strip().lower()  # private | government | air
     state = (request.args.get("state") or "").strip().lower()
@@ -4408,157 +4881,32 @@ def api_radio_stream(station_id):
     return redirect(station["stream_url"], code=302) if station else not_found("Station not found")
 
 
-# ─── Push / in-app notifications (Amazon-style admin broadcast) ─────────────────
-NOTIFICATION_STORAGE_FILE = os.path.join(DATA_DIR, "notifications.json")
-NOTIFICATION_LOCK = threading.Lock()
-FCM_STORAGE_FILE = os.path.join(DATA_DIR, "fcm_tokens.json")
-FCM_LOCK = threading.Lock()
-_fcm_app = None
-
-
-def get_firebase_app():
-    global _fcm_app
-    if not FIREBASE_ADMIN_AVAILABLE:
-        return None
-    if _fcm_app is not None:
-        return _fcm_app
-    creds_raw = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "").strip()
-    if creds_raw:
-        try:
-            cred_dict = json.loads(creds_raw)
-            cred = credentials.Certificate(cred_dict)
-            _fcm_app = firebase_admin.initialize_app(cred, name="kalpkrut_beats")
-            print("[FCM] Firebase Admin initialized from env secret")
-            return _fcm_app
-        except Exception as ex:
-            print(f"[FCM] Failed to initialize Firebase Admin from secret: {ex}")
-    for candidate in ("service_account.json", "firebase_service_account.json", os.path.join(DATA_DIR, "service_account.json")):
-        if os.path.exists(candidate):
-            try:
-                cred = credentials.Certificate(candidate)
-                _fcm_app = firebase_admin.initialize_app(cred, name="kalpkrut_beats")
-                print(f"[FCM] Firebase Admin initialized from file {candidate}")
-                return _fcm_app
-            except Exception as ex:
-                print(f"[FCM] Failed to initialize Firebase Admin from file {candidate}: {ex}")
-    return None
+# ─── FCM device tokens (admin push foundation) ─────────────────────────────────
+FCM_TOKENS_FILE = os.path.join(DATA_DIR, "fcm_tokens.json")
+FCM_TOKENS_LOCK = threading.Lock()
 
 
 def load_fcm_tokens():
-    with FCM_LOCK:
-        if os.path.exists(FCM_STORAGE_FILE):
+    with FCM_TOKENS_LOCK:
+        if os.path.exists(FCM_TOKENS_FILE):
             try:
-                with open(FCM_STORAGE_FILE, "r", encoding="utf-8") as f:
+                with open(FCM_TOKENS_FILE, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     if isinstance(data, list):
                         return data
             except Exception as e:
-                print(f"[FCM] load tokens error: {e}")
+                print(f"[FCM] load error: {e}")
         return []
 
 
-def save_fcm_tokens(tokens):
-    with FCM_LOCK:
+def save_fcm_tokens(items):
+    with FCM_TOKENS_LOCK:
         try:
-            with open(FCM_STORAGE_FILE, "w", encoding="utf-8") as f:
-                json.dump(tokens, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            print(f"[FCM] save tokens error: {e}")
-            return False
-
-
-def send_fcm_broadcast(title, body, data=None):
-    app = get_firebase_app()
-    payload_data = {}
-    if data and isinstance(data, dict):
-        for k, v in data.items():
-            payload_data[str(k)] = str(v) if v is not None else ""
-    payload_data["title"] = str(title)
-    payload_data["body"] = str(body)
-
-    if not app:
-        print("[FCM] Firebase app not initialized — logging broadcast payload")
-        return {"success": True, "mode": "unconfigured_logged", "sent": 0, "recipients": 0}
-
-    sent_count = 0
-    fail_count = 0
-
-    # 1. Broadcast to topic 'all'
-    try:
-        topic_msg = messaging.Message(
-            notification=messaging.Notification(title=title, body=body),
-            data=payload_data,
-            topic="all",
-            android=messaging.AndroidConfig(
-                priority="high",
-                notification=messaging.AndroidNotification(
-                    icon="ic_stat_notification",
-                    channel_id="kalpkrut_beats_push",
-                ),
-            ),
-        )
-        messaging.send(topic_msg, app=app)
-        sent_count += 1
-    except Exception as ex:
-        print(f"[FCM] Topic broadcast failed: {ex}")
-
-    # 2. Multicast to registered individual device tokens
-    tokens = load_fcm_tokens()
-    raw_tokens = list(set([t.get("token") for t in tokens if t.get("token")]))
-    if raw_tokens:
-        for i in range(0, len(raw_tokens), 500):
-            chunk = raw_tokens[i:i + 500]
-            multicast_msg = messaging.MulticastMessage(
-                notification=messaging.Notification(title=title, body=body),
-                data=payload_data,
-                tokens=chunk,
-                android=messaging.AndroidConfig(
-                    priority="high",
-                    notification=messaging.AndroidNotification(
-                        icon="ic_stat_notification",
-                        channel_id="kalpkrut_beats_push",
-                    ),
-                ),
-            )
-            try:
-                res = messaging.send_each_for_multicast(multicast_msg, app=app)
-                sent_count += res.success_count
-                fail_count += res.failure_count
-            except Exception as ex:
-                print(f"[FCM] Multicast chunk failed: {ex}")
-                fail_count += len(chunk)
-
-    return {
-        "success": True,
-        "mode": "fcm_v1_live",
-        "sent": sent_count,
-        "failed": fail_count,
-        "recipients": len(raw_tokens),
-    }
-
-
-def load_notifications():
-    with NOTIFICATION_LOCK:
-        if os.path.exists(NOTIFICATION_STORAGE_FILE):
-            try:
-                with open(NOTIFICATION_STORAGE_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if isinstance(data, list):
-                        return data
-            except Exception as e:
-                print(f"[Notify] load error: {e}")
-        return []
-
-
-def save_notifications(items):
-    with NOTIFICATION_LOCK:
-        try:
-            with open(NOTIFICATION_STORAGE_FILE, "w", encoding="utf-8") as f:
+            with open(FCM_TOKENS_FILE, "w", encoding="utf-8") as f:
                 json.dump(items, f, indent=2, ensure_ascii=False)
             return True
         except Exception as e:
-            print(f"[Notify] save error: {e}")
+            print(f"[FCM] save error: {e}")
             return False
 
 
@@ -4596,6 +4944,7 @@ def _save_analytics_pulse(data):
 
 @app.route("/api/analytics/event", methods=["POST"])
 def api_analytics_event():
+    """Fire-and-forget anonymous install/session pulse from the app."""
     body = request.get_json(silent=True) or {}
     event = str(body.get("event") or "").strip().lower()
     device_id = str(body.get("device_id") or "").strip()[:80]
@@ -4603,6 +4952,7 @@ def api_analytics_event():
         return jsonify({"error": "Invalid event"}), 400
     if not device_id or len(device_id) < 8:
         return jsonify({"error": "device_id required"}), 400
+
     now = datetime.now(timezone.utc).isoformat()
     data = _load_analytics_pulse()
     devices = data.get("devices") or {}
@@ -4628,19 +4978,25 @@ def api_analytics_event():
             add_sec = max(0, int(body.get("session_seconds") or 0))
         except Exception:
             add_sec = 0
+        # Heartbeats send cumulative session seconds — store max observed per session window lightly
         if add_sec > 0:
+            prev = int(device.get("_open_session_seconds") or 0)
+            delta = max(0, add_sec - prev) if event == "heartbeat" else add_sec
             if event == "session_end":
-                device["total_seconds"] = int(device.get("total_seconds") or 0) + add_sec
+                delta = add_sec
                 device["_open_session_seconds"] = 0
             else:
-                prev = int(device.get("_open_session_seconds") or 0)
-                device["total_seconds"] = int(device.get("total_seconds") or 0) + max(0, add_sec - prev)
                 device["_open_session_seconds"] = add_sec
+            device["total_seconds"] = int(device.get("total_seconds") or 0) + delta
+
     devices[device_id] = device
+    # Cap device map
     if len(devices) > 20000:
+        # Drop oldest by last_seen
         ordered = sorted(devices.items(), key=lambda kv: kv[1].get("last_seen") or "")
         devices = dict(ordered[-15000:])
     data["devices"] = devices
+    # Keep a short event ring for debugging
     events = list(data.get("events") or [])
     events.append({"event": event, "device_id": device_id, "ts": now})
     data["events"] = events[-500:]
@@ -4650,12 +5006,18 @@ def api_analytics_event():
 
 @app.route("/api/analytics/summary", methods=["GET"])
 def api_analytics_summary():
+    """Admin-only install / active / usage summary (uninstall ≈ stale devices)."""
     if not is_admin_request(request):
         return jsonify({"error": "Admin privileges required"}), 403
     data = _load_analytics_pulse()
     devices = list((data.get("devices") or {}).values())
     now = datetime.now(timezone.utc)
-    active_7d = active_30d = stale_30d = installs = sessions = total_seconds = 0
+    active_7d = 0
+    active_30d = 0
+    stale_30d = 0
+    installs = 0
+    sessions = 0
+    total_seconds = 0
     for d in devices:
         installs += int(d.get("installs") or 0)
         sessions += int(d.get("sessions") or 0)
@@ -4685,33 +5047,32 @@ def api_analytics_summary():
 
 @app.route("/api/fcm/token", methods=["POST"])
 def api_fcm_register_token():
+    """App registers a device FCM token for later admin push."""
     body = request.get_json(silent=True) or {}
     token = str(body.get("token") or "").strip()
-    if not token:
-        return jsonify({"error": "token is required"}), 400
+    if not token or len(token) < 20:
+        return jsonify({"error": "Valid FCM token required"}), 400
     user_id = str(body.get("user_id") or "").strip()
-    platform = str(body.get("platform") or "android").strip()
+    platform = str(body.get("platform") or "android").strip().lower()
     tokens = load_fcm_tokens()
-    now_ts = int(time.time())
-    found = False
-    for t in tokens:
-        if t.get("token") == token:
-            t["updated_at"] = now_ts
-            if user_id:
-                t["user_id"] = user_id
-            t["platform"] = platform
-            found = True
-            break
-    if not found:
+    now = datetime.now(timezone.utc).isoformat()
+    existing = next((t for t in tokens if t.get("token") == token), None)
+    if existing:
+        existing["updated_at"] = now
+        existing["user_id"] = user_id or existing.get("user_id")
+        existing["platform"] = platform
+    else:
         tokens.append({
             "token": token,
             "user_id": user_id,
             "platform": platform,
-            "created_at": now_ts,
-            "updated_at": now_ts,
+            "created_at": now,
+            "updated_at": now,
         })
+    # Cap storage
+    tokens = tokens[-5000:]
     save_fcm_tokens(tokens)
-    return jsonify({"success": True, "token": token, "registered_devices": len(tokens)})
+    return ok({"success": True, "count": len(tokens)}, 0)
 
 
 @app.route("/api/fcm/tokens", methods=["GET"])
@@ -4719,26 +5080,282 @@ def api_fcm_list_tokens():
     if not is_admin_request(request):
         return jsonify({"error": "Admin privileges required"}), 403
     tokens = load_fcm_tokens()
-    return jsonify({"tokens": tokens, "total": len(tokens)})
+    return ok({"tokens": tokens, "count": len(tokens)}, 0)
+
+
+def _fcm_select_tokens(body):
+    """Resolve recipient device tokens: all, user_ids, or explicit tokens."""
+    tokens = load_fcm_tokens()
+    audience = str(body.get("audience") or "all").strip().lower()
+    user_ids = body.get("user_ids") or body.get("target_user_ids") or []
+    if not isinstance(user_ids, list):
+        user_ids = []
+    user_ids = {str(u).strip() for u in user_ids if str(u).strip()}
+    explicit = body.get("tokens") or []
+    if not isinstance(explicit, list):
+        explicit = []
+    explicit = {str(t).strip() for t in explicit if str(t).strip()}
+
+    selected = []
+    for row in tokens:
+        tok = str(row.get("token") or "").strip()
+        if not tok:
+            continue
+        if explicit and tok not in explicit:
+            continue
+        if audience == "selected" and user_ids:
+            uid = str(row.get("user_id") or "").strip()
+            if uid not in user_ids:
+                continue
+        selected.append(row)
+    return selected
+
+
+_FCM_V1_TOKEN_CACHE = {"access_token": "", "expires_at": 0.0}
+
+
+def _load_firebase_service_account():
+    """
+    FCM HTTP v1 credentials (current Firebase standard).
+    Prefer FIREBASE_SERVICE_ACCOUNT_JSON (raw JSON string env) or
+    FIREBASE_SERVICE_ACCOUNT_FILE (path to downloaded service-account JSON).
+    """
+    raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON", "").strip()
+    if raw:
+        try:
+            return json.loads(raw)
+        except Exception as e:
+            print(f"[FCM] invalid FIREBASE_SERVICE_ACCOUNT_JSON: {e}")
+    path = os.environ.get("FIREBASE_SERVICE_ACCOUNT_FILE", "").strip()
+    if not path:
+        # Convenience default next to server.py (do not commit this file)
+        candidate = os.path.join(os.path.dirname(__file__), "firebase-service-account.json")
+        if os.path.exists(candidate):
+            path = candidate
+    if path and os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[FCM] failed reading service account file: {e}")
+    return None
+
+
+def _fcm_project_id(sa_info=None):
+    return (
+        os.environ.get("FIREBASE_PROJECT_ID", "").strip()
+        or (sa_info or {}).get("project_id")
+        or "kalpkrut-beats"
+    )
+
+
+def _fcm_v1_access_token(sa_info):
+    """OAuth access token for Firebase Cloud Messaging API."""
+    now = time.time()
+    if _FCM_V1_TOKEN_CACHE["access_token"] and now < _FCM_V1_TOKEN_CACHE["expires_at"] - 60:
+        return _FCM_V1_TOKEN_CACHE["access_token"]
+    try:
+        from google.oauth2 import service_account
+        import google.auth.transport.requests as google_requests
+    except Exception as e:
+        print(f"[FCM] google-auth not installed: {e}")
+        return None
+    try:
+        creds = service_account.Credentials.from_service_account_info(
+            sa_info,
+            scopes=["https://www.googleapis.com/auth/firebase.messaging"],
+        )
+        req = google_requests.Request()
+        creds.refresh(req)
+        _FCM_V1_TOKEN_CACHE["access_token"] = creds.token
+        _FCM_V1_TOKEN_CACHE["expires_at"] = now + 3500
+        return creds.token
+    except Exception as e:
+        print(f"[FCM] v1 token refresh failed: {e}")
+        return None
+
+
+def _fcm_deliver(title, msg, image_url, data, recipients):
+    """
+    Prefer FCM HTTP v1 (service account). Legacy FCM_SERVER_KEY is optional fallback
+    only if Cloud Messaging API (Legacy) is enabled in Firebase.
+    """
+    sent = 0
+    errors = 0
+    data_payload = {}
+    if isinstance(data, dict):
+        for k, v in data.items():
+            if v is None:
+                continue
+            data_payload[str(k)] = str(v)
+    if image_url:
+        data_payload.setdefault("image_url", image_url)
+
+    sa_info = _load_firebase_service_account()
+    if sa_info:
+        access = _fcm_v1_access_token(sa_info)
+        project_id = _fcm_project_id(sa_info)
+        if access and project_id:
+            url = f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
+            for row in recipients:
+                tok = row.get("token")
+                if not tok:
+                    continue
+                try:
+                    # Keep payload simple (previous working style). App icon comes from
+                    # AndroidManifest default_notification_icon meta-data.
+                    android_notif = {
+                        "sound": "default",
+                        "channel_id": "kalpkrut_beats_push",
+                    }
+                    if image_url:
+                        android_notif["image"] = image_url
+                    message = {
+                        "message": {
+                            "token": tok,
+                            "notification": {"title": title, "body": msg},
+                            "data": data_payload,
+                            "android": {
+                                "priority": "HIGH",
+                                "notification": android_notif,
+                            },
+                        }
+                    }
+                    if image_url:
+                        message["message"]["notification"]["image"] = image_url
+                    req = urllib.request.Request(
+                        url,
+                        data=json.dumps(message).encode("utf-8"),
+                        headers={
+                            "Authorization": f"Bearer {access}",
+                            "Content-Type": "application/json",
+                        },
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(req, timeout=12) as resp:
+                        if 200 <= resp.status < 300:
+                            sent += 1
+                        else:
+                            errors += 1
+                except Exception as e:
+                    errors += 1
+                    print(f"[FCM] v1 send error: {e}")
+            return sent, errors, "fcm_http_v1"
+
+    # Legacy fallback (disabled in most Firebase projects now)
+    server_key = os.environ.get("FCM_SERVER_KEY", "").strip()
+    if not server_key:
+        return sent, errors, "queued_stub"
+    for row in recipients:
+        tok = row.get("token")
+        if not tok:
+            continue
+        try:
+            notif = {"title": title, "body": msg}
+            if image_url:
+                notif["image"] = image_url
+            payload_obj = {
+                "to": tok,
+                "notification": notif,
+                "data": data_payload,
+                "priority": "high",
+            }
+            payload = json.dumps(payload_obj).encode("utf-8")
+            req = urllib.request.Request(
+                "https://fcm.googleapis.com/fcm/send",
+                data=payload,
+                headers={
+                    "Authorization": f"key={server_key}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                if 200 <= resp.status < 300:
+                    sent += 1
+                else:
+                    errors += 1
+        except Exception:
+            errors += 1
+    return sent, errors, "fcm_http_legacy"
 
 
 @app.route("/api/fcm/send", methods=["POST"])
 def api_fcm_send():
+    """
+    Admin OS push. Audience: all | selected (user_ids).
+    Attach song/album preview via data + optional image_url.
+    Configure FIREBASE_SERVICE_ACCOUNT_JSON (or FILE) for FCM HTTP v1.
+    """
     if not is_admin_request(request):
         return jsonify({"error": "Admin privileges required"}), 403
     body = request.get_json(silent=True) or {}
-    title = str(body.get("title") or "Kalpkrut Beats").strip()
+    title = str(body.get("title") or "").strip()
     msg = str(body.get("body") or body.get("message") or "").strip()
-    data = body.get("data") or {}
-    res = send_fcm_broadcast(title, msg, data)
-    return jsonify(res)
+    if not title:
+        return jsonify({"error": "title required"}), 400
+    image_url = str(body.get("image_url") or "").strip()
+    data = body.get("data") if isinstance(body.get("data"), dict) else {}
+    # Convenience fields for deep-link preview
+    for key in ("target_type", "target_id", "image_url", "preview_title", "preview_subtitle"):
+        if body.get(key) and key not in data:
+            data[key] = body.get(key)
+    recipients = _fcm_select_tokens(body)
+    sent, errors, mode = _fcm_deliver(title, msg, image_url, data, recipients)
+    return ok({
+        "success": True,
+        "recipients": len(recipients),
+        "sent": sent,
+        "errors": errors,
+        "mode": mode,
+        "message": (
+            "OS push delivered via FCM HTTP v1."
+            if mode == "fcm_http_v1"
+            else (
+                "OS push delivered via legacy FCM."
+                if mode == "fcm_http_legacy"
+                else "Add Firebase service-account JSON (FIREBASE_SERVICE_ACCOUNT_JSON) for OS push; in-app Notify still works."
+            )
+        ),
+    }, 0)
+
+
+# ─── Push / in-app notifications (Amazon-style admin broadcast) ─────────────────
+NOTIFICATION_STORAGE_FILE = os.path.join(DATA_DIR, "notifications.json")
+NOTIFICATION_LOCK = threading.Lock()
+
+
+def load_notifications():
+    with NOTIFICATION_LOCK:
+        if os.path.exists(NOTIFICATION_STORAGE_FILE):
+            try:
+                with open(NOTIFICATION_STORAGE_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        return data
+            except Exception as e:
+                print(f"[Notify] load error: {e}")
+        return []
+
+
+def save_notifications(items):
+    with NOTIFICATION_LOCK:
+        try:
+            with open(NOTIFICATION_STORAGE_FILE, "w", encoding="utf-8") as f:
+                json.dump(items, f, indent=2, ensure_ascii=False)
+            return True
+        except Exception as e:
+            print(f"[Notify] save error: {e}")
+            return False
 
 
 @app.route("/api/notifications", methods=["GET", "POST"])
 def api_notifications():
     """
     GET  — list active notifications for the app (newest first)
-    POST — admin create (title, body, target_type, target_id, image_url)
+           Optional ?user_id= filters audience=selected messages.
+    POST — admin create (title, body, target_type, target_id, image_url,
+           audience=all|selected, target_user_ids[], send_fcm=true)
            target_type: song | playlist | album | artist | radio | catalog | url | none
     """
     if request.method == "POST":
@@ -4749,41 +5366,80 @@ def api_notifications():
         message = str(body.get("body") or body.get("message") or "").strip()
         if not title:
             return jsonify({"error": "title is required"}), 400
+        audience = str(body.get("audience") or "all").strip().lower()
+        if audience not in ("all", "selected"):
+            audience = "all"
+        raw_ids = body.get("target_user_ids") or body.get("user_ids") or []
+        if not isinstance(raw_ids, list):
+            raw_ids = []
+        target_user_ids = [str(u).strip() for u in raw_ids if str(u).strip()]
+        if audience == "selected" and not target_user_ids:
+            return jsonify({"error": "Select at least one user, or choose All users"}), 400
+        image_url = str(body.get("image_url") or "").strip()
+        target_type = str(body.get("target_type") or "none").strip().lower()
+        target_id = str(body.get("target_id") or body.get("target_url") or "").strip()
         item = {
             "id": str(body.get("id") or uuid.uuid4()),
             "title": title,
             "body": message,
-            "target_type": str(body.get("target_type") or "none").strip().lower(),
-            "target_id": str(body.get("target_id") or body.get("target_url") or "").strip(),
-            "image_url": str(body.get("image_url") or "").strip(),
+            "target_type": target_type,
+            "target_id": target_id,
+            "image_url": image_url,
+            "audience": audience,
+            "target_user_ids": target_user_ids,
             "is_active": bool(body.get("is_active", True)),
             "created_at": int(time.time()),
         }
-        send_fcm = bool(body.get("send_fcm", True))
-        if send_fcm:
-            try:
-                item["fcm"] = send_fcm_broadcast(
-                    title=item["title"],
-                    body=item["body"],
-                    data={
-                        "target_type": item["target_type"],
-                        "target_id": item["target_id"],
-                        "image_url": item["image_url"],
-                        "id": item["id"],
-                    },
-                )
-            except Exception as e:
-                item["fcm"] = {"success": False, "error": str(e)}
         items = load_notifications()
         items.insert(0, item)
         items = items[:200]
         save_notifications(items)
+
+        fcm_result = None
+        send_fcm = body.get("send_fcm", True)
+        if send_fcm:
+            recipients = _fcm_select_tokens({
+                "audience": audience,
+                "user_ids": target_user_ids,
+            })
+            sent, errors, mode = _fcm_deliver(
+                title,
+                message,
+                image_url,
+                {
+                    "target_type": target_type,
+                    "target_id": target_id,
+                    "image_url": image_url,
+                    "notification_id": item["id"],
+                    "preview_title": title,
+                    "preview_subtitle": message,
+                },
+                recipients,
+            )
+            fcm_result = {
+                "recipients": len(recipients),
+                "sent": sent,
+                "errors": errors,
+                "mode": mode,
+            }
+            item["fcm"] = fcm_result
         return jsonify(item), 201
 
     include_inactive = request.args.get("include_inactive", "").lower() in ("1", "true", "yes")
+    user_id = str(request.args.get("user_id") or "").strip()
     items = load_notifications()
     if not include_inactive:
         items = [n for n in items if n.get("is_active", True)]
+    if user_id:
+        filtered = []
+        for n in items:
+            aud = str(n.get("audience") or "all").lower()
+            ids = n.get("target_user_ids") or []
+            if aud != "selected":
+                filtered.append(n)
+            elif user_id in {str(x) for x in ids}:
+                filtered.append(n)
+        items = filtered
     limit = arg_int("limit", 50, 1, 200)
     return ok({"notifications": items[:limit], "count": min(len(items), limit)}, 30)
 
@@ -4802,28 +5458,49 @@ def api_notification_detail(notif_id):
         return jsonify({"success": True, "deleted": removed})
     body = request.get_json(silent=True) or {}
     n = items[idx]
-    for key in ("title", "body", "target_type", "target_id", "image_url"):
+    for key in ("title", "body", "target_type", "target_id", "image_url", "audience"):
         if key in body:
             n[key] = str(body[key]).strip()
     if "message" in body and "body" not in body:
         n["body"] = str(body["message"]).strip()
     if "is_active" in body:
         n["is_active"] = bool(body["is_active"])
-    if bool(body.get("send_fcm", False)):
-        try:
-            n["fcm"] = send_fcm_broadcast(
-                title=n["title"],
-                body=n["body"],
-                data={
-                    "target_type": n["target_type"],
-                    "target_id": n["target_id"],
-                    "image_url": n["image_url"],
-                    "id": n["id"],
-                },
-            )
-        except Exception as e:
-            n["fcm"] = {"success": False, "error": str(e)}
+    if "target_user_ids" in body or "user_ids" in body:
+        raw_ids = body.get("target_user_ids") or body.get("user_ids") or []
+        if not isinstance(raw_ids, list):
+            raw_ids = []
+        n["target_user_ids"] = [str(u).strip() for u in raw_ids if str(u).strip()]
     save_notifications(items)
+
+    # Same as create: optional OS push after edit/save.
+    send_fcm = body.get("send_fcm", False)
+    if send_fcm:
+        audience = str(n.get("audience") or "all").strip().lower()
+        target_user_ids = n.get("target_user_ids") or []
+        recipients = _fcm_select_tokens({
+            "audience": audience,
+            "user_ids": target_user_ids,
+        })
+        sent, errors, mode = _fcm_deliver(
+            str(n.get("title") or ""),
+            str(n.get("body") or ""),
+            str(n.get("image_url") or ""),
+            {
+                "target_type": str(n.get("target_type") or "none"),
+                "target_id": str(n.get("target_id") or ""),
+                "image_url": str(n.get("image_url") or ""),
+                "notification_id": str(n.get("id") or ""),
+                "preview_title": str(n.get("title") or ""),
+                "preview_subtitle": str(n.get("body") or ""),
+            },
+            recipients,
+        )
+        n["fcm"] = {
+            "recipients": len(recipients),
+            "sent": sent,
+            "errors": errors,
+            "mode": mode,
+        }
     return jsonify(n)
 
 
@@ -5028,293 +5705,6 @@ def get_channel():
     return jsonify({"channel_link": "https://m.youtube.com/mirrykal"})
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# SMTP Email & Auth Services (Gmail SMTP / OTP / Password Reset)
-# ═══════════════════════════════════════════════════════════════════════════════
-import smtplib
-import ssl
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-import random
-
-SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "465"))
-SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "kalpkrutinfotech@gmail.com")
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "ijosumyywzzfdxxn")
-SMTP_FROM = os.environ.get("SMTP_FROM", "kalpkrutinfotech@gmail.com")
-EMAIL_PROVIDER = os.environ.get("EMAIL_PROVIDER", "smtp")
-
-_OTP_CACHE = {}  # email -> {"otp": str, "expires_at": float, "type": str}
-_OTP_LOCK = threading.Lock()
-
-
-def send_smtp_email(to_email, subject, html_content, text_content=None):
-    """Sends a transactional email via configured SMTP (Gmail SSL 465 or STARTTLS 587)."""
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"Kalpkrut Beats <{SMTP_FROM}>"
-        msg["To"] = to_email
-
-        if not text_content:
-            text_content = re.sub(r"<[^>]+>", " ", html_content).strip()
-        msg.attach(MIMEText(text_content, "plain", "utf-8"))
-        msg.attach(MIMEText(html_content, "html", "utf-8"))
-
-        if SMTP_PORT == 465:
-            ctx = ssl.create_default_context()
-            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=ctx, timeout=12) as server:
-                server.login(SMTP_USERNAME, SMTP_PASSWORD)
-                server.sendmail(SMTP_FROM, [to_email], msg.as_string())
-        else:
-            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=12) as server:
-                server.starttls()
-                server.login(SMTP_USERNAME, SMTP_PASSWORD)
-                server.sendmail(SMTP_FROM, [to_email], msg.as_string())
-        return True, None
-    except Exception as e:
-        print(f"[SMTP Error] Failed sending to {to_email}: {e}")
-        return False, str(e)
-
-
-def _build_email_template(title, headline, body_text, cta_text=None, cta_link=None, code_badge=None):
-    """Modern dark theme branded Kalpkrut Beats HTML email template."""
-    badge_html = f"""
-    <div style="margin: 24px 0; text-align: center;">
-      <span style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #7c3aed, #ec4899); color: #ffffff; font-size: 32px; font-weight: 800; letter-spacing: 8px; border-radius: 12px; font-family: monospace;">
-        {code_badge}
-      </span>
-    </div>
-    """ if code_badge else ""
-
-    button_html = f"""
-    <div style="margin: 28px 0; text-align: center;">
-      <a href="{cta_link}" style="display: inline-block; padding: 14px 32px; background: #7c3aed; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 700; border-radius: 9999px; box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4);">
-        {cta_text}
-      </a>
-    </div>
-    """ if cta_link and cta_text else ""
-
-    return f"""<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{title}</title>
-</head>
-<body style="margin: 0; padding: 0; background-color: #0b0e14; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #f3f4f6;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #0b0e14; padding: 40px 20px;">
-    <tr>
-      <td align="center">
-        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 560px; background-color: #121824; border-radius: 16px; border: 1px solid #1f293d; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-          <!-- Brand Header -->
-          <tr>
-            <td style="padding: 32px 32px 20px 32px; border-bottom: 1px solid #1f293d; background: linear-gradient(180deg, rgba(124, 58, 237, 0.15) 0%, rgba(18, 24, 36, 0) 100%);">
-              <span style="font-size: 24px; font-weight: 900; letter-spacing: -0.5px; background: linear-gradient(135deg, #a78bfa, #f472b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-                Kalpkrut Beats
-              </span>
-            </td>
-          </tr>
-          <!-- Body Content -->
-          <tr>
-            <td style="padding: 32px; color: #d1d5db; font-size: 15px; line-height: 1.6;">
-              <h1 style="color: #ffffff; font-size: 20px; font-weight: 700; margin: 0 0 16px 0;">{headline}</h1>
-              <p style="margin: 0 0 16px 0;">{body_text}</p>
-              {badge_html}
-              {button_html}
-              <p style="margin: 24px 0 0 0; font-size: 13px; color: #6b7280;">
-                If you did not request this email, please ignore it or contact support at <a href="mailto:{SMTP_FROM}" style="color: #a78bfa;">{SMTP_FROM}</a>.
-              </p>
-            </td>
-          </tr>
-          <!-- Footer -->
-          <tr>
-            <td style="padding: 20px 32px; background-color: #0c1017; border-top: 1px solid #1f293d; font-size: 12px; color: #6b7280; text-align: center;">
-              © {datetime.now(timezone.utc).year} Kalpkrut Infotech. All rights reserved.<br>
-              <span style="color: #4b5563;">Kalpkrut Beats Streaming Platform • High Fidelity Sound</span>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-"""
-
-
-@app.route("/api/auth/send-otp", methods=["POST"])
-def api_auth_send_otp():
-    """Generates a secure 6-digit OTP and sends it to the user's email via Gmail SMTP."""
-    body = request.get_json(silent=True) or {}
-    email = (body.get("email") or "").strip().lower()
-    otp_type = (body.get("type") or "verification").strip()
-
-    if not email or "@" not in email:
-        return jsonify({"error": "A valid email address is required"}), 400
-
-    otp = f"{random.randint(100000, 999999)}"
-    now = time.time()
-    with _OTP_LOCK:
-        _OTP_CACHE[email] = {
-            "otp": otp,
-            "type": otp_type,
-            "expires_at": now + 600,  # 10 minutes
-        }
-
-    headline = "Your Kalpkrut Beats Verification Code"
-    body_text = "Use the 6-digit one-time password below to complete your verification. This code expires in 10 minutes."
-    subject = f"Your Kalpkrut Beats Verification Code: {otp}"
-
-    html_email = _build_email_template(
-        title="Verification Code",
-        headline=headline,
-        body_text=body_text,
-        code_badge=otp,
-    )
-
-    success, err = send_smtp_email(email, subject, html_email)
-    if not success:
-        return jsonify({"error": f"Failed to send email: {err}"}), 500
-
-    return jsonify({
-        "success": True,
-        "message": f"Verification code sent to {email}",
-        "expires_in": 600
-    })
-
-
-@app.route("/api/auth/verify-otp", methods=["POST"])
-def api_auth_verify_otp():
-    """Verifies a submitted 6-digit OTP."""
-    body = request.get_json(silent=True) or {}
-    email = (body.get("email") or "").strip().lower()
-    submitted_otp = (body.get("otp") or "").strip()
-
-    if not email or not submitted_otp:
-        return jsonify({"error": "Both 'email' and 'otp' are required"}), 400
-
-    now = time.time()
-    with _OTP_LOCK:
-        record = _OTP_CACHE.get(email)
-        if not record:
-            return jsonify({"error": "No pending OTP for this email or it has expired"}), 400
-
-        if now > record.get("expires_at", 0):
-            _OTP_CACHE.pop(email, None)
-            return jsonify({"error": "This verification code has expired. Please request a new one."}), 400
-
-        if record.get("otp") != submitted_otp:
-            return jsonify({"error": "Invalid verification code"}), 400
-
-        otp_type = record.get("type")
-        _OTP_CACHE.pop(email, None)
-
-    return jsonify({
-        "success": True,
-        "valid": True,
-        "email": email,
-        "type": otp_type,
-        "message": "OTP verified successfully"
-    })
-
-
-@app.route("/api/auth/reset-password-request", methods=["POST"])
-def api_auth_reset_password_request():
-    """
-    Generates a Supabase password recovery link using Supabase Admin Auth API,
-    and sends a branded password reset email via Gmail SMTP.
-    """
-    body = request.get_json(silent=True) or {}
-    email = (body.get("email") or "").strip().lower()
-    redirect_to = body.get("redirect_to") or "https://beats.kalpkrutinfotech.com/reset-password"
-
-    if not email or "@" not in email:
-        return jsonify({"error": "A valid email address is required"}), 400
-
-    action_link = None
-    try:
-        url = f"{SUPABASE_URL.rstrip('/')}/auth/v1/admin/generate_link"
-        auth_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
-        headers = {
-            "apikey": SUPABASE_ANON_KEY,
-            "Authorization": f"Bearer {auth_key}",
-            "Content-Type": "application/json",
-            "User-Agent": "MusicApp/1.0"
-        }
-        data = json.dumps({"type": "recovery", "email": email, "options": {"redirectTo": redirect_to}}).encode("utf-8")
-        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            if resp.status == 200:
-                resp_data = json.loads(resp.read().decode("utf-8"))
-                action_link = resp_data.get("action_link") or resp_data.get("properties", {}).get("action_link")
-    except Exception as exc:
-        print(f"[Reset Password] Supabase generate_link error: {exc}")
-
-    if not action_link:
-        # Fallback to direct redirect link
-        action_link = f"{redirect_to}?email={urllib.parse.quote(email)}"
-
-    # Generate an OTP backup code as well
-    otp = f"{random.randint(100000, 999999)}"
-    with _OTP_LOCK:
-        _OTP_CACHE[email] = {
-            "otp": otp,
-            "type": "password_reset",
-            "expires_at": time.time() + 900,  # 15 minutes
-        }
-
-    html_email = _build_email_template(
-        title="Reset Your Password",
-        headline="Password Reset Request",
-        body_text=f"We received a request to reset your password for your Kalpkrut Beats account ({email}). Click the button below or use the one-time code to set a new password.",
-        cta_text="Reset My Password",
-        cta_link=action_link,
-        code_badge=otp,
-    )
-
-    success, err = send_smtp_email(email, "Reset your Kalpkrut Beats password", html_email)
-    if not success:
-        return jsonify({"error": f"Failed to deliver reset email: {err}"}), 500
-
-    return jsonify({
-        "success": True,
-        "message": f"Password reset instructions sent to {email}"
-    })
-
-
-@app.route("/api/email/send", methods=["POST"])
-def api_email_send():
-    """Admin or service endpoint to send arbitrary transactional emails via Gmail SMTP."""
-    if not is_admin_request(request):
-        return jsonify({"error": "Admin privileges required to send transactional emails"}), 403
-
-    body = request.get_json(silent=True) or {}
-    to_email = (body.get("to") or body.get("email") or "").strip().lower()
-    subject = (body.get("subject") or "Kalpkrut Beats Notification").strip()
-    html_content = body.get("html") or ""
-    text_content = body.get("text") or ""
-
-    if not to_email or "@" not in to_email:
-        return jsonify({"error": "Valid 'to' email address required"}), 400
-
-    if not html_content and not text_content:
-        return jsonify({"error": "Provide either 'html' or 'text' content"}), 400
-
-    if not html_content:
-        html_content = _build_email_template(
-            title=subject,
-            headline=subject,
-            body_text=text_content
-        )
-
-    success, err = send_smtp_email(to_email, subject, html_content, text_content=text_content)
-    if not success:
-        return jsonify({"error": f"Failed to send email: {err}"}), 500
-
-    return jsonify({"success": True, "message": f"Email delivered to {to_email}"})
-
-
 # ─── Background workers (not on Vercel serverless) ──────────────────────────────
 _WORKERS_STARTED = False
 
@@ -5371,6 +5761,135 @@ def uvicorn_fallback():
         os.execvp("gunicorn", ["gunicorn", "-b", f"0.0.0.0:{port}", "--threads", "8", "--timeout", "60", "server:app"])
     except Exception:
         app.run(host="0.0.0.0", port=int(port))
+
+
+# ─── Public share pages (OG preview + Android App Link intent) ─────────────────
+PUBLIC_WEB = "https://beats.kalpkrutinfotech.com"
+ANDROID_PACKAGE = "com.kalpkrut.beats"
+
+
+def _html_escape(s):
+    return (
+        str(s or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+def _share_page(kind, entity_id, title, description, image, deep_path):
+    title = _html_escape(title or "Kalpkrut Beats")
+    description = _html_escape(description or "Listen free on Kalpkrut Beats")
+    image = _html_escape(image or f"{PUBLIC_WEB}/icons/Icon-512.png")
+    page_url = f"{PUBLIC_WEB}/{deep_path}"
+    # Custom scheme opens installed app reliably; Intent is Android Chrome fallback.
+    app_scheme = f"com.kalpkrut.beats://{deep_path}"
+    intent_url = (
+        f"intent://beats.kalpkrutinfotech.com/{deep_path}"
+        f"#Intent;scheme=https;package={ANDROID_PACKAGE};"
+        f"S.browser_fallback_url={urllib.parse.quote(page_url, safe='')};end"
+    )
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>{title} · Kalpkrut Beats</title>
+<meta name="description" content="{description}"/>
+<meta property="og:type" content="music.song"/>
+<meta property="og:site_name" content="Kalpkrut Beats"/>
+<meta property="og:title" content="{title}"/>
+<meta property="og:description" content="{description}"/>
+<meta property="og:image" content="{image}"/>
+<meta property="og:url" content="{page_url}"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="{title}"/>
+<meta name="twitter:description" content="{description}"/>
+<meta name="twitter:image" content="{image}"/>
+<meta name="google-play-app" content="app-id={ANDROID_PACKAGE}"/>
+<style>
+body{{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+font-family:Segoe UI,system-ui,sans-serif;background:#0d0b14;color:#f5f3ff;text-align:center;padding:24px}}
+.card{{max-width:420px}} img{{width:180px;height:180px;border-radius:16px;object-fit:cover;margin-bottom:16px;background:#1a1625}}
+a.btn{{display:inline-block;margin-top:12px;padding:12px 20px;border-radius:12px;background:#7c3aed;color:#fff;text-decoration:none;font-weight:700}}
+p.muted{{color:#b7b0c9}}
+</style>
+</head>
+<body>
+<div class="card">
+<img src="{image}" alt=""/>
+<h1>{title}</h1>
+<p class="muted">{description}</p>
+<p><a class="btn" id="openApp" href="{_html_escape(app_scheme)}">Open in App</a></p>
+<p class="muted"><a href="{_html_escape(intent_url)}" style="color:#a78bfa">Android open</a></p>
+</div>
+<script>
+(function(){{
+  var scheme = {json.dumps(app_scheme)};
+  var intent = {json.dumps(intent_url)};
+  var ua = navigator.userAgent || "";
+  var isAndroid = /Android/i.test(ua);
+  try {{
+    if (isAndroid) {{
+      location.href = scheme;
+      setTimeout(function(){{ location.href = intent; }}, 700);
+    }} else {{
+      location.href = scheme;
+    }}
+  }} catch (e) {{}}
+}})();
+</script>
+</body>
+</html>"""
+    return Response(html, mimetype="text/html; charset=utf-8")
+
+
+@app.route("/share/song/<song_id>")
+@app.route("/share/track/<song_id>")
+def share_song(song_id):
+    track = song_details(song_id) or {}
+    title = track.get("title") or "Song"
+    artists = track.get("artists") or track.get("primary_artists") or track.get("artist") or "Kalpkrut Beats"
+    if isinstance(artists, list):
+        artists = ", ".join(
+            (a.get("name") if isinstance(a, dict) else str(a)) for a in artists
+        )
+    image = track.get("image") or track.get("artwork_url") or track.get("thumbnail")
+    desc = f"{artists} · Listen on Kalpkrut Beats"
+    return _share_page("song", song_id, title, desc, image, f"song/{song_id}")
+
+
+@app.route("/share/album/<album_id>")
+def share_album(album_id):
+    data = entity_details("album", album_id) or {}
+    title = data.get("title") or "Album"
+    image = data.get("image") or data.get("artwork_url")
+    desc = f"Album on Kalpkrut Beats"
+    return _share_page("album", album_id, title, desc, image, f"album/{album_id}")
+
+
+@app.route("/share/artist/<artist_id>")
+def share_artist(artist_id):
+    data = artist_details(artist_id=artist_id) or {}
+    title = data.get("name") or data.get("title") or "Artist"
+    image = data.get("image") or data.get("artwork_url")
+    desc = "Artist on Kalpkrut Beats"
+    return _share_page("artist", artist_id, title, desc, image, f"artist/{artist_id}")
+
+
+@app.route("/share/playlist/<playlist_id>")
+def share_playlist(playlist_id):
+    data = entity_details("playlist", playlist_id) or {}
+    if not data:
+        cat = find_catalog_section(playlist_id) or {}
+        title = cat.get("title") or "Playlist"
+        image = cat.get("custom_artwork_url") or cat.get("artwork_url")
+    else:
+        title = data.get("title") or "Playlist"
+        image = data.get("image") or data.get("artwork_url")
+    desc = "Playlist on Kalpkrut Beats"
+    return _share_page("playlist", playlist_id, title, desc, image, f"playlist/{playlist_id}")
 
 
 if __name__ == "__main__":

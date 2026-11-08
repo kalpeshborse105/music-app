@@ -152,5 +152,33 @@ void main() {
       );
       expect(future.isCampaignActive, isFalse);
     });
+
+    test('CatalogSection parses and serializes updatedAt timestamp accurately', () {
+      final Map<String, dynamic> sampleJson = <String, dynamic>{
+        'id': 'sec_updated',
+        'key': 'updated_key',
+        'source_url': 'https://www.jiosaavn.com/album/test/123',
+        'source_type': 'album',
+        'source_id': '123',
+        'slug': 'test',
+        'display_title': 'Test Shelf',
+        'display_group': 'Featured',
+        'language': 'hindi',
+        'position': 1,
+        'is_enabled': true,
+        'provider_status': 'ok',
+        'last_refresh': 1760000000,
+        'updated_at': 1760001234,
+        'is_mock': false,
+        'item_count': 0,
+        'items': <dynamic>[],
+      };
+
+      final CatalogSection section = CatalogSection.fromJson(sampleJson);
+      expect(section.updatedAt, equals(1760001234));
+
+      final Map<String, dynamic> exported = section.toJson();
+      expect(exported['updated_at'], equals(1760001234));
+    });
   });
 }

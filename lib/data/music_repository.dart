@@ -735,10 +735,13 @@ class MusicRepository {
 
   /// Keep track payloads from cache only when network returned live empty
   /// and the cached rows are not mock. Never re-attach mock/offline tracks.
+  /// Never re-attach stale items if fresh section was updated/refreshed or if forceRefresh is true.
   List<CatalogSection> _mergeCatalogNetworkMeta(
     List<CatalogSection> fresh,
-    List<CatalogSection>? cached,
-  ) {
+    List<CatalogSection>? cached, {
+    bool forceRefresh = false,
+  }) {
+    if (forceRefresh) return fresh;
     if (cached == null || cached.isEmpty) return fresh;
     final Map<String, CatalogSection> byKey = <String, CatalogSection>{
       for (final CatalogSection s in cached) s.sectionKey: s,
@@ -751,6 +754,11 @@ class MusicRepository {
       final CatalogSection? old = byKey[s.sectionKey];
       if (old == null || old.items.isEmpty || old.isMock) return s;
       if (old.providerStatus == 'offline_mock') return s;
+      // Stale tracks prevention: If fresh metadata has a newer timestamp or different sourceUrl,
+      // the section was modified or refreshed by admin; never re-attach stale cached tracks!
+      if (s.updatedAt > old.updatedAt || (s.sourceUrl.isNotEmpty && s.sourceUrl != old.sourceUrl)) {
+        return s;
+      }
       return s.copyWith(
         items: old.items,
         itemCount: old.items.length,
@@ -905,7 +913,7 @@ class MusicRepository {
           // metadata (item_count set, items empty) — otherwise Home shows blank
           // TRACK shelves / "0 songs" banners.
           final List<CatalogSection> merged =
-              _mergeCatalogNetworkMeta(fresh, cached);
+              _mergeCatalogNetworkMeta(fresh, cached, forceRefresh: forceRefresh);
           if (forceRefresh || _catalogLooksHealthy(merged) || !cacheOk) {
             _catalogLastFetched[cacheKey] = DateTime.now();
             if (!includeDisabled) {
@@ -923,7 +931,7 @@ class MusicRepository {
       }
     }
 
-    if (cacheOk) return cached!;
+    if (cacheOk) return cached;
 
     // After a successful admin delete the API list is truth. Do not resurrect
     // shelves from a direct Supabase read or the bundled seed (both lag deletes).
@@ -1009,31 +1017,47 @@ class MusicRepository {
     if (provider == null) {
       throw const ProviderException('custom_api', message: 'Custom API provider unavailable.');
     }
-    // Prefer cached detail first (fast). Fall back to hard refresh only if empty.
-    final CatalogSection? cached = await getCatalogSectionDetail(key);
-    if (cached != null && cached.items.isNotEmpty) {
-      return cached;
-    }
+    // Admin single-section refresh must always call force-refresh endpoint.
     final Map<String, dynamic> res = await provider.refreshCatalogSection(key);
     final CatalogSection section = CatalogSection.fromJson(res);
     await invalidateCatalogCache();
     return section;
   }
 
-  Future<List<CatalogSection>> refreshAllCatalogSections() async {
+  Future<Map<String, dynamic>> refreshAllCatalogSectionsDetailed() async {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) {
-      return getCatalogSections(includeDisabled: true, forceRefresh: true);
+      final List<CatalogSection> list = await getCatalogSections(includeDisabled: true, forceRefresh: true);
+      return <String, dynamic>{
+        'sections': list,
+        'completed': list.length,
+        'failed': 0,
+        'pending': 0,
+      };
     }
-    final List<Map<String, dynamic>> raw = await provider.refreshAllCatalogSections();
+    final Map<String, dynamic> rawSummary = await provider.refreshAllCatalogSectionsSummary();
     await invalidateCatalogCache();
-    if (raw.isNotEmpty) {
-      final List<CatalogSection> list = raw
-          .map((Map<String, dynamic> m) => CatalogSection.fromJson(m))
+    final dynamic rawList = rawSummary['sections'];
+    List<CatalogSection> list = <CatalogSection>[];
+    if (rawList is List) {
+      list = rawList
+          .whereType<Map>()
+          .map((Map m) => CatalogSection.fromJson(Map<String, dynamic>.from(m)))
           .toList();
       list.sort((CatalogSection a, CatalogSection b) => a.position.compareTo(b.position));
-      return list;
     }
+    return <String, dynamic>{
+      'sections': list,
+      'completed': rawSummary['completed'] ?? list.length,
+      'failed': rawSummary['failed'] ?? 0,
+      'pending': rawSummary['pending'] ?? 0,
+    };
+  }
+
+  Future<List<CatalogSection>> refreshAllCatalogSections() async {
+    final Map<String, dynamic> detailed = await refreshAllCatalogSectionsDetailed();
+    final List<CatalogSection> list = (detailed['sections'] as List<CatalogSection>?) ?? <CatalogSection>[];
+    if (list.isNotEmpty) return list;
     return getCatalogSections(includeDisabled: true, forceRefresh: true);
   }
 
@@ -1207,13 +1231,17 @@ class MusicRepository {
     String? sourceType,
     String? displayMode,
     String? subtitle,
-    String language = 'all',
+    bool clearSubtitle = false,
+    String? language,
     int? position,
     bool? isEnabled,
     String? customArtworkUrl,
+    bool clearCustomArtwork = false,
     bool? isBanner,
     int? campaignStart,
+    bool clearCampaignStart = false,
     int? campaignEnd,
+    bool clearCampaignEnd = false,
     List<String>? excludedTrackIds,
     List<Map<String, dynamic>>? customTracks,
   }) async {
@@ -1227,14 +1255,26 @@ class MusicRepository {
       if (displayGroup != null) 'display_group': displayGroup,
       if (sourceType != null && sourceType.isNotEmpty) 'source_type': sourceType,
       if (displayMode != null && displayMode.isNotEmpty) 'display_mode': displayMode,
-      if (subtitle != null) 'subtitle': subtitle,
-      'language': language,
+      if (clearSubtitle || (subtitle != null && subtitle.trim().isEmpty))
+        'subtitle': null
+      else if (subtitle != null)
+        'subtitle': subtitle.trim(),
+      if (language != null && language.trim().isNotEmpty) 'language': language.trim(),
       if (position != null) 'position': position,
       if (isEnabled != null) 'is_enabled': isEnabled,
-      if (customArtworkUrl != null) 'custom_artwork_url': customArtworkUrl,
+      if (clearCustomArtwork || (customArtworkUrl != null && customArtworkUrl.trim().isEmpty))
+        'custom_artwork_url': null
+      else if (customArtworkUrl != null)
+        'custom_artwork_url': customArtworkUrl.trim(),
       if (isBanner != null) 'is_banner': isBanner,
-      if (campaignStart != null) 'campaign_start': campaignStart,
-      if (campaignEnd != null) 'campaign_end': campaignEnd,
+      if (clearCampaignStart)
+        'campaign_start': null
+      else if (campaignStart != null)
+        'campaign_start': campaignStart,
+      if (clearCampaignEnd)
+        'campaign_end': null
+      else if (campaignEnd != null)
+        'campaign_end': campaignEnd,
       if (excludedTrackIds != null) 'excluded_track_ids': excludedTrackIds,
       if (customTracks != null) 'custom_tracks': customTracks,
     };

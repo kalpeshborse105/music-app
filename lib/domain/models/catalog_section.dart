@@ -21,6 +21,7 @@ class CatalogSection {
   final bool isEnabled;
   final String providerStatus;
   final int lastRefresh;
+  final int updatedAt;
   final String? lastError;
   final String? customArtworkUrl;
   final bool isBanner;
@@ -66,6 +67,7 @@ class CatalogSection {
     this.campaignEnd,
     required this.providerStatus,
     required this.lastRefresh,
+    this.updatedAt = 0,
     this.lastError,
     required this.isMock,
     required this.itemCount,
@@ -206,6 +208,7 @@ class CatalogSection {
       }(),
       providerStatus: json['provider_status'] as String? ?? 'ok',
       lastRefresh: _asUnixSeconds(json['last_refresh']),
+      updatedAt: _asUnixSeconds(json['updated_at']),
       lastError: json['last_error'] as String?,
       isMock: json['is_mock'] == true,
       // Live payloads win. If raw items existed but were all mock/junk, force 0
@@ -266,6 +269,7 @@ class CatalogSection {
       if (campaignEnd != null) 'campaign_end': campaignEnd,
       'provider_status': providerStatus,
       'last_refresh': lastRefresh,
+      'updated_at': updatedAt,
       'last_error': lastError,
       'is_mock': isMock,
       'item_count': cachedItems.isNotEmpty ? cachedItems.length : itemCount,
@@ -294,6 +298,7 @@ class CatalogSection {
     int? campaignEnd,
     String? providerStatus,
     int? lastRefresh,
+    int? updatedAt,
     String? lastError,
     bool? isMock,
     int? itemCount,
@@ -321,6 +326,7 @@ class CatalogSection {
       campaignEnd: campaignEnd ?? this.campaignEnd,
       providerStatus: providerStatus ?? this.providerStatus,
       lastRefresh: lastRefresh ?? this.lastRefresh,
+      updatedAt: updatedAt ?? this.updatedAt,
       lastError: lastError ?? this.lastError,
       isMock: isMock ?? this.isMock,
       itemCount: itemCount ?? this.itemCount,

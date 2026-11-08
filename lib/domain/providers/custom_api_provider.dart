@@ -685,7 +685,7 @@ class CustomApiProvider extends BaseMusicProvider {
     throw const ProviderException('custom_api', message: 'Invalid response format from refresh endpoint');
   }
 
-  Future<List<Map<String, dynamic>>> refreshAllCatalogSections() async {
+  Future<Map<String, dynamic>> refreshAllCatalogSectionsSummary() async {
     final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/refresh-all');
     final http.Response res = await http.post(
       uri,
@@ -700,13 +700,17 @@ class CustomApiProvider extends BaseMusicProvider {
       throw ProviderException('custom_api', message: msg);
     }
     final dynamic body = jsonDecode(res.body);
-    if (body is Map<String, dynamic> && body['sections'] is List) {
-      return (body['sections'] as List)
-          .whereType<Map>()
-          .map((Map m) => Map<String, dynamic>.from(m))
-          .toList();
-    } else if (body is List) {
-      return body
+    if (body is Map<String, dynamic>) {
+      return body;
+    }
+    return <String, dynamic>{'sections': body};
+  }
+
+  Future<List<Map<String, dynamic>>> refreshAllCatalogSections() async {
+    final Map<String, dynamic> summary = await refreshAllCatalogSectionsSummary();
+    final dynamic sections = summary['sections'];
+    if (sections is List) {
+      return sections
           .whereType<Map>()
           .map((Map m) => Map<String, dynamic>.from(m))
           .toList();

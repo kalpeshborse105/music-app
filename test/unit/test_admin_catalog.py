@@ -191,3 +191,86 @@ class TestCatalogEndpoints:
         assert "items" in ref_data
         assert ref_data["last_refresh"] > 0
 
+    def test_update_omit_vs_null_semantics(self, client):
+        create_resp = client.post("/api/catalog/sections", json={
+            "source_url": "https://www.jiosaavn.com/featured/hindi-india-superhits-top-50/zlJfJYVuyjpxWb5,FqsjKg__",
+            "display_title": "Omit Test Shelf",
+            "display_group": "Top Charts",
+            "subtitle": "Initial Subtitle",
+            "custom_artwork_url": "https://example.com/art.jpg",
+            "language": "punjabi",
+            "position": 999,
+            "is_enabled": True
+        })
+        assert create_resp.status_code == 201
+        created = create_resp.get_json()
+        key = created["key"]
+
+        try:
+            # 1. Update with omitted fields: subtitle, custom_artwork_url, and language should be preserved
+            update_resp1 = client.put(f"/api/catalog/sections/{key}", json={
+                "display_title": "Renamed Title Only"
+            })
+            assert update_resp1.status_code == 200
+            data1 = update_resp1.get_json()
+            assert data1["display_title"] == "Renamed Title Only"
+            assert data1["subtitle"] == "Initial Subtitle", "Omitted subtitle must be preserved"
+            assert data1["custom_artwork_url"] == "https://example.com/art.jpg", "Omitted artwork must be preserved"
+            assert data1["language"] == "punjabi", "Omitted language must be preserved"
+
+            # 2. Update with explicit null: subtitle and custom_artwork_url must be cleared
+            update_resp2 = client.put(f"/api/catalog/sections/{key}", json={
+                "subtitle": None,
+                "custom_artwork_url": None
+            })
+            assert update_resp2.status_code == 200
+            data2 = update_resp2.get_json()
+            assert data2["subtitle"] is None, "Explicit null must clear subtitle"
+            assert data2["custom_artwork_url"] is None, "Explicit null must clear custom_artwork_url"
+            assert data2["language"] == "punjabi", "Omitted language must still be preserved"
+        finally:
+            client.delete(f"/api/catalog/sections/{key}")
+
+    def test_delete_confirmed_and_not_resurrected(self, client):
+        # Create a distinct section
+        create_resp = client.post("/api/catalog/sections", json={
+            "source_url": "https://www.jiosaavn.com/featured/hindi-india-superhits-top-50/zlJfJYVuyjpxWb5,FqsjKg__",
+            "display_title": "To Delete Shelf",
+            "display_group": "Top Charts",
+            "position": 998,
+            "is_enabled": True
+        })
+        assert create_resp.status_code == 201
+        key = create_resp.get_json()["key"]
+
+        # Confirm it appears
+        list_resp = client.get("/api/catalog/sections")
+        keys = [s["key"] for s in list_resp.get_json()["sections"]]
+        assert key in keys
+
+        # Delete it
+        del_resp = client.delete(f"/api/catalog/sections/{key}")
+        assert del_resp.status_code == 200
+        del_data = del_resp.get_json()
+        assert del_data["success"] is True
+
+        # Confirm it is gone locally
+        list_resp2 = client.get("/api/catalog/sections")
+        keys2 = [s["key"] for s in list_resp2.get_json()["sections"]]
+        assert key not in keys2
+
+    def test_refresh_all_endpoint_honest_reporting(self, client):
+        resp = client.post("/api/catalog/sections/refresh-all")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert "completed" in data
+        assert "failed" in data
+        assert "pending" in data
+        assert "sections" in data
+        assert isinstance(data["sections"], list)
+        assert data["completed"] >= 0
+        assert data["failed"] >= 0
+        assert data["pending"] >= 0
+        assert (data["completed"] + data["failed"] + data["pending"]) <= data["total"]
+
