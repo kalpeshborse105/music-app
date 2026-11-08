@@ -103,8 +103,38 @@ class _HomeScreenState extends State<HomeScreen> {
       final MusicRepository repo = context.read<MusicRepository>();
       final LibraryController library = context.read<LibraryController>();
       // Bypass disk cache, but do NOT hard-refresh every Jio shelf (that stalls Home).
-      final List<CatalogSection> fresh =
+      List<CatalogSection> fresh =
           await repo.getCatalogSections(forceRefresh: true);
+      // Fill TRACK shelves that arrived with item_count but empty items[].
+      final List<CatalogSection> thinTracks = fresh
+          .where(
+            (CatalogSection s) =>
+                (s.displayMode == 'tracks' ||
+                    s.sourceType == 'song' ||
+                    s.sourceType == 'track') &&
+                s.items.length <= 1 &&
+                s.itemCount > 1,
+          )
+          .take(4)
+          .toList();
+      if (thinTracks.isNotEmpty) {
+        final List<CatalogSection> hydrated = <CatalogSection>[];
+        for (final CatalogSection s in thinTracks) {
+          try {
+            final CatalogSection? full =
+                await repo.refreshCatalogSection(s.sectionKey);
+            hydrated.add(full ?? s);
+          } catch (_) {
+            hydrated.add(s);
+          }
+        }
+        final Map<String, CatalogSection> byKey = <String, CatalogSection>{
+          for (final CatalogSection s in hydrated) s.sectionKey: s,
+        };
+        fresh = fresh
+            .map((CatalogSection s) => byKey[s.sectionKey] ?? s)
+            .toList();
+      }
       if (!mounted) return;
       setState(() {
         _catalogSectionsFuture = Future<List<CatalogSection>>.value(fresh);
@@ -1005,7 +1035,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '${banner.items.length} songs • ${banner.language.toUpperCase()} • Curated for you',
+                      '${banner.items.isNotEmpty ? banner.items.length : banner.itemCount} songs • ${banner.language.toUpperCase()} • Curated for you',
                       style: TextStyle(
                         fontSize: 11.5,
                         color: context.textSecondary,
@@ -1210,9 +1240,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   }
 
                   bool hasPlayableTracks(CatalogSection s) {
-                    final int n =
-                        s.items.length > s.itemCount ? s.items.length : s.itemCount;
-                    return s.items.length > 1 || n > 1;
+                    // Only render a song shelf when we actually have track payloads.
+                    // itemCount alone caused empty "New Releases (Hindi)" gaps.
+                    return s.items.length > 1;
                   }
 
                   final List<CatalogSection> trackShelves = shelfSections

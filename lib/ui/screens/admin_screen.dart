@@ -1353,6 +1353,30 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       _catalogIsEnabled = false;
     }
 
+    final bool isEdit = _editingSection != null;
+    final bool? confirmSave = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: Text(isEdit ? 'Update section?' : 'Save section?'),
+        content: Text(
+          isEdit
+              ? 'Update "$title" in the catalogue now?'
+              : 'Add "$title" to the catalogue now?',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(isEdit ? 'Update' : 'Save'),
+          ),
+        ],
+      ),
+    );
+    if (confirmSave != true) return;
+
     if (!mounted) return;
     setState(() => _isSavingCatalog = true);
     final MusicRepository repo = context.read<MusicRepository>();
@@ -1404,26 +1428,24 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_editingSection != null
-                ? 'Section "$title" updated successfully'
-                : 'Section "$title" created successfully'),
-            backgroundColor: AppColors.success,
-          ),
-        );
         _cancelCatalogEdit();
-        await repo.getCatalogSections(forceRefresh: true);
-        await _loadCatalogSections();
+        await repo.invalidateCatalogCache();
+        await _loadCatalogSections(forceRefresh: true);
         HomeScreen.silentRefreshLatest();
+        await _showAdminResultDialog(
+          success: true,
+          title: isEdit ? 'Section updated' : 'Section saved',
+          message: isEdit
+              ? '"$title" was updated and the catalogue list refreshed.'
+              : '"$title" was added and the catalogue list refreshed.',
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save section: ${e.toString().replaceFirst("Exception: ", "")}'),
-            backgroundColor: AppColors.error,
-          ),
+        await _showAdminResultDialog(
+          success: false,
+          title: 'Save failed',
+          message: e.toString().replaceFirst('Exception: ', ''),
         );
       }
     } finally {
@@ -1431,6 +1453,49 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         setState(() => _isSavingCatalog = false);
       }
     }
+  }
+
+  Future<void> _showAdminResultDialog({
+    required bool success,
+    required String title,
+    required String message,
+  }) async {
+    if (!mounted) return;
+    final Color accent = success ? AppColors.lightSuccess : AppColors.lightError;
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: Row(
+          children: <Widget>[
+            Icon(
+              success ? Icons.check_circle_rounded : Icons.error_rounded,
+              color: accent,
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(title)),
+          ],
+        ),
+        content: Text(message),
+        actions: <Widget>[
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: accent),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: accent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _addCustomTrack() async {
@@ -1552,15 +1617,17 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('Delete Catalogue Section?'),
-        content: Text('Are you sure you want to remove "${s.displayTitle}" from the catalogue?'),
+        title: const Text('Delete catalogue section?'),
+        content: Text(
+          'Remove "${s.displayTitle}" from the catalogue?\n\nThis cannot be undone from here.',
+        ),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.lightError),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete'),
           ),
@@ -1584,28 +1651,31 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         final MusicRepository repo = context.read<MusicRepository>();
         await repo.deleteCatalogSection(deleteKey);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Deleted "${s.displayTitle}"'), backgroundColor: AppColors.success),
-          );
           await repo.invalidateCatalogCache();
           await _loadCatalogSections(forceRefresh: true);
           HomeScreen.silentRefreshLatest();
+          await _showAdminResultDialog(
+            success: true,
+            title: 'Section deleted',
+            message: '"${s.displayTitle}" was removed and the catalogue list refreshed.',
+          );
         }
       } catch (e) {
         final String msg = e.toString().toLowerCase();
         final bool alreadyGone = msg.contains('not found') || msg.contains('404');
         if (!mounted) return;
         if (alreadyGone) {
-          // Server already removed it — keep optimistic UI, hard-refresh catalogue.
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Removed "${s.displayTitle}"'), backgroundColor: AppColors.success),
-          );
           try {
             final MusicRepository repo = context.read<MusicRepository>();
             await repo.invalidateCatalogCache();
             await _loadCatalogSections(forceRefresh: true);
             HomeScreen.silentRefreshLatest();
           } catch (_) {}
+          await _showAdminResultDialog(
+            success: true,
+            title: 'Section removed',
+            message: '"${s.displayTitle}" was already gone. Catalogue list refreshed.',
+          );
         } else {
           // Restore row on real failure
           setState(() {
@@ -1614,8 +1684,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 ..sort((CatalogSection a, CatalogSection b) => a.position.compareTo(b.position));
             }
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to delete: $e'), backgroundColor: AppColors.error),
+          await _showAdminResultDialog(
+            success: false,
+            title: 'Delete failed',
+            message: e.toString().replaceFirst('Exception: ', ''),
           );
         }
       }

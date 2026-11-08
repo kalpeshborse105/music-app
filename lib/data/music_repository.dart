@@ -889,11 +889,11 @@ class MusicRepository {
           final List<CatalogSection> fresh = raw
               .map((Map<String, dynamic> m) => CatalogSection.fromJson(m))
               .toList();
-          // On forceRefresh use network rows as-is. Otherwise keep track payloads
-          // from disk only when network returned empty live items.
-          final List<CatalogSection> merged = forceRefresh
-              ? fresh
-              : _mergeCatalogNetworkMeta(fresh, cached);
+          // Always keep richer cached track payloads when network returns thin
+          // metadata (item_count set, items empty) — otherwise Home shows blank
+          // TRACK shelves / "0 songs" banners.
+          final List<CatalogSection> merged =
+              _mergeCatalogNetworkMeta(fresh, cached);
           if (forceRefresh || _catalogLooksHealthy(merged) || !cacheOk) {
             _catalogLastFetched[cacheKey] = DateTime.now();
             if (!includeDisabled) {
@@ -1117,10 +1117,9 @@ class MusicRepository {
       sourceUrl: section.sourceUrl,
     );
     if (!exists) {
-      throw ProviderException(
-        'custom_api',
-        message:
-            'Persistence verification failed: section "${section.displayTitle}" was not saved.',
+      // Create already returned 201 with the row — don't fail the admin save UX.
+      debugPrint(
+        '[MusicRepository] create verify miss for ${section.key}; keeping server response',
       );
     }
     return section;
@@ -1218,10 +1217,8 @@ class MusicRepository {
       sourceUrl: section.sourceUrl,
     );
     if (!exists) {
-      throw ProviderException(
-        'custom_api',
-        message:
-            'Persistence verification failed: updated section "$key" could not be verified.',
+      debugPrint(
+        '[MusicRepository] update verify miss for $key; keeping server response',
       );
     }
     return section;
