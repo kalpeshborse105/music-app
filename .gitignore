@@ -44,3 +44,4 @@ android/local.properties
 *.apk
 *.aab
 __pycache__/
+.vercel

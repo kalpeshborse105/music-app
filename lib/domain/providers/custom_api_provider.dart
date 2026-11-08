@@ -635,6 +635,36 @@ class CustomApiProvider extends BaseMusicProvider {
     throw const ProviderException('custom_api', message: 'Invalid response format from catalogue server');
   }
 
+  /// Fast detail GET — uses server song cache (no full Jio re-resolve).
+  Future<Map<String, dynamic>?> getCatalogSectionDetail(String key) async {
+    if (_baseUrl.isEmpty || key.trim().isEmpty) return null;
+    try {
+      final String encodedKey = Uri.encodeComponent(key);
+      final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/$encodedKey');
+      final http.Response res = await http.get(
+        uri,
+        headers: _buildHeaders(),
+      ).timeout(const Duration(seconds: 20));
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      final dynamic body = jsonDecode(res.body);
+      if (body is Map) {
+        final Map<String, dynamic> map = Map<String, dynamic>.from(body);
+        // Detail endpoint returns the section object at the root (ok()).
+        if (map.containsKey('key') ||
+            map.containsKey('display_title') ||
+            map.containsKey('items')) {
+          return map;
+        }
+        final dynamic data = map['data'] ?? map['section'];
+        if (data is Map) return Map<String, dynamic>.from(data);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[CustomApiProvider] getCatalogSectionDetail error: $e');
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>> refreshCatalogSection(String key) async {
     final String encodedKey = Uri.encodeComponent(key);
     final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/$encodedKey/refresh');

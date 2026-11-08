@@ -77,6 +77,9 @@ class CacheStore {
 
   Future<void> clear() async => _requireBox.clear();
 
+  /// All cache keys currently stored (including expired — caller may filter).
+  Iterable<dynamic> get keys => _requireBox.keys;
+
   /// Remove every expired entry. Cheap enough to run on startup.
   Future<void> prune() async {
     final Box<dynamic> box = _requireBox;

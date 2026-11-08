@@ -93,6 +93,26 @@ class CatalogSection {
     return false;
   }
 
+  static int _asUnixSeconds(dynamic value) {
+    if (value == null) return 0;
+    if (value is num) {
+      final int n = value.toInt();
+      // ms timestamps → seconds
+      return n > 20000000000 ? (n ~/ 1000) : n;
+    }
+    final String raw = value.toString().trim();
+    if (raw.isEmpty) return 0;
+    final int? asInt = int.tryParse(raw);
+    if (asInt != null) {
+      return asInt > 20000000000 ? (asInt ~/ 1000) : asInt;
+    }
+    try {
+      return DateTime.parse(raw).toUtc().millisecondsSinceEpoch ~/ 1000;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   factory CatalogSection.fromJson(Map<String, dynamic> json) {
     final List<dynamic> rawItems = (json['items'] as List<dynamic>?) ?? <dynamic>[];
     final List<Track> parsedItems = rawItems
@@ -176,13 +196,25 @@ class CatalogSection {
       isEnabled: json['is_enabled'] != false,
       customArtworkUrl: json['custom_artwork_url'] as String? ?? json['artwork_url'] as String?,
       isBanner: json['is_banner'] == true,
-      campaignStart: (json['campaign_start'] as num?)?.toInt(),
-      campaignEnd: (json['campaign_end'] as num?)?.toInt(),
+      campaignStart: () {
+        final int v = _asUnixSeconds(json['campaign_start']);
+        return v > 0 ? v : null;
+      }(),
+      campaignEnd: () {
+        final int v = _asUnixSeconds(json['campaign_end']);
+        return v > 0 ? v : null;
+      }(),
       providerStatus: json['provider_status'] as String? ?? 'ok',
-      lastRefresh: (json['last_refresh'] as num?)?.toInt() ?? 0,
+      lastRefresh: _asUnixSeconds(json['last_refresh']),
       lastError: json['last_error'] as String?,
       isMock: json['is_mock'] == true,
-      itemCount: (json['item_count'] as num?)?.toInt() ?? parsedItems.length,
+      // Live payloads win. If raw items existed but were all mock/junk, force 0
+      // so Home never shows seed "5 songs" with an empty TrackListScreen.
+      itemCount: parsedItems.isNotEmpty
+          ? parsedItems.length
+          : (rawItems.isNotEmpty
+              ? 0
+              : ((json['item_count'] as num?)?.toInt() ?? 0)),
       items: parsedItems,
       excludedTrackIds: ((json['excluded_track_ids'] as List<dynamic>?) ?? <dynamic>[])
           .map((dynamic e) => e.toString())
@@ -190,7 +222,30 @@ class CatalogSection {
     );
   }
 
+  Map<String, dynamic> _trackToCatalogItem(Track t) {
+    final String rawId = t.providerTrackId.trim().isNotEmpty
+        ? t.providerTrackId.trim()
+        : t.id.replaceFirst(RegExp(r'^custom_api:track:'), '');
+    return <String, dynamic>{
+      'id': rawId,
+      'title': t.title,
+      'artist': t.artistNames,
+      'artwork_url': t.artworkUrl,
+      'duration_ms': t.duration.inMilliseconds,
+      'album': t.album?.title ?? 'Single',
+      'is_mock': t.extra['is_mock'] == true,
+      if (t.extra['language'] != null) 'language': t.extra['language'],
+      if (t.extra['year'] != null) 'year': t.extra['year'],
+    };
+  }
+
   Map<String, dynamic> toJson() {
+    // Persist a capped items payload so Home cache-first reopen is instant
+    // and song counts match what TrackListScreen will show.
+    final List<Map<String, dynamic>> cachedItems = items
+        .take(40)
+        .map(_trackToCatalogItem)
+        .toList();
     return <String, dynamic>{
       'id': id,
       'key': key,
@@ -213,7 +268,8 @@ class CatalogSection {
       'last_refresh': lastRefresh,
       'last_error': lastError,
       'is_mock': isMock,
-      'item_count': itemCount,
+      'item_count': cachedItems.isNotEmpty ? cachedItems.length : itemCount,
+      'items': cachedItems,
       'excluded_track_ids': excludedTrackIds,
     };
   }

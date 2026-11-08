@@ -763,17 +763,29 @@ class MusicRepository {
     _catalogLastFetched.clear();
     final CacheStore? cache = _cache;
     if (cache == null) return;
-    final List<String> keys = <String>[
-      _catalogCacheKey(includeDisabled: false, lang: null, group: null),
-      _catalogCacheKey(includeDisabled: false, lang: 'all', group: null),
-      _catalogCacheKey(includeDisabled: false, lang: 'hindi', group: null),
-      _catalogCacheKey(includeDisabled: true, lang: null, group: null),
-      _catalogCacheKey(includeDisabled: true, lang: 'all', group: null),
-    ];
-    for (final String key in keys) {
-      try {
+    // Wipe every catalog_sections_v4:* variant (lang/group/disabled) so a
+    // deleted shelf cannot resurface from a stale language-scoped key.
+    try {
+      final List<String> toRemove = cache.keys
+          .map((dynamic k) => k.toString())
+          .where((String k) => k.startsWith('catalog_sections_v4:'))
+          .toList();
+      for (final String key in toRemove) {
         await cache.remove(key);
-      } catch (_) {}
+      }
+    } catch (_) {
+      final List<String> keys = <String>[
+        _catalogCacheKey(includeDisabled: false, lang: null, group: null),
+        _catalogCacheKey(includeDisabled: false, lang: 'all', group: null),
+        _catalogCacheKey(includeDisabled: false, lang: 'hindi', group: null),
+        _catalogCacheKey(includeDisabled: true, lang: null, group: null),
+        _catalogCacheKey(includeDisabled: true, lang: 'all', group: null),
+      ];
+      for (final String key in keys) {
+        try {
+          await cache.remove(key);
+        } catch (_) {}
+      }
     }
   }
 
@@ -913,6 +925,12 @@ class MusicRepository {
 
     if (cacheOk) return cached!;
 
+    // After a successful admin delete the API list is truth. Do not resurrect
+    // shelves from a direct Supabase read or the bundled seed (both lag deletes).
+    if (forceRefresh) {
+      return cached ?? <CatalogSection>[];
+    }
+
     if (SupabaseService().isInitialized) {
       final List<CatalogSection> dbSections = await _getCatalogSectionsFromSupabase(
         includeDisabled: includeDisabled,
@@ -977,10 +995,24 @@ class MusicRepository {
     });
   }
 
+  /// Load one section with tracks from API cache (for Home open / hydrate).
+  Future<CatalogSection?> getCatalogSectionDetail(String key) async {
+    final CustomApiProvider? provider = _customApiProvider;
+    if (provider == null || key.trim().isEmpty) return null;
+    final Map<String, dynamic>? res = await provider.getCatalogSectionDetail(key);
+    if (res == null || res.isEmpty) return null;
+    return CatalogSection.fromJson(res);
+  }
+
   Future<CatalogSection?> refreshCatalogSection(String key) async {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) {
       throw const ProviderException('custom_api', message: 'Custom API provider unavailable.');
+    }
+    // Prefer cached detail first (fast). Fall back to hard refresh only if empty.
+    final CatalogSection? cached = await getCatalogSectionDetail(key);
+    if (cached != null && cached.items.isNotEmpty) {
+      return cached;
     }
     final Map<String, dynamic> res = await provider.refreshCatalogSection(key);
     final CatalogSection section = CatalogSection.fromJson(res);

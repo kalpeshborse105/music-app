@@ -85,15 +85,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _refreshData() async {
-    final MusicRepository repo = context.read<MusicRepository>();
-    final LibraryController library = context.read<LibraryController>();
-    setState(() {
-      _catalogSectionsFuture = repo.getCatalogSections(forceRefresh: true);
-    });
-    await Future.wait(<Future<dynamic>>[
-      _loadInitialTracks(),
-      library.syncWithSupabase(),
-    ]);
+    // Never replace the Future with a pending one — that flashed
+    // "Loading your music…" on every Home re-tap / pull refresh.
+    await _silentBackgroundRefresh();
   }
 
   /// Fetch latest catalogue without blocking or flashing the UI.
@@ -105,25 +99,26 @@ class _HomeScreenState extends State<HomeScreen> {
       // Bypass disk cache, but do NOT hard-refresh every Jio shelf (that stalls Home).
       List<CatalogSection> fresh =
           await repo.getCatalogSections(forceRefresh: true);
-      // Fill TRACK shelves that arrived with item_count but empty items[].
-      final List<CatalogSection> thinTracks = fresh
+      // Hydrate empty shelves (TRACK rows + Daily Mix cards) from detail cache
+      // so Home never shows a fake count with zero openable tracks.
+      final List<CatalogSection> thinShelves = fresh
           .where(
             (CatalogSection s) =>
-                (s.displayMode == 'tracks' ||
-                    s.sourceType == 'song' ||
-                    s.sourceType == 'track') &&
-                s.items.length <= 1 &&
-                s.itemCount > 1,
+                s.sourceType != 'artist' &&
+                s.items.isEmpty &&
+                s.sourceUrl.trim().isNotEmpty,
           )
-          .take(4)
+          .take(8)
           .toList();
-      if (thinTracks.isNotEmpty) {
+      if (thinShelves.isNotEmpty) {
         final List<CatalogSection> hydrated = <CatalogSection>[];
-        for (final CatalogSection s in thinTracks) {
+        for (final CatalogSection s in thinShelves) {
           try {
             final CatalogSection? full =
-                await repo.refreshCatalogSection(s.sectionKey);
-            hydrated.add(full ?? s);
+                await repo.getCatalogSectionDetail(s.sectionKey);
+            hydrated.add(
+              (full != null && full.items.isNotEmpty) ? full : s,
+            );
           } catch (_) {
             hydrated.add(s);
           }
@@ -1035,7 +1030,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '${banner.items.isNotEmpty ? banner.items.length : banner.itemCount} songs • ${banner.language.toUpperCase()} • Curated for you',
+                      banner.items.isNotEmpty
+                          ? '${banner.items.length} songs • ${banner.language.toUpperCase()} • Curated for you'
+                          : '${banner.language.toUpperCase()} • Curated for you',
                       style: TextStyle(
                         fontSize: 11.5,
                         color: context.textSecondary,
@@ -1120,65 +1117,81 @@ class _HomeScreenState extends State<HomeScreen> {
           return m;
         }
 
-        void openSection(CatalogSection section) {
-          final int count = section.itemCount > 0
-              ? section.itemCount
-              : section.items.length;
-          final bool isSingleTrack = section.sourceType == 'song' ||
-              section.sourceType == 'track' ||
+        Future<void> openSection(CatalogSection section) async {
+          CatalogSection resolved = section;
+          // List responses are often metadata-only — load real tracks before open.
+          if (section.sourceType != 'artist' && section.items.isEmpty) {
+            try {
+              final CatalogSection? full =
+                  await repo.getCatalogSectionDetail(section.sectionKey);
+              if (full != null && full.items.isNotEmpty) {
+                resolved = full;
+              }
+            } catch (_) {}
+          }
+          if (!context.mounted) return;
+          final int count = resolved.items.isNotEmpty
+              ? resolved.items.length
+              : resolved.itemCount;
+          final bool isSingleTrack = resolved.sourceType == 'song' ||
+              resolved.sourceType == 'track' ||
               (count == 1 &&
-                  section.sourceType != 'album' &&
-                  section.sourceType != 'artist');
-          if (isSingleTrack && section.items.isNotEmpty) {
-            TrackActions.play(context, section.items.first, queue: section.items);
+                  resolved.sourceType != 'album' &&
+                  resolved.sourceType != 'artist');
+          if (isSingleTrack && resolved.items.isNotEmpty) {
+            TrackActions.play(
+              context,
+              resolved.items.first,
+              queue: resolved.items,
+            );
             return;
           }
-          if (section.sourceType == 'artist') {
+          if (resolved.sourceType == 'artist') {
             Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => ArtistScreen(
                   artist: Artist(
-                    id: 'custom_api:artist:${section.sourceId.isNotEmpty ? section.sourceId : section.key}',
+                    id: 'custom_api:artist:${resolved.sourceId.isNotEmpty ? resolved.sourceId : resolved.key}',
                     providerId: 'custom_api',
-                    providerArtistId: section.sourceId.isNotEmpty
-                        ? section.sourceId
-                        : section.key,
-                    name: section.displayTitle,
+                    providerArtistId: resolved.sourceId.isNotEmpty
+                        ? resolved.sourceId
+                        : resolved.key,
+                    name: resolved.displayTitle,
                     imageUrl:
-                        section.effectiveArtworkUrl ??
-                        (section.items.isNotEmpty
-                            ? section.items.first.artworkUrl
+                        resolved.effectiveArtworkUrl ??
+                        (resolved.items.isNotEmpty
+                            ? resolved.items.first.artworkUrl
                             : null),
                   ),
                 ),
               ),
             );
-          } else if (section.sourceType == 'album') {
+          } else if (resolved.sourceType == 'album') {
             Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => AlbumScreen(
                   album: Album(
-                    id: 'custom_api:album:${section.sourceId.isNotEmpty ? section.sourceId : section.key}',
+                    id: 'custom_api:album:${resolved.sourceId.isNotEmpty ? resolved.sourceId : resolved.key}',
                     providerId: 'custom_api',
-                    providerAlbumId: section.sourceId.isNotEmpty
-                        ? section.sourceId
-                        : section.key,
-                    title: section.displayTitle,
-                    artists: section.items.isNotEmpty
-                        ? section.items.first.artists
+                    providerAlbumId: resolved.sourceId.isNotEmpty
+                        ? resolved.sourceId
+                        : resolved.key,
+                    title: resolved.displayTitle,
+                    artists: resolved.items.isNotEmpty
+                        ? resolved.items.first.artists
                         : const <Artist>[],
                     artworkUrl:
-                        section.effectiveArtworkUrl ??
-                        (section.items.isNotEmpty
-                            ? section.items.first.artworkUrl
+                        resolved.effectiveArtworkUrl ??
+                        (resolved.items.isNotEmpty
+                            ? resolved.items.first.artworkUrl
                             : null),
-                    year: section.items.isNotEmpty
+                    year: resolved.items.isNotEmpty
                         ? int.tryParse(
-                            section.items.first.extra['year']?.toString() ?? '',
+                            resolved.items.first.extra['year']?.toString() ?? '',
                           )
                         : null,
                   ),
-                  initialTracks: section.items,
+                  initialTracks: resolved.items,
                 ),
               ),
             );
@@ -1186,8 +1199,8 @@ class _HomeScreenState extends State<HomeScreen> {
             Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => TrackListScreen(
-                  title: section.displayTitle,
-                  tracks: section.items,
+                  title: resolved.displayTitle,
+                  tracks: resolved.items,
                 ),
               ),
             );
@@ -1280,13 +1293,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   }
 
                   Widget cardFor(CatalogSection sec) {
-                    final int count = sec.itemCount > 0
-                        ? sec.itemCount
-                        : sec.items.length;
-                    // Skip empty featured albums/playlists (0 songs looks broken).
+                    // Prefer real track payloads — never show seed/metadata "5 songs".
+                    final int count = sec.items.isNotEmpty
+                        ? sec.items.length
+                        : 0;
+                    // Keep playlist cards visible while detail hydrate runs; hide
+                    // only when we know there are no tracks and no source to load.
                     if (sec.sourceType != 'artist' &&
                         count <= 0 &&
-                        sec.items.isEmpty) {
+                        sec.items.isEmpty &&
+                        sec.sourceUrl.trim().isEmpty) {
                       return const SizedBox.shrink();
                     }
                     // Never badge a multi-song TRACK shelf as a single TRACK card —
@@ -1309,16 +1325,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     } else {
                       badge = 'PLAYLIST';
                     }
+                    final String subtitle = sec.subtitle ??
+                        (isSingleTrack
+                            ? (sec.items.isNotEmpty
+                                ? sec.items.first.artistNames
+                                : 'Single Track')
+                            : (sec.sourceType == 'artist'
+                                ? 'Artist'
+                                : (count > 0 ? '$count songs' : 'Playlist')));
                     return MediaCard(
                       title: sec.displayTitle,
-                      subtitle: sec.subtitle ??
-                          (isSingleTrack
-                              ? (sec.items.isNotEmpty
-                                  ? sec.items.first.artistNames
-                                  : 'Single Track')
-                              : (sec.sourceType == 'artist'
-                                  ? 'Artist'
-                                  : '$count songs')),
+                      subtitle: subtitle,
                       imageUrl: sec.effectiveArtworkUrl ??
                           (sec.items.isNotEmpty
                               ? sec.items.first.artworkUrl
