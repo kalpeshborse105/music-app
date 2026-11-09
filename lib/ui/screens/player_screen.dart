@@ -46,12 +46,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final DownloadsController downloads = context.watch<DownloadsController>();
     final bool liked = context.watch<LibraryController>().isLiked(track.id);
     final bool isDownloaded = downloads.isDownloaded(track.id);
-    final bool isDownloading = downloads.task(track.id)?.status == DownloadStatus.downloading;
-    final Duration duration =
-        pc.snapshot.duration > Duration.zero ? pc.snapshot.duration : track.duration;
-    final double maxMs = duration.inMilliseconds.toDouble().clamp(1, double.infinity);
+    final bool isDownloading =
+        downloads.task(track.id)?.status == DownloadStatus.downloading;
+    final Duration duration = pc.snapshot.duration > Duration.zero
+        ? pc.snapshot.duration
+        : track.duration;
+    final double maxMs = duration.inMilliseconds.toDouble().clamp(
+      1,
+      double.infinity,
+    );
     final double positionMs =
-        _dragValue ?? pc.snapshot.position.inMilliseconds.toDouble().clamp(0, maxMs);
+        _dragValue ??
+        pc.snapshot.position.inMilliseconds.toDouble().clamp(0, maxMs);
 
     final double screenHeight = MediaQuery.of(context).size.height;
     final double artSize = (screenHeight * 0.28).clamp(180.0, 260.0);
@@ -87,7 +93,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
               children: <Widget>[
                 // 1. Top Bar / Sub-Header Context Navigator
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: 4,
+                  ),
                   child: SizedBox(
                     height: 48,
                     child: Stack(
@@ -96,7 +105,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         Align(
                           alignment: Alignment.centerLeft,
                           child: IconButton(
-                            icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 30),
+                            icon: const Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              color: Colors.white,
+                              size: 30,
+                            ),
                             tooltip: 'Dismiss to miniplayer',
                             onPressed: () => Navigator.of(context).maybePop(),
                           ),
@@ -154,14 +167,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                 onPressed: () => showSleepTimerSheet(context),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.share_rounded, color: Colors.white, size: 21),
+                                icon: const Icon(
+                                  Icons.share_rounded,
+                                  color: Colors.white,
+                                  size: 21,
+                                ),
                                 tooltip: 'Share Track',
-                                onPressed: () => TrackActions.share(context, track),
+                                onPressed: () =>
+                                    TrackActions.share(context, track),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.more_horiz_rounded, color: Colors.white, size: 24),
+                                icon: const Icon(
+                                  Icons.more_horiz_rounded,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
                                 tooltip: 'Options',
-                                onPressed: () => showTrackActionsSheet(context, track),
+                                onPressed: () =>
+                                    showTrackActionsSheet(context, track),
                               ),
                             ],
                           ),
@@ -204,7 +227,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             borderRadius: BorderRadius.circular(36),
                             boxShadow: <BoxShadow>[
                               BoxShadow(
-                                color: AppColors.primaryContainer.withValues(alpha: 0.35),
+                                color: AppColors.primaryContainer.withValues(
+                                  alpha: 0.35,
+                                ),
                                 blurRadius: 36,
                                 spreadRadius: 2,
                               ),
@@ -236,17 +261,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             ],
                           ),
                           child: Hero(
-                              tag: 'player_art_${track.id}',
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(26),
-                                child: Artwork(
-                                  url: track.artworkUrl,
-                                  size: artSize - 12,
-                                  radius: 26,
-                                  fallbackIcon: Icons.music_note_rounded,
-                                ),
+                            tag: 'player_art_${track.id}',
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(26),
+                              child: Artwork(
+                                url: track.artworkUrl,
+                                size: artSize - 12,
+                                radius: 26,
+                                fallbackIcon: Icons.music_note_rounded,
                               ),
                             ),
+                          ),
                         ),
                       ],
                     ),
@@ -257,7 +282,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
                 // 3. Track Metadata & Favorite Button
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xl,
+                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
@@ -282,7 +309,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               children: <Widget>[
                                 Flexible(
                                   child: GestureDetector(
-                                    onTap: () => TrackActions.openArtist(context, track.primaryArtist),
+                                    onTap: () => TrackActions.openArtist(
+                                      context,
+                                      track.primaryArtist,
+                                    ),
                                     child: Text(
                                       track.artistNames,
                                       maxLines: 1,
@@ -297,7 +327,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 6),
-                                const Icon(Icons.verified_rounded, size: 16, color: AppColors.secondary),
+                                const Icon(
+                                  Icons.verified_rounded,
+                                  size: 16,
+                                  color: AppColors.secondary,
+                                ),
                               ],
                             ),
                           ],
@@ -308,15 +342,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: AppColors.surfaceContainerHigh.withValues(alpha: 0.5),
+                          color: AppColors.surfaceContainerHigh.withValues(
+                            alpha: 0.5,
+                          ),
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
-                          tooltip: liked ? 'Remove from Liked' : 'Add to Liked Songs',
-                          onPressed: () => TrackActions.toggleFavorite(context, track),
+                          tooltip: liked
+                              ? 'Remove from Liked'
+                              : 'Add to Liked Songs',
+                          onPressed: () =>
+                              TrackActions.toggleFavorite(context, track),
                           icon: Icon(
-                            liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                            color: liked ? AppColors.tertiary : AppColors.textSecondaryDark,
+                            liked
+                                ? Icons.favorite_rounded
+                                : Icons.favorite_border_rounded,
+                            color: liked
+                                ? AppColors.tertiary
+                                : AppColors.textSecondaryDark,
                             size: 24,
                           ),
                         ),
@@ -327,11 +370,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
                 // Audio Format Tag
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xl,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: <Widget>[
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2.5,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.surfaceContainerHigh,
                           borderRadius: BorderRadius.circular(6),
@@ -352,14 +401,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
                 // 4. Interactive Scrubber Slider & Timestamps
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg,
+                  ),
                   child: Column(
                     children: <Widget>[
                       SliderTheme(
                         data: SliderTheme.of(context).copyWith(
                           trackHeight: 4,
-                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                          thumbShape: const RoundSliderThumbShape(
+                            enabledThumbRadius: 6,
+                          ),
+                          overlayShape: const RoundSliderOverlayShape(
+                            overlayRadius: 14,
+                          ),
                           activeTrackColor: AppColors.primaryLight,
                           inactiveTrackColor: AppColors.surfaceContainerHighest,
                           thumbColor: Colors.white,
@@ -367,7 +422,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         child: Slider(
                           value: positionMs.clamp(0, maxMs),
                           max: maxMs,
-                          onChanged: (double v) => setState(() => _dragValue = v),
+                          onChanged: (double v) =>
+                              setState(() => _dragValue = v),
                           onChangeEnd: (double v) {
                             setState(() => _dragValue = null);
                             pc.seek(Duration(milliseconds: v.round()));
@@ -375,16 +431,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                        ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: <Widget>[
                             Text(
-                              Formatters.duration(Duration(milliseconds: positionMs.round())),
+                              Formatters.duration(
+                                Duration(milliseconds: positionMs.round()),
+                              ),
                               style: const TextStyle(
                                 color: AppColors.textSecondaryDark,
                                 fontSize: 12,
-                                fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
+                                fontFeatures: <FontFeature>[
+                                  FontFeature.tabularFigures(),
+                                ],
                               ),
                             ),
                             Text(
@@ -392,7 +454,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               style: const TextStyle(
                                 color: AppColors.textSecondaryDark,
                                 fontSize: 12,
-                                fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
+                                fontFeatures: <FontFeature>[
+                                  FontFeature.tabularFigures(),
+                                ],
                               ),
                             ),
                           ],
@@ -404,7 +468,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
                 // 5. Core Playback Controls Dock
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: 4,
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: <Widget>[
@@ -412,7 +479,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       IconButton(
                         tooltip: 'Shuffle',
                         iconSize: 22,
-                        color: pc.queue.shuffle ? AppColors.secondary : AppColors.textSecondaryDark,
+                        color: pc.queue.shuffle
+                            ? AppColors.secondary
+                            : AppColors.textSecondaryDark,
                         icon: const Icon(Icons.shuffle_rounded),
                         onPressed: pc.toggleShuffle,
                       ),
@@ -422,7 +491,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         iconSize: 24,
                         color: AppColors.textSecondaryDark,
                         icon: const Icon(Icons.replay_10_rounded),
-                        onPressed: () => pc.seek(pc.snapshot.position - const Duration(seconds: 10)),
+                        onPressed: () => pc.seek(
+                          pc.snapshot.position - const Duration(seconds: 10),
+                        ),
                       ),
                       // Previous Track
                       IconButton(
@@ -457,10 +528,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                   ? const SizedBox(
                                       width: 26,
                                       height: 26,
-                                      child: CircularProgressIndicator(strokeWidth: 2.8, color: Colors.white),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.8,
+                                        color: Colors.white,
+                                      ),
                                     )
                                   : Icon(
-                                      pc.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                                      pc.isPlaying
+                                          ? Icons.pause_rounded
+                                          : Icons.play_arrow_rounded,
                                       size: 36,
                                       color: Colors.white,
                                     ),
@@ -482,7 +558,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         iconSize: 24,
                         color: AppColors.textSecondaryDark,
                         icon: const Icon(Icons.forward_10_rounded),
-                        onPressed: () => pc.seek(pc.snapshot.position + const Duration(seconds: 10)),
+                        onPressed: () => pc.seek(
+                          pc.snapshot.position + const Duration(seconds: 10),
+                        ),
                       ),
                       // Repeat
                       IconButton(
@@ -506,11 +584,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
                 // 6. Bottom Quick Action Panel
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg,
+                  ),
                   child: EchoGlassCard(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: 8,
+                    ),
                     borderRadius: AppSpacing.radiusLg,
-                    backgroundColor: AppColors.surfaceContainer.withValues(alpha: 0.70),
+                    backgroundColor: AppColors.surfaceContainer.withValues(
+                      alpha: 0.70,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: <Widget>[
@@ -518,17 +603,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           icon: Icons.lyrics_rounded,
                           label: 'Lyrics',
                           onTap: () {
-                            Navigator.of(context).push(MaterialPageRoute<void>(
-                              builder: (_) => LyricsScreen(track: track),
-                            ));
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => LyricsScreen(track: track),
+                              ),
+                            );
                           },
                         ),
                         _ActionIcon(
                           icon: isDownloading
                               ? Icons.downloading_rounded
                               : (isDownloaded
-                                  ? Icons.download_done_rounded
-                                  : Icons.download_rounded),
+                                    ? Icons.download_done_rounded
+                                    : Icons.download_rounded),
                           label: isDownloaded ? 'Saved' : 'Download',
                           iconColor: isDownloaded
                               ? AppColors.secondary
@@ -540,7 +627,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             } else {
                               try {
                                 await downloads.download(track);
-                                AppMessenger.show('Downloaded for offline playback');
+                                AppMessenger.show(
+                                  'Downloaded for offline playback',
+                                );
                               } catch (e) {
                                 AppMessenger.showError(e);
                               }
@@ -561,7 +650,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         _ActionIcon(
                           icon: Icons.playlist_add_rounded,
                           label: 'Save',
-                          onTap: () => TrackActions.addToPlaylist(context, track),
+                          onTap: () =>
+                              TrackActions.addToPlaylist(context, track),
                         ),
                       ],
                     ),
@@ -606,20 +696,31 @@ class _ActionIcon extends StatelessWidget {
             Stack(
               clipBehavior: Clip.none,
               children: <Widget>[
-                Icon(icon, size: 22, color: iconColor ?? AppColors.textSecondaryDark),
+                Icon(
+                  icon,
+                  size: 22,
+                  color: iconColor ?? AppColors.textSecondaryDark,
+                ),
                 if (badgeCount != null && badgeCount! > 0)
                   Positioned(
                     top: -4,
                     right: -8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.primary,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         '$badgeCount',
-                        style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Colors.white),
+                        style: const TextStyle(
+                          fontSize: 8,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
@@ -641,4 +742,3 @@ class _ActionIcon extends StatelessWidget {
     );
   }
 }
-
