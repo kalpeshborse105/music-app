@@ -215,13 +215,15 @@ class CatalogSection {
       updatedAt: _asUnixSeconds(json['updated_at']),
       lastError: json['last_error'] as String?,
       isMock: json['is_mock'] == true,
-      // Live payloads win. If raw items existed but were all mock/junk, force 0
-      // so Home never shows seed "5 songs" with an empty TrackListScreen.
-      itemCount: parsedItems.isNotEmpty
-          ? parsedItems.length
-          : (rawItems.isNotEmpty
-              ? 0
-              : ((json['item_count'] as num?)?.toInt() ?? 0)),
+      // Prefer live parsed tracks. If the payload was thin/filtered but the API
+      // still reports a positive count (common for album shelves), keep that
+      // count so admin does not flash "0 tracks" after a cache heal.
+      itemCount: () {
+        final int apiCount = (json['item_count'] as num?)?.toInt() ?? 0;
+        if (parsedItems.isNotEmpty) return parsedItems.length;
+        if (apiCount > 0) return apiCount;
+        return 0;
+      }(),
       items: parsedItems,
       excludedTrackIds: ((json['excluded_track_ids'] as List<dynamic>?) ?? <dynamic>[])
           .map((dynamic e) => e.toString())

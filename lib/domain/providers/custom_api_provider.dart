@@ -499,13 +499,18 @@ class CustomApiProvider extends BaseMusicProvider {
       final http.Response res = await http.get(
         uri,
         headers: _buildHeaders(),
-      ).timeout(Duration(seconds: refresh ? 45 : (lite ? 20 : 10)));
+      ).timeout(Duration(
+        seconds: refresh
+            ? 45
+            : (includeDisabled ? 25 : (lite ? 20 : 12)),
+      ));
       if (res.statusCode == 200) {
         final dynamic data = jsonDecode(res.body);
         if (data is Map && data['sections'] is List) {
-          return List<Map<String, dynamic>>.from(
-            (data['sections'] as List<dynamic>).whereType<Map<String, dynamic>>(),
-          );
+          return (data['sections'] as List<dynamic>)
+              .whereType<Map>()
+              .map((Map m) => Map<String, dynamic>.from(m))
+              .toList();
         }
       }
     } catch (e) {

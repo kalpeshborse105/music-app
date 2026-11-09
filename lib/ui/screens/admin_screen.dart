@@ -1674,8 +1674,28 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         await repo.deleteCatalogSection(deleteKey);
         if (mounted) {
           Navigator.of(context, rootNavigator: true).pop();
+          // Confirmed delete → drop from admin list immediately (React-style),
+          // then reload from server so Home/admin stay aligned.
+          void removeLocal() {
+            _catalogSections = _catalogSections
+                .where((CatalogSection x) =>
+                    x.sectionKey != s.sectionKey &&
+                    x.id != s.id &&
+                    x.sectionKey != deleteKey)
+                .toList();
+          }
+
+          setState(removeLocal);
           await repo.invalidateCatalogCache();
           await _loadCatalogSections(forceRefresh: true);
+          // Guard against stale network/cache resurrecting the same row.
+          if (mounted &&
+              _catalogSections.any((CatalogSection x) =>
+                  x.sectionKey == s.sectionKey ||
+                  x.id == s.id ||
+                  x.sectionKey == deleteKey)) {
+            setState(removeLocal);
+          }
           HomeScreen.silentRefreshLatest();
           await _showAdminResultDialog(
             success: true,
@@ -1691,6 +1711,12 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         final bool alreadyGone = msg.contains('not found') || msg.contains('404');
         if (!mounted) return;
         if (alreadyGone) {
+          setState(() {
+            _catalogSections = _catalogSections
+                .where((CatalogSection x) =>
+                    x.sectionKey != s.sectionKey && x.id != s.id)
+                .toList();
+          });
           try {
             final MusicRepository repo = context.read<MusicRepository>();
             await repo.invalidateCatalogCache();
