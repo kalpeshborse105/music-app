@@ -79,7 +79,11 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
     final Duration d = (_player.duration != null && _player.duration! > Duration.zero)
         ? _player.duration!
         : (active?.duration ?? Duration.zero);
-    final ProcessingState uiState = _loadInFlight
+    // Only force "loading" while resolving URL — once just_audio has a source,
+    // trust the player (otherwise web play() can hang and freeze spinner + 0:00).
+    final ProcessingState uiState = (_loadInFlight &&
+            (_player.audioSource == null ||
+                _player.processingState == ProcessingState.idle))
         ? ProcessingState.loading
         : _player.processingState;
     return PlaybackSnapshot(
@@ -87,7 +91,7 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
       queueIndex: queueModel.currentIndex,
       playing: _player.playing,
       processingState: uiState,
-      position: _loadInFlight ? Duration.zero : _player.position,
+      position: _player.position,
       duration: d,
       buffered: _player.bufferedPosition,
       repeatMode: queueModel.repeat,
@@ -325,21 +329,22 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
       );
       if (generation != _loadGeneration) return;
 
-      // 5. Play once buffered enough — natural wait-then-play (no second tap)
-      if (autoplay) {
-        await _player.play();
-        // Web / slow networks: retry once if the first play was swallowed.
-        if (!_player.playing && generation == _loadGeneration) {
-          await Future<void>.delayed(const Duration(milliseconds: 120));
-          if (generation == _loadGeneration) {
-            await _player.play();
-          }
-        }
-      }
-
-      if (generation != _loadGeneration) return;
+      // Clear loading BEFORE play — on web await play() may never complete while
+      // audio is already audible (spinner + timer stuck at 0:00).
       _loadInFlight = false;
       _activeTrack = track;
+      _broadcastState();
+
+      // 5. Natural play after source is ready
+      if (autoplay) {
+        unawaited(_player.play().then((_) {
+          if (generation != _loadGeneration) return;
+          if (!_player.playing) {
+            unawaited(_player.play());
+          }
+        }));
+      }
+
       onTrackStarted?.call(track);
       await _pushQueueToService();
       _broadcastState();
@@ -357,6 +362,14 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   void _onPlayerState(PlayerState state) {
+    // Safety net: if audio is actually moving, never leave UI stuck on loading.
+    if (_loadInFlight &&
+        (state.playing ||
+            state.processingState == ProcessingState.ready ||
+            state.processingState == ProcessingState.buffering ||
+            state.processingState == ProcessingState.completed)) {
+      _loadInFlight = false;
+    }
     if (state.processingState == ProcessingState.completed) {
       _handleCompletion();
     }
