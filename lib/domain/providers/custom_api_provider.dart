@@ -529,11 +529,20 @@ class CustomApiProvider extends BaseMusicProvider {
     }
   }
 
+  /// Admin mutations use the signed-in Supabase JWT (Bearer).
+  /// Never ship a private admin secret or service-role key in APK/Web.
+  /// Optional `--dart-define=ADMIN_API_KEY=...` is CI-only (empty by default).
   Map<String, String> _buildHeaders() {
     final Map<String, String> headers = <String, String>{
       'Content-Type': 'application/json',
-      'X-Admin-Key': 'kalpkrut_admin_secret_2024',
     };
+    const String buildAdminKey = String.fromEnvironment(
+      'ADMIN_API_KEY',
+      defaultValue: '',
+    );
+    if (buildAdminKey.isNotEmpty) {
+      headers['X-Admin-Key'] = buildAdminKey;
+    }
     try {
       final String? token = SupabaseService().currentSession?.accessToken;
       if (token != null && token.isNotEmpty) {
