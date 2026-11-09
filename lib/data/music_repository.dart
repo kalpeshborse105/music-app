@@ -1137,6 +1137,7 @@ class MusicRepository {
     int? campaignEnd,
     List<String>? excludedTrackIds,
     List<Map<String, dynamic>>? customTracks,
+    List<Map<String, dynamic>>? previewTracks,
   }) async {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) {
@@ -1161,6 +1162,7 @@ class MusicRepository {
       if (campaignEnd != null) 'campaign_end': campaignEnd,
       if (excludedTrackIds != null) 'excluded_track_ids': excludedTrackIds,
       if (customTracks != null) 'custom_tracks': customTracks,
+      if (previewTracks != null && previewTracks.isNotEmpty) 'preview_tracks': previewTracks,
     });
     final CatalogSection section = CatalogSection.fromJson(res);
 

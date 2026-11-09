@@ -1428,6 +1428,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           campaignStart: campStart,
           campaignEnd: campEnd,
           excludedTrackIds: _excludedTrackIds.toList(),
+          previewTracks: _previewItems.isNotEmpty
+              ? _previewItems.map((Track t) => t.toJson()).toList()
+              : null,
         );
       }
 
