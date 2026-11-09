@@ -214,6 +214,7 @@ class Track {
       license: json['license'] as String?,
       licenseUrl: json['licenseUrl'] as String?,
       attributionRequired: json['attributionRequired'] as bool? ?? true,
+      extra: (json['extra'] as Map<String, dynamic>?) ?? json,
     );
   }
 

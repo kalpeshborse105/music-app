@@ -2160,7 +2160,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Refreshed "${section.displayTitle}" (${updated.items.length} tracks, ${updated.providerStatus.toUpperCase()})'),
+            content: Text('Refreshed "${section.displayTitle}" (${updated.itemCount > 0 ? updated.itemCount : updated.items.length} tracks, ${updated.providerStatus.toUpperCase()})'),
             backgroundColor: updated.isMock ? AppColors.secondary : AppColors.success,
           ),
         );
@@ -2465,7 +2465,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
                 // Metadata row
                 Text(
-                  '${section.items.length} tracks • Lang: ${section.language.toUpperCase()} • Refreshed: ${_formatLastRefresh(section.lastRefresh)}',
+                  '${section.itemCount > 0 ? section.itemCount : section.items.length} tracks • Lang: ${section.language.toUpperCase()} • Refreshed: ${_formatLastRefresh(section.lastRefresh)}',
                   style: TextStyle(fontSize: 10.5, color: context.textMuted),
                 ),
                 const SizedBox(height: 10),
@@ -2755,7 +2755,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                         ],
                         const SizedBox(width: 8),
                         Text(
-                          '${section.items.length} tracks • Lang: ${section.language.toUpperCase()} • Refreshed: ${_formatLastRefresh(section.lastRefresh)}',
+                          '${section.itemCount > 0 ? section.itemCount : section.items.length} tracks • Lang: ${section.language.toUpperCase()} • Refreshed: ${_formatLastRefresh(section.lastRefresh)}',
                           style: TextStyle(fontSize: 10.5, color: context.textMuted),
                         ),
                       ],

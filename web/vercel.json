@@ -52,23 +52,23 @@
     },
     {
       "source": "/song/:id",
-      "destination": "https://kalpkrut-beats-api.fly.dev/share/song/:id"
+      "destination": "https://music-api-tq5i.onrender.com/share/song/:id"
     },
     {
       "source": "/album/:id",
-      "destination": "https://kalpkrut-beats-api.fly.dev/share/album/:id"
+      "destination": "https://music-api-tq5i.onrender.com/share/album/:id"
     },
     {
       "source": "/artist/:id",
-      "destination": "https://kalpkrut-beats-api.fly.dev/share/artist/:id"
+      "destination": "https://music-api-tq5i.onrender.com/share/artist/:id"
     },
     {
       "source": "/playlist/:id",
-      "destination": "https://kalpkrut-beats-api.fly.dev/share/playlist/:id"
+      "destination": "https://music-api-tq5i.onrender.com/share/playlist/:id"
     },
     {
       "source": "/track/:provider/:id",
-      "destination": "https://kalpkrut-beats-api.fly.dev/share/song/:id"
+      "destination": "https://music-api-tq5i.onrender.com/share/song/:id"
     },
     {
       "source": "/auth/callback",

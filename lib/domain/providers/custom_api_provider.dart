@@ -143,6 +143,21 @@ class CustomApiProvider extends BaseMusicProvider {
     final String trackId = track.providerTrackId.isNotEmpty
         ? track.providerTrackId
         : (track.id.contains(':') ? track.id.split(':').last : track.id);
+
+    final dynamic direct = track.extra['stream_url'] ??
+        track.extra['streamUrl'] ??
+        track.extra['download_url'];
+    if (direct is String &&
+        (direct.startsWith('https://') || direct.startsWith('http://'))) {
+      return StreamSource(
+        url: direct,
+        codec: 'mp4',
+        bitrateKbps: 320,
+        qualityTier: 'Lossless',
+        supportsSeek: true,
+      );
+    }
+
     if (_baseUrl.isEmpty) {
       throw ProviderException(id, message: 'Custom API base URL is not configured');
     }
