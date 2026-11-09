@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../domain/models/track.dart';
+import '../../domain/playback/playback_controller.dart';
 import '../../domain/providers/local_provider.dart';
 import '../../state/library_controller.dart';
 import '../services/track_actions.dart';
@@ -30,6 +31,7 @@ class TrackListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final PlaybackController pc = context.watch<PlaybackController>();
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       bottomNavigationBar: const SafeArea(
@@ -99,9 +101,13 @@ class TrackListScreen extends StatelessWidget {
                           final int trackIndex =
                               (extra == 1 && i > mid) ? i - 1 : i;
                           final Track t = tracks[trackIndex];
+                          final bool isCur = pc.currentTrack?.id == t.id;
                           return TrackTile(
                             track: t,
                             index: trackIndex,
+                            isCurrent: isCur,
+                            isPlaying: isCur && pc.snapshot.isPlaying,
+                            isLoading: isCur && pc.snapshot.isBuffering,
                             onTap: () => TrackActions.playAll(
                                 context, tracks, startIndex: trackIndex),
                             onMenu: () => showTrackActionsSheet(context, t),
@@ -204,6 +210,7 @@ class PlaylistDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final PlaybackController pc = context.watch<PlaybackController>();
     final library = context.watch<LibraryController>();
     final playlist = library.playlist(playlistId);
     if (playlist == null) {
@@ -250,9 +257,13 @@ class PlaylistDetailScreen extends StatelessWidget {
                     }
                     final int trackIndex = (extra == 1 && i > mid) ? i - 1 : i;
                     final Track t = playlist.tracks[trackIndex];
+                    final bool isCur = pc.currentTrack?.id == t.id;
                     return TrackTile(
                       track: t,
                       index: trackIndex,
+                      isCurrent: isCur,
+                      isPlaying: isCur && pc.snapshot.isPlaying,
+                      isLoading: isCur && pc.snapshot.isBuffering,
                       onTap: () => TrackActions.playAll(
                           context, playlist.tracks, startIndex: trackIndex),
                       onMenu: () => showModalBottomSheet<void>(
@@ -313,6 +324,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final PlaybackController pc = context.watch<PlaybackController>();
     final library = context.watch<LibraryController>();
     return Scaffold(
       appBar: AppBar(
@@ -342,8 +354,12 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
                   itemCount: library.localTracks.length,
                   itemBuilder: (BuildContext c, int i) {
                     final Track t = library.localTracks[i];
+                    final bool isCur = pc.currentTrack?.id == t.id;
                     return TrackTile(
                       track: t,
+                      isCurrent: isCur,
+                      isPlaying: isCur && pc.snapshot.isPlaying,
+                      isLoading: isCur && pc.snapshot.isBuffering,
                       onTap: () => TrackActions.playAll(
                           context, library.localTracks, startIndex: i),
                       onMenu: () => showTrackActionsSheet(context, t),

@@ -424,8 +424,13 @@ class MusicRepository {
   /// album title and filter by album id (with a sensible fallback).
   Future<List<Track>> albumTrackList(Album album) async {
     try {
-      final SearchResult r = await _providerFor(album.providerId)
-          .search(album.title, offset: 0, limit: 30);
+      final MusicProvider p = _providerFor(album.providerId);
+      if (p is CustomApiProvider) {
+        final String aid = album.providerAlbumId.isNotEmpty ? album.providerAlbumId : album.id;
+        final List<Track> directTracks = await p.getAlbumTracks(aid);
+        if (directTracks.isNotEmpty) return directTracks;
+      }
+      final SearchResult r = await p.search(album.title, offset: 0, limit: 30);
       final List<Track> matched = r.tracks
           .where((Track t) => t.album?.id == album.id)
           .toList();

@@ -173,8 +173,19 @@ class PlaybackController extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   Future<void> playTrack(Track track, {List<Track>? queue}) async {
     _isMiniPlayerDismissed = false;
-    final List<Track> list = queue ?? <Track>[track];
+    final List<Track> list = queue != null ? List<Track>.from(queue) : <Track>[track];
+    final String targetClean = track.providerTrackId.isNotEmpty
+        ? track.providerTrackId.toLowerCase().trim()
+        : (track.id.contains(':') ? track.id.split(':').last : track.id).toLowerCase().trim();
     int index = list.indexWhere((Track t) => t.id == track.id);
+    if (index < 0 && targetClean.isNotEmpty) {
+      index = list.indexWhere((Track t) {
+        final String tClean = t.providerTrackId.isNotEmpty
+            ? t.providerTrackId.toLowerCase().trim()
+            : (t.id.contains(':') ? t.id.split(':').last : t.id).toLowerCase().trim();
+        return tClean == targetClean;
+      });
+    }
     if (index < 0) {
       list.insert(0, track);
       index = 0;

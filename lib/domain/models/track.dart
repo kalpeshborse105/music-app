@@ -180,10 +180,17 @@ class Track {
       );
     }
 
-    // 3. Duration Parsing
-    final int durMs = (json['durationMs'] as num?)?.toInt() ??
-        (json['duration_ms'] as num?)?.toInt() ??
-        ((json['duration'] as num?)?.toInt() != null ? (json['duration'] as num).toInt() * 1000 : 0);
+    // 3. Duration Parsing (handles num, string, seconds, milliseconds, or null safely)
+    int durMs = 0;
+    final dynamic rawDurMs = json['durationMs'] ?? json['duration_ms'];
+    final dynamic rawDur = json['duration'];
+    if (rawDurMs != null) {
+      durMs = (rawDurMs is num) ? rawDurMs.toInt() : (int.tryParse(rawDurMs.toString()) ?? 0);
+    }
+    if (durMs <= 0 && rawDur != null) {
+      final double s = (rawDur is num) ? rawDur.toDouble() : (double.tryParse(rawDur.toString()) ?? 0.0);
+      durMs = s > 10000 ? s.round() : (s * 1000).round();
+    }
 
     // 4. Artwork URL Parsing
     final String? artworkUrl = json['artworkUrl'] as String? ?? json['artwork_url'] as String? ?? json['thumbnail'] as String?;

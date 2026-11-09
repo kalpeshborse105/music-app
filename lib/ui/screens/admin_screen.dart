@@ -1353,6 +1353,8 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       _catalogIsEnabled = false;
     }
 
+    if (!mounted) return;
+
     final bool isEdit = _editingSection != null;
     final bool? confirmSave = await showDialog<bool>(
       context: context,

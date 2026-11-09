@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../data/music_repository.dart';
 import '../../domain/models/album.dart';
 import '../../domain/models/track.dart';
+import '../../domain/playback/playback_controller.dart';
 import '../../state/library_controller.dart';
 import '../services/track_actions.dart';
 import '../theme/app_spacing.dart';
@@ -38,6 +39,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final PlaybackController pc = context.watch<PlaybackController>();
     final bool saved = context.watch<LibraryController>().isAlbumSaved(widget.album.id);
     return Scaffold(
       appBar: AppBar(
@@ -133,9 +135,13 @@ class _AlbumScreenState extends State<AlbumScreen> {
                   itemCount: snap.data!.length,
                   itemBuilder: (BuildContext c, int i) {
                     final Track t = snap.data![i];
+                    final bool isCur = pc.currentTrack?.id == t.id;
                     return TrackTile(
                       track: t,
                       index: i,
+                      isCurrent: isCur,
+                      isPlaying: isCur && pc.snapshot.isPlaying,
+                      isLoading: isCur && pc.snapshot.isBuffering,
                       onTap: () =>
                           TrackActions.playAll(context, snap.data!, startIndex: i),
                       onMenu: () => showTrackActionsSheet(context, t),

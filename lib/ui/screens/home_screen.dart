@@ -1366,13 +1366,28 @@ class _HomeScreenState extends State<HomeScreen> {
                           openSection(sec);
                         }
                       },
-                      onPlay: sec.items.isNotEmpty
-                          ? () => TrackActions.play(
-                              context,
-                              sec.items.first,
-                              queue: sec.items,
-                            )
-                          : null,
+                      onPlay: () async {
+                        CatalogSection resolved = sec;
+                        if (resolved.items.isEmpty) {
+                          try {
+                            final CatalogSection? full =
+                                await repo.getCatalogSectionDetail(sec.sectionKey);
+                            if (full != null && full.items.isNotEmpty) {
+                              resolved = full;
+                            }
+                          } catch (_) {}
+                        }
+                        if (!context.mounted) return;
+                        if (resolved.items.isNotEmpty) {
+                          TrackActions.play(
+                            context,
+                            resolved.items.first,
+                            queue: resolved.items,
+                          );
+                        } else {
+                          openSection(sec);
+                        }
+                      },
                     );
                   }
 

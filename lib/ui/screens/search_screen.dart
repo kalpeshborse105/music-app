@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart' hide SearchController;
 import 'package:provider/provider.dart';
 
+import '../../domain/models/track.dart';
+import '../../domain/playback/playback_controller.dart';
 import '../../state/library_controller.dart';
 import '../../state/search_controller.dart';
 import '../services/track_actions.dart';
@@ -399,6 +401,7 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildResults(SearchController search) {
+    final PlaybackController pc = context.watch<PlaybackController>();
     final r = search.result;
     final showAll = _selectedFilter == 'All';
 
@@ -452,11 +455,18 @@ class _SearchScreenState extends State<SearchScreen> {
         if ((showAll || _selectedFilter == 'Songs') && r.tracks.isNotEmpty) ...<Widget>[
           const SectionHeader(title: 'Tracks & Songs'),
           for (int i = 0; i < r.tracks.length; i++)
-            TrackTile(
-              track: r.tracks[i],
-              onTap: () => TrackActions.play(context, r.tracks[i], queue: r.tracks),
-              onMenu: () => showTrackActionsSheet(context, r.tracks[i]),
-            ),
+            Builder(builder: (_) {
+              final Track t = r.tracks[i];
+              final bool isCur = pc.currentTrack?.id == t.id;
+              return TrackTile(
+                track: t,
+                isCurrent: isCur,
+                isPlaying: isCur && pc.snapshot.isPlaying,
+                isLoading: isCur && pc.snapshot.isBuffering,
+                onTap: () => TrackActions.play(context, t, queue: r.tracks),
+                onMenu: () => showTrackActionsSheet(context, t),
+              );
+            }),
         ],
 
         // Playlists Section

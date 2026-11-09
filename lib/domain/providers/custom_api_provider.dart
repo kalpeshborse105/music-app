@@ -300,7 +300,16 @@ class CustomApiProvider extends BaseMusicProvider {
     final String trackId = item['id'] as String? ?? '';
     final String title = item['title'] as String? ?? 'Unknown Title';
     final String artistName = item['artist'] as String? ?? 'Unknown Artist';
-    final int durationMs = (item['duration_ms'] as num?)?.toInt() ?? 0;
+    int durationMs = 0;
+    final dynamic rawDurMs = item['duration_ms'] ?? item['durationMs'];
+    final dynamic rawDur = item['duration'];
+    if (rawDurMs != null) {
+      durationMs = (rawDurMs is num) ? rawDurMs.toInt() : (int.tryParse(rawDurMs.toString()) ?? 0);
+    }
+    if (durationMs <= 0 && rawDur != null) {
+      final double s = (rawDur is num) ? rawDur.toDouble() : (double.tryParse(rawDur.toString()) ?? 0.0);
+      durationMs = s > 10000 ? s.round() : (s * 1000).round();
+    }
     final String? artworkUrl = item['artwork_url'] as String?;
 
     return Track(
@@ -340,8 +349,31 @@ class CustomApiProvider extends BaseMusicProvider {
         'year': item['year'] ?? '',
         'album': item['album'] ?? '',
         'play_count': item['play_count'] ?? 0,
+        if (item['stream_url'] != null) 'stream_url': item['stream_url'],
+        if (item['download_url'] != null) 'download_url': item['download_url'],
       },
     );
+  }
+
+  /// Direct track listing for an album
+  Future<List<Track>> getAlbumTracks(String albumId) async {
+    final String cleanId = albumId.replaceFirst('custom_api:album:', '');
+    if (_baseUrl.isEmpty) return <Track>[];
+    try {
+      final Uri uri = Uri.parse('$_baseUrl/api/album/$cleanId');
+      final http.Response res = await http.get(uri).timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        final Map<String, dynamic> body = jsonDecode(res.body) as Map<String, dynamic>;
+        final List<dynamic> rawTracks = (body['tracks'] as List<dynamic>?) ?? <dynamic>[];
+        return rawTracks
+            .whereType<Map<String, dynamic>>()
+            .map((Map<String, dynamic> m) => _mapTrack(m))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('[CustomApiProvider] getAlbumTracks error: $e');
+    }
+    return <Track>[];
   }
 
   @override

@@ -79,26 +79,15 @@ class PlaybackQueue {
 
   static List<Track> _dedupe(List<Track> tracks) {
     final Set<String> seenIds = <String>{};
-    final Map<String, (String, String)> seenTitleScope = <String, (String, String)>{};
     final List<Track> out = <Track>[];
     for (final Track t in tracks) {
-      final String cleanId = t.id.toLowerCase().trim();
-      if (!seenIds.add(cleanId)) continue;
-
-      final String norm = _normalizeTitle(t.title);
-      if (norm.isNotEmpty) {
-        final String lang = (t.extra['language'] as String? ?? '').toLowerCase();
-        final String prov = t.providerId;
-        final (String, String) scope = (prov, lang);
-        final (String, String)? existing = seenTitleScope[norm];
-        if (existing != null && existing == scope) {
-          continue;
-        }
-        seenTitleScope[norm] = scope;
-      }
+      final String cleanId = t.providerTrackId.isNotEmpty
+          ? t.providerTrackId.toLowerCase().trim()
+          : (t.id.contains(':') ? t.id.split(':').last : t.id).toLowerCase().trim();
+      if (cleanId.isNotEmpty && !seenIds.add(cleanId)) continue;
       out.add(t);
     }
-    return out;
+    return out.isNotEmpty ? out : tracks;
   }
 
   /// Replace the queue and start at [startIndex].
@@ -113,8 +102,19 @@ class PlaybackQueue {
       ..addAll(deduped);
 
     if (selected != null) {
-      final int found = _tracks.indexWhere((Track t) => t.id == selected.id);
-      _currentIndex = found >= 0 ? found : 0;
+      final String selClean = selected.providerTrackId.isNotEmpty
+          ? selected.providerTrackId.toLowerCase().trim()
+          : (selected.id.contains(':') ? selected.id.split(':').last : selected.id).toLowerCase().trim();
+      int found = _tracks.indexWhere((Track t) => t.id == selected.id);
+      if (found < 0) {
+        found = _tracks.indexWhere((Track t) {
+          final String tClean = t.providerTrackId.isNotEmpty
+              ? t.providerTrackId.toLowerCase().trim()
+              : (t.id.contains(':') ? t.id.split(':').last : t.id).toLowerCase().trim();
+          return tClean.isNotEmpty && tClean == selClean;
+        });
+      }
+      _currentIndex = found >= 0 ? found : (startIndex < _tracks.length ? startIndex : 0);
     } else {
       _currentIndex = _tracks.isEmpty ? -1 : 0;
     }

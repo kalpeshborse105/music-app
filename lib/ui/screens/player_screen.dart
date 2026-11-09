@@ -88,70 +88,86 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 // 1. Top Bar / Sub-Header Context Navigator
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
-                  child: Row(
-                    children: <Widget>[
-                      IconButton(
-                        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 30),
-                        tooltip: 'Dismiss to miniplayer',
-                        onPressed: () => Navigator.of(context).maybePop(),
-                      ),
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            const Text(
-                              'NOW PLAYING',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1.2,
-                                color: AppColors.secondary,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              track.album?.title.isNotEmpty == true && track.album?.title != 'Single'
-                                  ? track.album!.title
-                                  : track.artistNames,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontFamily: 'Plus Jakarta Sans',
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
+                  child: SizedBox(
+                    height: 48,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: <Widget>[
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: IconButton(
+                            icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 30),
+                            tooltip: 'Dismiss to miniplayer',
+                            onPressed: () => Navigator.of(context).maybePop(),
+                          ),
                         ),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          pc.sleepTimerRemaining != null
-                              ? Icons.bedtime_rounded
-                              : Icons.bedtime_outlined,
-                          color: pc.sleepTimerRemaining != null
-                              ? AppColors.secondary
-                              : Colors.white,
-                          size: 22,
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 96),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              const Text(
+                                'NOW PLAYING',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.2,
+                                  color: AppColors.secondary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                track.title,
+                                maxLines: 1,
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontFamily: 'Plus Jakarta Sans',
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        tooltip: pc.sleepTimerRemaining != null
-                            ? 'Sleep Timer: ${pc.sleepTimerRemaining!.inMinutes}m left'
-                            : 'Sleep Timer',
-                        onPressed: () => showSleepTimerSheet(context),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.share_rounded, color: Colors.white, size: 21),
-                        tooltip: 'Share Track',
-                        onPressed: () => TrackActions.share(context, track),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.more_horiz_rounded, color: Colors.white, size: 24),
-                        tooltip: 'Options',
-                        onPressed: () => showTrackActionsSheet(context, track),
-                      ),
-                    ],
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              IconButton(
+                                icon: Icon(
+                                  pc.sleepTimerRemaining != null
+                                      ? Icons.bedtime_rounded
+                                      : Icons.bedtime_outlined,
+                                  color: pc.sleepTimerRemaining != null
+                                      ? AppColors.secondary
+                                      : Colors.white,
+                                  size: 22,
+                                ),
+                                tooltip: pc.sleepTimerRemaining != null
+                                    ? 'Sleep Timer: ${pc.sleepTimerRemaining!.inMinutes}m left'
+                                    : 'Sleep Timer',
+                                onPressed: () => showSleepTimerSheet(context),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.share_rounded, color: Colors.white, size: 21),
+                                tooltip: 'Share Track',
+                                onPressed: () => TrackActions.share(context, track),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.more_horiz_rounded, color: Colors.white, size: 24),
+                                tooltip: 'Options',
+                                onPressed: () => showTrackActionsSheet(context, track),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
 

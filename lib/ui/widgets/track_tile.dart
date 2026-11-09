@@ -18,6 +18,7 @@ class TrackTile extends StatelessWidget {
   final VoidCallback? onMenu;
   final bool isCurrent;
   final bool isPlaying;
+  final bool isLoading;
   final int? index;
   final bool showSource;
   final bool dense;
@@ -30,6 +31,7 @@ class TrackTile extends StatelessWidget {
     this.onMenu,
     this.isCurrent = false,
     this.isPlaying = false,
+    this.isLoading = false,
     this.index,
     this.showSource = false,
     this.dense = false,
@@ -69,8 +71,27 @@ class TrackTile extends StatelessWidget {
                 Container(
                   width: 30,
                   alignment: Alignment.centerLeft,
-                  child: isCurrent && isPlaying
-                      ? const NowPlayingBars(size: 16, color: AppColors.secondary)
+                  child: isCurrent
+                      ? (isLoading
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.secondary,
+                              ),
+                            )
+                          : (isPlaying
+                              ? const NowPlayingBars(size: 16, color: AppColors.secondary)
+                              : Text(
+                                  '${index! + 1}',
+                                  style: TextStyle(
+                                    fontFamily: 'Plus Jakarta Sans',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: rankColor,
+                                  ),
+                                )))
                       : Text(
                           '${index! + 1}',
                           style: TextStyle(
@@ -98,11 +119,20 @@ class TrackTile extends StatelessWidget {
                           borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
                         ),
                         child: Center(
-                          child: NowPlayingBars(
-                            playing: isPlaying,
-                            size: 16,
-                            color: Colors.white,
-                          ),
+                          child: isLoading
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : NowPlayingBars(
+                                  playing: isPlaying,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
                         ),
                       ),
                     ),

@@ -58,6 +58,10 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
   AudioSession? _session;
   bool _advancing = false;
   int _loadGeneration = 0;
+  Track? _activeTrack;
+
+  /// The track currently loaded and playing in the audio player.
+  Track? get activeTrack => _activeTrack;
 
   /// Optional hook so the app can record history when a track starts.
   void Function(Track track)? onTrackStarted;
@@ -66,20 +70,26 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
   /// handler advances, so it can extend the queue (e.g. autoplay radio).
   Future<void> Function(Track track, bool completed)? onTrackEnded;
 
-  PlaybackSnapshot get snapshot => PlaybackSnapshot(
-        track: queueModel.current,
-        queueIndex: queueModel.currentIndex,
-        playing: _player.playing,
-        processingState: _player.processingState,
-        position: _player.position,
-        duration: _player.duration ?? queueModel.current?.duration ?? Duration.zero,
-        buffered: _player.bufferedPosition,
-        repeatMode: queueModel.repeat,
-        shuffleMode: queueModel.shuffle,
-        hasNext: queueModel.hasNext,
-        hasPrevious: queueModel.hasPrevious,
-        volume: _player.volume,
-      );
+  PlaybackSnapshot get snapshot {
+    final Track? active = _activeTrack ?? queueModel.current;
+    final Duration d = (_player.duration != null && _player.duration! > Duration.zero)
+        ? _player.duration!
+        : (active?.duration ?? Duration.zero);
+    return PlaybackSnapshot(
+      track: active,
+      queueIndex: queueModel.currentIndex,
+      playing: _player.playing,
+      processingState: _player.processingState,
+      position: _player.position,
+      duration: d,
+      buffered: _player.bufferedPosition,
+      repeatMode: queueModel.repeat,
+      shuffleMode: queueModel.shuffle,
+      hasNext: queueModel.hasNext,
+      hasPrevious: queueModel.hasPrevious,
+      volume: _player.volume,
+    );
+  }
 
   Future<void> _init() async {
     try {
@@ -251,18 +261,30 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
     final int generation = ++_loadGeneration;
     final Track? track = queueModel.current;
     if (track == null) {
+      _activeTrack = null;
       await _player.stop();
+      mediaItem.add(null);
       _broadcastState();
       return;
     }
     try {
+      // 1. Immediately stop prior playback so old audio cannot keep playing
+      await _player.stop();
+
+      // 2. Pre-publish MediaItem and loading state for instant notification and UI response
+      mediaItem.add(_mediaItemFor(track));
       _broadcastState(processingState: AudioProcessingState.loading);
+
+      // 3. Resolve stream URL
       final StreamSource source = await _resolver(track);
       if (generation != _loadGeneration) {
         // A newer track was requested while resolving this one — cancel stale load.
         return;
       }
       final String rawUrl = source.url;
+      if (rawUrl.isEmpty) {
+        throw Exception('No playable stream URL for "${track.title}"');
+      }
       final Uri uri;
       if (rawUrl.startsWith('file://')) {
         uri = Uri.parse(rawUrl);
@@ -274,6 +296,14 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
         uri = Uri.parse(rawUrl);
       }
 
+      // 4. Activate audio session for mobile foreground playback & audio focus
+      try {
+        if (_session != null) {
+          await _session!.setActive(true);
+        }
+      } catch (_) {}
+
+      // 5. Load the new AudioSource into just_audio
       await _player.setAudioSource(
         AudioSource.uri(
           uri,
@@ -283,19 +313,23 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
         preload: true,
       );
       if (generation != _loadGeneration) return;
-      if (position != null && position > Duration.zero) {
-        await _player.seek(position);
-      }
+
+      // 6. Explicitly seek to position (or Duration.zero) so player never holds previous position
+      await _player.seek(position ?? Duration.zero);
+
       if (autoplay) {
         await _player.play();
       }
-      onTrackStarted?.call(queueModel.current!);
+
+      _activeTrack = track;
+      onTrackStarted?.call(track);
       await _pushQueueToService();
       _broadcastState();
       _schedulePersist();
     } catch (e) {
       if (generation != _loadGeneration) return;
       Logger.warn('Playback load failed for track ${track.id}', error: e);
+      _activeTrack = null;
       _broadcastState(
         processingState: AudioProcessingState.error,
         errorMessage: 'Playback error: Unable to stream "${track.title}". Please retry or check network.',
@@ -313,8 +347,15 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> _handleCompletion() async {
     if (_advancing) return;
     _advancing = true;
-    final Track? finished = queueModel.current;
+    final Track? finished = _activeTrack ?? queueModel.current;
     try {
+      if (queueModel.repeat == RepeatMode.one) {
+        // Repeat single track: seek to 0 and replay
+        await _player.seek(Duration.zero);
+        await _player.play();
+        return;
+      }
+
       Track? next = queueModel.next();
       if (next == null && onTrackEnded != null) {
         // Queue reached the end: await radio autoplay to extend queue if enabled
@@ -326,6 +367,7 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
       }
 
       if (next == null) {
+        _activeTrack = null;
         await _player.stop();
         _broadcastState(processingState: AudioProcessingState.completed);
       } else {
@@ -344,7 +386,10 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
     final Track? t = queueModel.current;
     if (t == null) return;
     final bool needsLoad = _player.audioSource == null ||
-        _player.processingState == ProcessingState.idle;
+        _player.processingState == ProcessingState.idle ||
+        _player.processingState == ProcessingState.completed ||
+        _activeTrack == null ||
+        _activeTrack?.id != t.id;
     if (needsLoad) {
       await _loadCurrent(autoplay: true);
     } else {
@@ -357,7 +402,7 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> pause() async {
     await _player.pause();
     _broadcastState();
-    await onTrackEnded?.call(queueModel.current ?? _empty, false);
+    await onTrackEnded?.call(_activeTrack ?? queueModel.current ?? _empty, false);
     _schedulePersist();
   }
 
@@ -374,7 +419,7 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
       await _player.pause();
       return;
     }
-    await _loadCurrent(autoplay: true);
+    await _loadCurrent(position: Duration.zero, autoplay: true);
     _notifyQueueChanged();
   }
 
@@ -387,7 +432,7 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
     }
     final Track? prev = queueModel.previous();
     if (prev == null) return;
-    await _loadCurrent(autoplay: true);
+    await _loadCurrent(position: Duration.zero, autoplay: true);
     _notifyQueueChanged();
   }
 
@@ -421,6 +466,7 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> stop() async {
+    _activeTrack = null;
     await _player.stop();
     queueModel.clear();
     mediaItem.add(null);
@@ -604,4 +650,6 @@ class PlaybackSnapshot {
 
   bool get isBuffering => processingState == ProcessingState.buffering ||
       processingState == ProcessingState.loading;
+
+  bool get isPlaying => playing;
 }
