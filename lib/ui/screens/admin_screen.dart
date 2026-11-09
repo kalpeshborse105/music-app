@@ -1647,19 +1647,33 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     if (confirm == true) {
       if (!mounted) return;
       final String deleteKey = s.sectionKey.isNotEmpty ? s.sectionKey : s.id;
-      // Optimistic remove so ghost rows cannot linger if reload races.
-      setState(() {
-        _catalogSections = _catalogSections
-            .where((CatalogSection x) =>
-                x.sectionKey != s.sectionKey &&
-                x.id != s.id &&
-                (s.sourceId.isEmpty || x.sourceId != s.sourceId))
-            .toList();
-      });
+      // Keep the row visible until the server confirms DB delete — no optimistic
+      // remove (that caused "gone then TimeoutException / restore" confusion).
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext ctx) => const PopScope(
+          canPop: false,
+          child: AlertDialog(
+            content: Row(
+              children: <Widget>[
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2.6),
+                ),
+                SizedBox(width: 16),
+                Expanded(child: Text('Deleting from database…')),
+              ],
+            ),
+          ),
+        ),
+      );
       try {
         final MusicRepository repo = context.read<MusicRepository>();
         await repo.deleteCatalogSection(deleteKey);
         if (mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
           await repo.invalidateCatalogCache();
           await _loadCatalogSections(forceRefresh: true);
           HomeScreen.silentRefreshLatest();
@@ -1670,6 +1684,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           );
         }
       } catch (e) {
+        if (mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+        }
         final String msg = e.toString().toLowerCase();
         final bool alreadyGone = msg.contains('not found') || msg.contains('404');
         if (!mounted) return;
@@ -1686,17 +1703,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             message: '"${s.displayTitle}" was already gone. Catalogue list refreshed.',
           );
         } else {
-          // Restore row on real failure
-          setState(() {
-            if (!_catalogSections.any((CatalogSection x) => x.sectionKey == s.sectionKey)) {
-              _catalogSections = <CatalogSection>[..._catalogSections, s]
-                ..sort((CatalogSection a, CatalogSection b) => a.position.compareTo(b.position));
-            }
-          });
           await _showAdminResultDialog(
             success: false,
             title: 'Delete failed',
-            message: e.toString().replaceFirst('Exception: ', ''),
+            message: _formatErrorMessage(e),
           );
         }
       }

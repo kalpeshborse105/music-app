@@ -618,10 +618,12 @@ class CustomApiProvider extends BaseMusicProvider {
   Future<bool> deleteCatalogSection(String key) async {
     final String encodedKey = Uri.encodeComponent(key);
     final Uri uri = Uri.parse('$_baseUrl/api/catalog/sections/$encodedKey');
+    // Keep under the old working envelope — server delete must finish quickly;
+    // a 35s hang produced TimeoutException after the admin UI already changed.
     final http.Response res = await http.delete(
       uri,
       headers: _buildHeaders(),
-    ).timeout(const Duration(seconds: 35));
+    ).timeout(const Duration(seconds: 20));
     if (res.statusCode < 200 || res.statusCode >= 300) {
       String msg = 'Failed to delete section (${res.statusCode})';
       try {

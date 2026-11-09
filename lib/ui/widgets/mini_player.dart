@@ -177,11 +177,22 @@ class MiniPlayer extends StatelessWidget {
                         width: 38,
                         height: 38,
                         alignment: Alignment.center,
-                        child: Icon(
-                          pc.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                          color: Colors.white,
-                          size: 22,
-                        ),
+                        child: pc.snapshot.isBuffering
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Icon(
+                                pc.isPlaying
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                                color: Colors.white,
+                                size: 22,
+                              ),
                       ),
                     ),
                   ),

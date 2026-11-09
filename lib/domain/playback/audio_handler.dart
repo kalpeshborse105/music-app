@@ -59,6 +59,9 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
   bool _advancing = false;
   int _loadGeneration = 0;
   Track? _activeTrack;
+  /// True while resolving/loading the intended queue track (before just_audio
+  /// reports loading/buffering). Keeps cover/title + spinner in sync with skips.
+  bool _loadInFlight = false;
 
   /// The track currently loaded and playing in the audio player.
   Track? get activeTrack => _activeTrack;
@@ -71,16 +74,20 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> Function(Track track, bool completed)? onTrackEnded;
 
   PlaybackSnapshot get snapshot {
-    final Track? active = _activeTrack ?? queueModel.current;
+    // Prefer the intended queue track so cover/title never lag behind audio skips.
+    final Track? active = queueModel.current ?? _activeTrack;
     final Duration d = (_player.duration != null && _player.duration! > Duration.zero)
         ? _player.duration!
         : (active?.duration ?? Duration.zero);
+    final ProcessingState uiState = _loadInFlight
+        ? ProcessingState.loading
+        : _player.processingState;
     return PlaybackSnapshot(
       track: active,
       queueIndex: queueModel.currentIndex,
       playing: _player.playing,
-      processingState: _player.processingState,
-      position: _player.position,
+      processingState: uiState,
+      position: _loadInFlight ? Duration.zero : _player.position,
       duration: d,
       buffered: _player.bufferedPosition,
       repeatMode: queueModel.repeat,
@@ -262,20 +269,22 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
     final Track? track = queueModel.current;
     if (track == null) {
       _activeTrack = null;
+      _loadInFlight = false;
       await _player.stop();
       mediaItem.add(null);
       _broadcastState();
       return;
     }
     try {
-      // 1. Immediately stop prior playback so old audio cannot keep playing
+      // 1. Stop prior audio, then publish the NEW track immediately so cover/title
+      //    match the queue (JioSaavn-style: UI updates first, then waits to play).
       await _player.stop();
-
-      // 2. Pre-publish MediaItem and loading state for instant notification and UI response
+      _activeTrack = track;
+      _loadInFlight = true;
       mediaItem.add(_mediaItemFor(track));
       _broadcastState(processingState: AudioProcessingState.loading);
 
-      // 3. Resolve stream URL
+      // 2. Resolve stream URL (UI stays on loading spinner for this track)
       final StreamSource source = await _resolver(track);
       if (generation != _loadGeneration) {
         // A newer track was requested while resolving this one — cancel stale load.
@@ -296,31 +305,40 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
         uri = Uri.parse(rawUrl);
       }
 
-      // 4. Activate audio session for mobile foreground playback & audio focus
+      // 3. Activate audio session for mobile foreground playback & audio focus
       try {
         if (_session != null) {
           await _session!.setActive(true);
         }
       } catch (_) {}
 
-      // 5. Load the new AudioSource into just_audio
+      // 4. Load the new AudioSource into just_audio
+      final Duration startAt = position ?? Duration.zero;
       await _player.setAudioSource(
         AudioSource.uri(
           uri,
           headers: source.headers.isEmpty ? null : source.headers,
           tag: _mediaItemFor(track),
         ),
+        initialPosition: startAt,
         preload: true,
       );
       if (generation != _loadGeneration) return;
 
-      // 6. Explicitly seek to position (or Duration.zero) so player never holds previous position
-      await _player.seek(position ?? Duration.zero);
-
+      // 5. Play once buffered enough — natural wait-then-play (no second tap)
       if (autoplay) {
         await _player.play();
+        // Web / slow networks: retry once if the first play was swallowed.
+        if (!_player.playing && generation == _loadGeneration) {
+          await Future<void>.delayed(const Duration(milliseconds: 120));
+          if (generation == _loadGeneration) {
+            await _player.play();
+          }
+        }
       }
 
+      if (generation != _loadGeneration) return;
+      _loadInFlight = false;
       _activeTrack = track;
       onTrackStarted?.call(track);
       await _pushQueueToService();
@@ -329,6 +347,7 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
     } catch (e) {
       if (generation != _loadGeneration) return;
       Logger.warn('Playback load failed for track ${track.id}', error: e);
+      _loadInFlight = false;
       _activeTrack = null;
       _broadcastState(
         processingState: AudioProcessingState.error,
@@ -466,7 +485,9 @@ class EchoAudioHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> stop() async {
+    _loadGeneration++;
     _activeTrack = null;
+    _loadInFlight = false;
     await _player.stop();
     queueModel.clear();
     mediaItem.add(null);
