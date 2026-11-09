@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 
 import '../core/cache/cache_store.dart';
 import '../core/cache/ttl_cache.dart';
+import '../core/catalog/catalog_cache_policy.dart';
 import '../core/constants/app_constants.dart';
 import '../core/errors/app_exception.dart';
 import '../core/storage/download_store.dart';
@@ -699,10 +700,6 @@ class MusicRepository {
         '${(group ?? 'all').toLowerCase()}';
   }
 
-  int _catalogFilledCount(List<CatalogSection> sections) {
-    return sections.where((CatalogSection s) => s.items.isNotEmpty).length;
-  }
-
   List<CatalogSection>? _readCatalogCache(String key) {
     final List<dynamic>? raw = _cache?.getList(key);
     if (raw == null || raw.isEmpty) return null;
@@ -731,44 +728,27 @@ class MusicRepository {
     }
   }
 
-  bool _catalogLooksHealthy(List<CatalogSection> sections) {
-    if (sections.isEmpty) return false;
-    final int filled = _catalogFilledCount(sections);
-    // Accept metadata-heavy catalogues (items may fill later via revalidate).
-    return filled >= 1 || sections.length >= 5;
-  }
+  bool _catalogLooksHealthy(List<CatalogSection> sections) =>
+      catalogTrackCacheLooksHealthy(sections);
 
-  /// Keep track payloads from cache only when network returned live empty
-  /// and the cached rows are not mock. Never re-attach mock/offline tracks.
-  /// Never re-attach stale items if fresh section was updated/refreshed or if forceRefresh is true.
+  /// Keep track payloads from cache when network returned live-empty metadata.
   List<CatalogSection> _mergeCatalogNetworkMeta(
     List<CatalogSection> fresh,
-    List<CatalogSection>? cached, {
-    bool forceRefresh = false,
-  }) {
-    if (forceRefresh) return fresh;
+    List<CatalogSection>? cached,
+  ) {
     if (cached == null || cached.isEmpty) return fresh;
     final Map<String, CatalogSection> byKey = <String, CatalogSection>{
       for (final CatalogSection s in cached) s.sectionKey: s,
     };
-    return fresh.map((CatalogSection s) {
-      if (s.items.isNotEmpty) return s;
-      if (s.isMock || s.providerStatus == 'offline_mock' || s.providerStatus == 'unavailable') {
-        return s;
-      }
-      final CatalogSection? old = byKey[s.sectionKey];
-      if (old == null || old.items.isEmpty || old.isMock) return s;
-      if (old.providerStatus == 'offline_mock') return s;
-      // Stale tracks prevention: If fresh metadata has a newer timestamp or different sourceUrl,
-      // the section was modified or refreshed by admin; never re-attach stale cached tracks!
-      if (s.updatedAt > old.updatedAt || (s.sourceUrl.isNotEmpty && s.sourceUrl != old.sourceUrl)) {
-        return s;
-      }
-      return s.copyWith(
-        items: old.items,
-        itemCount: old.items.length,
-      );
-    }).toList();
+    // Disk-bypass and soft refresh both preserve tracks on thin/failed rows (R8).
+    return fresh
+        .map(
+          (CatalogSection s) => mergeCatalogSectionTracks(
+            fresh: s,
+            cached: byKey[s.sectionKey],
+          ),
+        )
+        .toList();
   }
 
   /// Drop disk + memory catalogue cache so Home picks up admin edits instantly.
@@ -853,6 +833,9 @@ class MusicRepository {
     }
   }
 
+  /// Home / ordinary refresh: [forceRefresh] bypasses Flutter disk cache only.
+  /// It never sends API `refresh=1` (that re-resolves every Jio shelf).
+  /// Admin Jio re-resolve must call [refreshCatalogSection] / refresh-all instead.
   Future<List<CatalogSection>> getCatalogSections({
     bool includeDisabled = false,
     String? lang,
@@ -863,7 +846,7 @@ class MusicRepository {
       includeDisabled: includeDisabled,
       lang: lang,
       group: group,
-      forceRefresh: forceRefresh,
+      bypassDiskCache: forceRefresh,
     );
     // Admin includeDisabled keeps every row for editing; Home/Web dedupe repeats.
     if (includeDisabled) return result;
@@ -874,7 +857,7 @@ class MusicRepository {
     bool includeDisabled = false,
     String? lang,
     String? group,
-    bool forceRefresh = false,
+    bool bypassDiskCache = false,
   }) async {
     final String cacheKey = _catalogCacheKey(
       includeDisabled: includeDisabled,
@@ -886,8 +869,8 @@ class MusicRepository {
         : _readCatalogCache(cacheKey);
     final bool cacheOk = cached != null && _catalogLooksHealthy(cached);
 
-    // Instant reopen from healthy disk cache
-    if (cacheOk && !forceRefresh) {
+    // Instant reopen from healthy disk track cache
+    if (cacheOk && !bypassDiskCache) {
       final DateTime? lastFetched = _catalogLastFetched[cacheKey];
       final bool isStale = lastFetched == null ||
           DateTime.now().difference(lastFetched) > const Duration(minutes: 30);
@@ -897,13 +880,10 @@ class MusicRepository {
       return cached;
     }
 
-    // Network / Supabase first — never paint or persist the APK bundled seed as
-    // the live catalogue (that made new installs show deleted/old admin shelves).
+    // Network first. bypassDiskCache = Flutter disk only — never API refresh=1.
     final CustomApiProvider? provider = _customApiProvider;
     if (provider != null) {
       try {
-        // forceRefresh = bypass local disk only. Never send refresh=1 here —
-        // that re-resolves every Jio shelf and makes Home show "Loading…" forever.
         final List<Map<String, dynamic>> raw = await provider.getCatalogSections(
           includeDisabled: includeDisabled,
           lang: lang,
@@ -914,33 +894,30 @@ class MusicRepository {
           final List<CatalogSection> fresh = raw
               .map((Map<String, dynamic> m) => CatalogSection.fromJson(m))
               .toList();
-          // Always keep richer cached track payloads when network returns thin
-          // metadata (item_count set, items empty) — otherwise Home shows blank
-          // TRACK shelves / "0 songs" banners.
           final List<CatalogSection> merged =
-              _mergeCatalogNetworkMeta(fresh, cached, forceRefresh: forceRefresh);
-          if (forceRefresh || _catalogLooksHealthy(merged) || !cacheOk) {
-            _catalogLastFetched[cacheKey] = DateTime.now();
-            if (!includeDisabled) {
-              await _writeCatalogCache(
-                cacheKey,
-                merged.map((CatalogSection s) => s.toJson()).toList(),
-              );
-            }
-            return merged;
+              _mergeCatalogNetworkMeta(fresh, cached);
+          _catalogLastFetched[cacheKey] = DateTime.now();
+          // Only persist healthy track caches — never poison disk with metadata-only.
+          if (!includeDisabled && _catalogLooksHealthy(merged)) {
+            await _writeCatalogCache(
+              cacheKey,
+              merged.map((CatalogSection s) => s.toJson()).toList(),
+            );
           }
-          return cached;
+          return merged;
         }
       } catch (e) {
         debugPrint('[MusicRepository] getCatalogSections error: $e');
       }
     }
 
-    if (cacheOk) return cached;
+    final List<CatalogSection>? healthyCached = cacheOk ? cached : null;
+    if (healthyCached != null) {
+      return healthyCached;
+    }
 
-    // After a successful admin delete the API list is truth. Do not resurrect
-    // shelves from a direct Supabase read or the bundled seed (both lag deletes).
-    if (forceRefresh) {
+    // After admin delete / disk bypass: do not resurrect from Supabase/seed.
+    if (bypassDiskCache) {
       return cached ?? <CatalogSection>[];
     }
 
@@ -951,7 +928,8 @@ class MusicRepository {
         group: group,
       );
       if (dbSections.isNotEmpty) {
-        if (!includeDisabled) {
+        // Membership fallback may be metadata-only — do not poison track cache.
+        if (!includeDisabled && _catalogLooksHealthy(dbSections)) {
           await _writeCatalogCache(
             cacheKey,
             dbSections.map((CatalogSection s) => s.toJson()).toList(),
@@ -990,12 +968,11 @@ class MusicRepository {
               .map((Map<String, dynamic> m) => CatalogSection.fromJson(m))
               .toList();
           final List<CatalogSection>? old = _readCatalogCache(cacheKey);
-          final List<CatalogSection> merged =
-              _mergeCatalogNetworkMeta(fresh, old);
+          final List<CatalogSection> merged = _mergeCatalogNetworkMeta(fresh, old);
           final List<CatalogSection> deduped =
               _dedupeCatalogSections(merged);
           _catalogLastFetched[cacheKey] = DateTime.now();
-          if (!includeDisabled) {
+          if (!includeDisabled && _catalogLooksHealthy(deduped)) {
             await _writeCatalogCache(
               cacheKey,
               deduped.map((CatalogSection s) => s.toJson()).toList(),
@@ -1017,12 +994,13 @@ class MusicRepository {
     return CatalogSection.fromJson(res);
   }
 
+  /// Admin-only: force JioSaavn re-resolve for one section (POST .../refresh).
+  /// Distinct from [getCatalogSections] disk bypass used by Home refresh.
   Future<CatalogSection?> refreshCatalogSection(String key) async {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) {
       throw const ProviderException('custom_api', message: 'Custom API provider unavailable.');
     }
-    // Admin single-section refresh must always call force-refresh endpoint.
     final Map<String, dynamic> res = await provider.refreshCatalogSection(key);
     final CatalogSection section = CatalogSection.fromJson(res);
     await invalidateCatalogCache();
@@ -1172,60 +1150,86 @@ class MusicRepository {
     final CatalogSection section = CatalogSection.fromJson(res);
 
     await invalidateCatalogCache();
-    // Verify persistence with short retries — create may finish before list catch-up.
     final bool exists = await _verifyCatalogSectionPersisted(
       key: section.key,
       id: section.id,
-      displayTitle: section.displayTitle,
-      sourceUrl: section.sourceUrl,
     );
     if (!exists) {
-      // Create already returned 201 with the row — don't fail the admin save UX.
-      debugPrint(
-        '[MusicRepository] create verify miss for ${section.key}; keeping server response',
+      throw ProviderException(
+        'custom_api',
+        message:
+            'Save could not be confirmed in the database. The section may not be visible to users — retry Save.',
       );
     }
     return section;
   }
 
+  /// Confirm membership by stable [id] (preferred) or [key] via API lite list,
+  /// then detail GET, then Supabase row read. Title/URL alone is not enough (R1).
   Future<bool> _verifyCatalogSectionPersisted({
     required String key,
     required String id,
-    String? displayTitle,
-    String? sourceUrl,
   }) async {
     final CustomApiProvider? provider = _customApiProvider;
     if (provider == null) return false;
     final String normKey = key.toLowerCase().replaceAll('-', '_');
+    final String wantId = id.trim();
+
+    bool matches(Map<String, dynamic> m) {
+      final String sid = (m['id'] as String? ?? '').trim();
+      if (wantId.isNotEmpty && sid == wantId) return true;
+      final String sk =
+          (m['key'] as String? ?? '').toLowerCase().replaceAll('-', '_');
+      return sk == normKey || sk == key.toLowerCase();
+    }
+
     for (int attempt = 0; attempt < 4; attempt++) {
       if (attempt > 0) {
         await Future<void>.delayed(Duration(milliseconds: 350 * attempt));
       }
-      // Lite list only — never refresh=1 (that re-resolves every shelf and times out).
-      final List<Map<String, dynamic>> raw = await provider.getCatalogSections(
-        includeDisabled: true,
-        lite: true,
-      );
-      final bool found = raw.any((Map<String, dynamic> m) {
-        final String sk =
-            (m['key'] as String? ?? '').toLowerCase().replaceAll('-', '_');
-        final String sid = m['id'] as String? ?? '';
-        if (sk == normKey || (id.isNotEmpty && sid == id) || sk == key) {
-          return true;
+      try {
+        final List<Map<String, dynamic>> raw = await provider.getCatalogSections(
+          includeDisabled: true,
+          lite: true,
+        );
+        if (raw.any(matches)) return true;
+      } catch (e) {
+        debugPrint('[MusicRepository] verify lite list error: $e');
+      }
+
+      // Stable-ID detail GET (membership, not Jio re-resolve).
+      final String detailKey = wantId.isNotEmpty ? wantId : key;
+      try {
+        final Map<String, dynamic>? detail =
+            await provider.getCatalogSectionDetail(detailKey);
+        if (detail != null && matches(detail)) return true;
+      } catch (_) {}
+
+      // Supabase membership by id/key — confirms durable persist when API lagging.
+      if (SupabaseService().isInitialized && wantId.isNotEmpty) {
+        try {
+          final dynamic client = SupabaseService().client;
+          final List<dynamic> rows = await client
+              .from('catalog_sections')
+              .select('id,key')
+              .eq('id', wantId)
+              .limit(1);
+          if (rows.isNotEmpty) return true;
+        } catch (e) {
+          debugPrint('[MusicRepository] verify Supabase id miss: $e');
         }
-        final String title = m['display_title'] as String? ?? '';
-        final String url = m['source_url'] as String? ?? '';
-        if (displayTitle != null &&
-            displayTitle.isNotEmpty &&
-            title == displayTitle &&
-            sourceUrl != null &&
-            sourceUrl.isNotEmpty &&
-            url == sourceUrl) {
-          return true;
-        }
-        return false;
-      });
-      if (found) return true;
+      }
+      if (SupabaseService().isInitialized && key.isNotEmpty) {
+        try {
+          final dynamic client = SupabaseService().client;
+          final List<dynamic> rows = await client
+              .from('catalog_sections')
+              .select('id,key')
+              .eq('key', key)
+              .limit(1);
+          if (rows.isNotEmpty) return true;
+        } catch (_) {}
+      }
     }
     return false;
   }
@@ -1290,14 +1294,14 @@ class MusicRepository {
 
     await invalidateCatalogCache();
     final bool exists = await _verifyCatalogSectionPersisted(
-      key: key,
+      key: section.key.isNotEmpty ? section.key : key,
       id: section.id,
-      displayTitle: section.displayTitle,
-      sourceUrl: section.sourceUrl,
     );
     if (!exists) {
-      debugPrint(
-        '[MusicRepository] update verify miss for $key; keeping server response',
+      throw ProviderException(
+        'custom_api',
+        message:
+            'Update could not be confirmed in the database. Changes may not reach users — retry Save.',
       );
     }
     return section;
