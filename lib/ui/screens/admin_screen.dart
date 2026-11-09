@@ -1204,14 +1204,28 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           }
         }
 
-        final String? defaultTitle = (preview['default_title'] ?? preview['detected_title']) as String?;
-        final String detectedType = (preview['source_type'] as String?) ?? _inferSourceType(url);
-        final String? detectedArt = (preview['custom_artwork_url'] ?? preview['detected_artwork']) as String?;
+        String? asStr(dynamic v) {
+          if (v == null) return null;
+          if (v is String) return v;
+          if (v is num || v is bool) return v.toString();
+          if (v is Map) {
+            final dynamic t = v['title'] ?? v['name'] ?? v['message'];
+            return t is String ? t : null;
+          }
+          return null;
+        }
+
+        final String? defaultTitle =
+            asStr(preview['default_title'] ?? preview['detected_title']);
+        final String detectedType =
+            asStr(preview['source_type']) ?? _inferSourceType(url);
+        final String? detectedArt =
+            asStr(preview['custom_artwork_url'] ?? preview['detected_artwork']);
         final bool isMock = preview['is_mock'] == true;
 
         setState(() {
           _detectedSourceType = detectedType;
-          _detectedSourceId = preview['source_id'] as String?;
+          _detectedSourceId = asStr(preview['source_id']);
           _previewProviderStatus = isMock ? 'OK [MOCK]' : 'OK [LIVE]';
           _previewIsMock = isMock;
           _previewItems = tracks;

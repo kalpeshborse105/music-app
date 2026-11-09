@@ -82,9 +82,10 @@ class CatalogSection {
 
   static bool _isJunkCatalogTrack(Map<String, dynamic> item) {
     if (item['is_mock'] == true) return true;
-    final String title = (item['title'] as String? ?? '').trim();
-    final String artist = (item['artist'] as String? ?? '').trim();
-    final String id = (item['id'] as String? ?? item['token'] as String? ?? '').trim();
+    final String title = _asString(item['title'])?.trim() ?? '';
+    final String artist = _asString(item['artist'])?.trim() ?? '';
+    final String id =
+        (_asString(item['id']) ?? _asString(item['token']) ?? '').trim();
     if (title.isEmpty) return true;
     final String tl = title.toLowerCase();
     final String al = artist.toLowerCase();
@@ -97,6 +98,20 @@ class CatalogSection {
     if (artist.toUpperCase() == 'NULL') return true;
     if (id.isEmpty || id.toLowerCase() == 'null') return true;
     return false;
+  }
+
+  /// Jio / create responses sometimes nest objects (album Map, last_error JSON).
+  /// Never cast those with `as String?` — that throws `_JsonMap` on admin Save.
+  static String? _asString(dynamic value) {
+    if (value == null) return null;
+    if (value is String) return value;
+    if (value is num || value is bool) return value.toString();
+    if (value is Map) {
+      final dynamic titled = value['title'] ?? value['name'] ?? value['message'];
+      if (titled is String && titled.trim().isNotEmpty) return titled;
+      return null;
+    }
+    return null;
   }
 
   static int _asUnixSeconds(dynamic value) {
@@ -126,12 +141,32 @@ class CatalogSection {
         .map((Map m) => Map<String, dynamic>.from(m))
         .where((Map<String, dynamic> item) => !_isJunkCatalogTrack(item))
         .map((Map<String, dynamic> item) {
-      final String trackId = item['id'] as String? ?? '';
-      final String title = item['title'] as String? ?? 'Untitled';
-      final String artist = item['artist'] as String? ?? 'Unknown Artist';
-      final String? artworkUrl = item['artwork_url'] as String?;
-      final int durationMs = (item['duration_ms'] as num?)?.toInt() ?? 210000;
+      final String trackId = _asString(item['id']) ??
+          _asString(item['providerTrackId']) ??
+          '';
+      final String title = _asString(item['title']) ?? 'Untitled';
+      String artist = _asString(item['artist']) ?? '';
+      if (artist.isEmpty && item['artists'] is List) {
+        final List<String> names = <String>[];
+        for (final dynamic a in item['artists'] as List<dynamic>) {
+          if (a is Map) {
+            final String? n = _asString(a['name']) ?? _asString(a['title']);
+            if (n != null && n.trim().isNotEmpty) names.add(n.trim());
+          } else if (a is String && a.trim().isNotEmpty) {
+            names.add(a.trim());
+          }
+        }
+        artist = names.join(', ');
+      }
+      if (artist.isEmpty) artist = 'Unknown Artist';
+      final String? artworkUrl = _asString(item['artwork_url']) ??
+          _asString(item['artworkUrl']) ??
+          _asString(item['thumbnail']);
+      final int durationMs = (item['duration_ms'] as num?)?.toInt() ??
+          (item['durationMs'] as num?)?.toInt() ??
+          210000;
       final bool isMock = item['is_mock'] == true;
+      final String albumTitle = _asString(item['album']) ?? 'Single';
 
       return Track(
         id: 'custom_api:track:$trackId',
@@ -150,7 +185,7 @@ class CatalogSection {
           id: 'custom_api:album:$trackId',
           providerId: 'custom_api',
           providerAlbumId: trackId,
-          title: item['album'] as String? ?? 'Single',
+          title: albumTitle,
           artworkUrl: artworkUrl,
         ),
         duration: Duration(milliseconds: durationMs),
@@ -167,40 +202,41 @@ class CatalogSection {
         attributionRequired: false,
         extra: <String, dynamic>{
           'is_mock': isMock,
-          'language': item['language'] ?? '',
-          'year': item['year'] ?? '',
+          'language': _asString(item['language']) ?? '',
+          'year': _asString(item['year']) ?? '',
         },
       );
     }).toList();
 
     return CatalogSection(
-      id: json['id'] as String? ?? '',
-      key: json['key'] as String? ?? '',
-      sourceUrl: json['source_url'] as String? ?? '',
-      sourceType: json['source_type'] as String? ?? 'playlist',
-      sourceId: json['source_id'] as String? ?? '',
-      slug: json['slug'] as String? ?? '',
-      displayTitle: json['display_title'] as String? ?? 'Untitled Section',
-      displayGroup: json['display_group'] as String? ?? 'Featured',
+      id: _asString(json['id']) ?? '',
+      key: _asString(json['key']) ?? '',
+      sourceUrl: _asString(json['source_url']) ?? '',
+      sourceType: _asString(json['source_type']) ?? 'playlist',
+      sourceId: _asString(json['source_id']) ?? '',
+      slug: _asString(json['slug']) ?? '',
+      displayTitle: _asString(json['display_title']) ?? 'Untitled Section',
+      displayGroup: _asString(json['display_group']) ?? 'Featured',
       displayMode: () {
         final String raw =
-            (json['display_mode'] as String?)?.trim().toLowerCase() ?? '';
+            (_asString(json['display_mode']) ?? '').trim().toLowerCase();
         if (raw == 'tracks' || raw == 'songs' || raw == 'song') {
           return 'tracks';
         }
         final String st =
-            (json['source_type'] as String?)?.trim().toLowerCase() ?? '';
+            (_asString(json['source_type']) ?? '').trim().toLowerCase();
         // Treat song/track as tracks shelf; ignore bogus "None"/null strings from API.
         if (st == 'song' || st == 'track') {
           return 'tracks';
         }
         return 'entity';
       }(),
-      subtitle: json['subtitle'] as String?,
-      language: json['language'] as String? ?? 'all',
+      subtitle: _asString(json['subtitle']),
+      language: _asString(json['language']) ?? 'all',
       position: (json['position'] as num?)?.toInt() ?? 1,
       isEnabled: json['is_enabled'] != false,
-      customArtworkUrl: json['custom_artwork_url'] as String? ?? json['artwork_url'] as String?,
+      customArtworkUrl: _asString(json['custom_artwork_url']) ??
+          _asString(json['artwork_url']),
       isBanner: json['is_banner'] == true,
       campaignStart: () {
         final int v = _asUnixSeconds(json['campaign_start']);
@@ -210,10 +246,10 @@ class CatalogSection {
         final int v = _asUnixSeconds(json['campaign_end']);
         return v > 0 ? v : null;
       }(),
-      providerStatus: json['provider_status'] as String? ?? 'ok',
+      providerStatus: _asString(json['provider_status']) ?? 'ok',
       lastRefresh: _asUnixSeconds(json['last_refresh']),
       updatedAt: _asUnixSeconds(json['updated_at']),
-      lastError: json['last_error'] as String?,
+      lastError: _asString(json['last_error']),
       isMock: json['is_mock'] == true,
       // Prefer live parsed tracks. If the payload was thin/filtered but the API
       // still reports a positive count (common for album shelves), keep that
@@ -228,7 +264,7 @@ class CatalogSection {
       excludedTrackIds: ((json['excluded_track_ids'] as List<dynamic>?) ?? <dynamic>[])
           .map((dynamic e) => e.toString())
           .toList(),
-      contentHash: json['content_hash'] as String?,
+      contentHash: _asString(json['content_hash']),
       contentVersion: (json['content_version'] as num?)?.toInt(),
     );
   }
