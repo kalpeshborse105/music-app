@@ -15,7 +15,7 @@ flutter --version
 
 echo "[Vercel Build] Building Flutter Web (Release)..."
 flutter config --no-analytics
-flutter build web --release
+flutter build web --release --dart-define=CUSTOM_API_URL=https://music-api-tq5i.onrender.com
 
 echo "[Vercel Build] Ensuring app-ads.txt and robots.txt are in build/web..."
 cp web/app-ads.txt build/web/app-ads.txt || cp app-ads.txt build/web/app-ads.txt || true

@@ -63,7 +63,7 @@ class AppConfig {
   /// Custom Audio Gateway API Base URL (Render / Custom Domain target)
   static String customApiUrl = const String.fromEnvironment(
     'CUSTOM_API_URL',
-    defaultValue: 'https://api.beats.kalpkrutinfotech.com',
+    defaultValue: 'https://music-api-tq5i.onrender.com',
   );
 
   /// Google Cloud **Web** OAuth Client ID (public, optional in app).
