@@ -18,6 +18,7 @@ import os
 import re
 import sys
 import json
+import copy
 import html
 import time
 import uuid
@@ -29,6 +30,12 @@ import urllib.request
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
 
 from flask import Flask, request, jsonify, redirect, send_from_directory, render_template, Response
 from flask_cors import CORS
@@ -1838,10 +1845,10 @@ CATALOG_LOCK = threading.Lock()
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://rotvxnnblkxbqhfcbynt.supabase.co")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvdHZ4bm5ibGt4YnFoZmNieW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEwNDQ4MDEsImV4cCI6MjEwNjYyMDgwMX0.F7oTJbsxXifFHU0GKlGvJSA65RSSqB0o0RuwLq26r4Y")
-SUPABASE_SERVICE_ROLE_KEY = os.environ.get(
-    "SUPABASE_SERVICE_ROLE_KEY",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvdHZ4bm5ibGt4YnFoZmNieW50Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTA0NDgwMSwiZXhwIjoyMTA2NjIwODAxfQ.8jO-42nSry7u0WSBW0sa4tuFJtENKS6o6MarM77EUWo"
-)
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+if not SUPABASE_SERVICE_ROLE_KEY:
+    print("[SUPABASE] Notice: SUPABASE_SERVICE_ROLE_KEY is not set in environment. Service-role operations will fall back to anon key or local cache.")
+_CATALOG_RESOLVER_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="cat_resolver")
 
 
 def is_admin_request(req):
@@ -2284,6 +2291,14 @@ def _is_junk_catalog_track(track):
         return True
     title = str(track.get("title") or "").strip()
     artist = str(track.get("artist") or "").strip()
+    if not artist and isinstance(track.get("artists"), list) and track["artists"]:
+        names = []
+        for a in track["artists"]:
+            if isinstance(a, dict):
+                names.append(str(a.get("name") or a.get("title") or ""))
+            elif isinstance(a, str):
+                names.append(a)
+        artist = ", ".join([n for n in names if n])
     if not title:
         return True
     tl = title.lower()
@@ -2294,16 +2309,41 @@ def _is_junk_catalog_track(track):
         return True
     if artist.upper() == "NULL":
         return True
-    tid = str(track.get("id") or track.get("token") or "").strip().lower()
+    tid = str(track.get("id") or track.get("token") or track.get("providerTrackId") or "").strip().lower()
     if tid in ("null", "none", ""):
         return True
     return False
 
 
+def _normalize_track_dict(track):
+    """Normalizes both JioSaavn track dicts and Flutter client Track.toJson() dicts."""
+    if not isinstance(track, dict):
+        return track
+    t = dict(track)
+    if not t.get("artist") and isinstance(t.get("artists"), list) and t["artists"]:
+        names = []
+        for a in t["artists"]:
+            if isinstance(a, dict):
+                names.append(str(a.get("name") or a.get("title") or ""))
+            elif isinstance(a, str):
+                names.append(a)
+        t["artist"] = ", ".join([n for n in names if n])
+    if not t.get("artwork_url"):
+        t["artwork_url"] = t.get("artworkUrl") or t.get("image") or t.get("image_url")
+    if not t.get("duration_ms") and t.get("durationMs"):
+        t["duration_ms"] = t["durationMs"]
+    return t
+
+
 def _filter_live_catalog_tracks(tracks):
     if not isinstance(tracks, list):
         return []
-    return [t for t in tracks if not _is_junk_catalog_track(t)]
+    out = []
+    for t in tracks:
+        norm = _normalize_track_dict(t) if isinstance(t, dict) else t
+        if not _is_junk_catalog_track(norm):
+            out.append(norm)
+    return out
 
 
 def _normalize_new_releases_identity(source_type, source_id, slug, source_url=None):
@@ -2657,16 +2697,22 @@ def matches_section_key(section, target_key):
 
     s_key = str(section.get("key", "")).strip().lower()
     s_id = str(section.get("id", "")).strip().lower()
-    s_slug = str(section.get("slug", "")).strip().lower()
-    s_source = str(section.get("source_id", "")).strip().lower()
 
-    if target_str in (s_key, s_id, s_slug, s_source):
+    if target_str in (s_key, s_id):
         return True
     norm_key = s_key.replace("-", "_").replace("sec_", "")
     norm_id = s_id.replace("-", "_").replace("sec_", "")
-    norm_slug = s_slug.replace("-", "_").replace("sec_", "")
 
-    return norm_target in (norm_key, norm_id, norm_slug)
+    if norm_target in (norm_key, norm_id):
+        return True
+
+    # Fallback to slug ONLY if the section's key is the base slug itself (not disambiguated _2, _3)
+    s_slug = str(section.get("slug", "")).strip().lower()
+    norm_slug = s_slug.replace("-", "_").replace("sec_", "")
+    if norm_target == norm_slug and norm_key == norm_slug:
+        return True
+
+    return False
 
 
 def _parse_iso_to_unix(val):
@@ -2723,6 +2769,10 @@ def sync_catalog_from_supabase():
                                         r["updated_at"] = extra["updated_at"]
                                     if extra.get("item_count") is not None:
                                         r["item_count"] = extra["item_count"]
+                                    if extra.get("content_hash"):
+                                        r["content_hash"] = extra["content_hash"]
+                                    if extra.get("content_version") is not None:
+                                        r["content_version"] = extra["content_version"]
                                     # Metadata bag was stuffed into last_error — never show as ERR
                                     real = extra.get("real_last_error")
                                     r["last_error"] = real if isinstance(real, str) and real.strip() else None
@@ -2889,6 +2939,10 @@ def upsert_single_catalog_section_to_supabase(section):
         extra["updated_at"] = section.get("updated_at")
     if section.get("item_count") is not None:
         extra["item_count"] = section.get("item_count")
+    if section.get("content_hash"):
+        extra["content_hash"] = section.get("content_hash")
+    if section.get("content_version") is not None:
+        extra["content_version"] = section.get("content_version")
 
     raw_stype = str(section.get("source_type") or "playlist")
     if raw_stype in ("mix", "jiosaavn_mix", "radio", "song", "track"):
@@ -3050,6 +3104,412 @@ def prune_catalog_sections_from_supabase(keep_keys):
     except Exception as e:
         print(f"[Catalog Supabase Prune] error: {e}")
         return 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Phase D & E: Durable Normalized Track Snapshots & Durable Background Sync Queue
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_SYNC_JOBS_FILE = os.path.join(DATA_DIR, "catalog_sync_jobs.json")
+_SYNC_JOBS_LOCK = threading.RLock()
+_CATALOG_SYNC_WORKER_POOL = ThreadPoolExecutor(max_workers=3, thread_name_prefix="sync_worker")
+
+
+def compute_section_fingerprint(tracks):
+    """Deterministic SHA-256 fingerprint for an ordered list of tracks.
+    Sensitive to track identity, order, titles, artists, artwork and duration.
+    """
+    if not tracks:
+        return ""
+    import hashlib
+    canonical = []
+    for t in tracks:
+        if not isinstance(t, dict):
+            continue
+        canonical.append({
+            "id": str(t.get("id") or t.get("token") or "").strip(),
+            "title": str(t.get("title") or "").strip().lower(),
+            "artist": str(t.get("artist") or "").strip().lower(),
+            "artwork": str(t.get("artwork_url") or t.get("thumbnail") or "").strip(),
+            "duration": int(t.get("duration_ms") or t.get("duration") or 0)
+        })
+    raw = json.dumps(canonical, sort_keys=True)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+_SUPABASE_TRACKS_PROBE = {"rpc": None, "table": None, "last_check": 0}
+
+
+def persist_section_tracks_to_supabase(section_id, section_key, tracks, content_hash):
+    """Persists track snapshot to Supabase public.catalog_section_tracks.
+    Attempts atomic RPC replace_catalog_section_tracks first; falls back to REST DELETE+INSERT.
+    If database table is unmigrated, gracefully fails safe without throwing.
+    Uses circuit-breaker probing so unmigrated DB does not incur repeated HTTP 404 delays.
+    """
+    global _SUPABASE_TRACKS_PROBE
+    if not SUPABASE_URL or not (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY):
+        return False, "unconfigured"
+
+    now = time.time()
+    # If probed unmigrated within last 5 minutes, fast-exit immediately
+    if _SUPABASE_TRACKS_PROBE["rpc"] is False and _SUPABASE_TRACKS_PROBE["table"] is False:
+        if now - _SUPABASE_TRACKS_PROBE["last_check"] < 300:
+            return False, "unmigrated"
+
+    auth_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {auth_key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+        "User-Agent": "MusicApp/1.0",
+    }
+
+    # 1. Try atomic RPC if available
+    if _SUPABASE_TRACKS_PROBE["rpc"] is not False:
+        try:
+            rpc_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/rpc/replace_catalog_section_tracks"
+            rpc_payload = {
+                "p_section_id": str(section_id),
+                "p_section_key": str(section_key),
+                "p_content_hash": str(content_hash),
+                "p_tracks": tracks or []
+            }
+            rpc_req = urllib.request.Request(rpc_url, data=json.dumps(rpc_payload).encode("utf-8"), headers=headers, method="POST")
+            with urllib.request.urlopen(rpc_req, timeout=4) as rpc_resp:
+                if rpc_resp.status in (200, 201):
+                    _SUPABASE_TRACKS_PROBE["rpc"] = True
+                    return True, "rpc_ok"
+        except urllib.error.HTTPError as he:
+            if he.code in (404, 400):
+                _SUPABASE_TRACKS_PROBE["rpc"] = False
+        except Exception:
+            pass
+
+    # 2. Direct REST DELETE + batch INSERT
+    if _SUPABASE_TRACKS_PROBE["table"] is not False:
+        try:
+            del_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_section_tracks?section_id=eq.{urllib.parse.quote(str(section_id))}"
+            del_req = urllib.request.Request(del_url, headers=headers, method="DELETE")
+            try:
+                with urllib.request.urlopen(del_req, timeout=4) as dresp:
+                    _SUPABASE_TRACKS_PROBE["table"] = True
+            except urllib.error.HTTPError as dhe:
+                if dhe.code in (404, 400):
+                    _SUPABASE_TRACKS_PROBE["table"] = False
+                    _SUPABASE_TRACKS_PROBE["last_check"] = now
+                    return False, "unmigrated"
+                raise dhe
+
+            if tracks:
+                insert_rows = []
+                for pos, t in enumerate(tracks, start=1):
+                    insert_rows.append({
+                        "section_id": str(section_id),
+                        "section_key": str(section_key),
+                        "track_id": str(t.get("id") or t.get("token") or pos),
+                        "position": pos,
+                        "title": str(t.get("title") or "Untitled"),
+                        "artist": t.get("artist"),
+                        "album": t.get("album"),
+                        "artwork_url": t.get("artwork_url") or t.get("thumbnail"),
+                        "duration_ms": int(t.get("duration_ms") or ((t.get("duration") or 0) * 1000)),
+                        "language": t.get("language") or "all",
+                        "year": str(t.get("year") or ""),
+                        "source_metadata": t
+                    })
+                post_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_section_tracks"
+                chunk_size = 50
+                for i in range(0, len(insert_rows), chunk_size):
+                    chunk = insert_rows[i:i + chunk_size]
+                    post_req = urllib.request.Request(post_url, data=json.dumps(chunk).encode("utf-8"), headers=headers, method="POST")
+                    with urllib.request.urlopen(post_req, timeout=6) as presp:
+                        pass
+            return True, "rest_ok"
+        except urllib.error.HTTPError as he:
+            if he.code in (404, 400):
+                _SUPABASE_TRACKS_PROBE["table"] = False
+                _SUPABASE_TRACKS_PROBE["last_check"] = now
+                return False, "unmigrated"
+            return False, f"http_{he.code}"
+        except Exception as ex:
+            return False, str(ex)
+
+    return False, "unmigrated"
+
+
+def fetch_section_tracks_from_supabase(section_id, section_key=None):
+    """Loads track snapshot from Supabase catalog_section_tracks.
+    Returns (True, tracks) on success, or (False, None).
+    """
+    global _SUPABASE_TRACKS_PROBE
+    if not SUPABASE_URL or not (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY):
+        return False, None
+    now = time.time()
+    if _SUPABASE_TRACKS_PROBE["table"] is False and (now - _SUPABASE_TRACKS_PROBE["last_check"] < 300):
+        return False, None
+    try:
+        auth_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
+        headers = {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": f"Bearer {auth_key}",
+            "User-Agent": "MusicApp/1.0",
+        }
+        url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/catalog_section_tracks?section_id=eq.{urllib.parse.quote(str(section_id))}&order=position.asc"
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            if resp.status == 200:
+                raw = resp.read().decode("utf-8")
+                rows = json.loads(raw) if raw else []
+                if rows:
+                    tracks = []
+                    for r in rows:
+                        meta = r.get("source_metadata")
+                        track = dict(meta) if isinstance(meta, dict) else {}
+                        track["id"] = r.get("track_id") or track.get("id")
+                        track["title"] = r.get("title") or track.get("title")
+                        track["artist"] = r.get("artist") or track.get("artist")
+                        track["album"] = r.get("album") or track.get("album")
+                        track["artwork_url"] = r.get("artwork_url") or track.get("artwork_url")
+                        track["duration_ms"] = r.get("duration_ms") or track.get("duration_ms")
+                        track["position"] = r.get("position")
+                        tracks.append(track)
+                    return True, tracks
+    except urllib.error.HTTPError as he:
+        if he.code in (404, 400):
+            _SUPABASE_TRACKS_PROBE["table"] = False
+            _SUPABASE_TRACKS_PROBE["last_check"] = now
+    except Exception:
+        pass
+    return False, None
+
+
+def _load_sync_jobs():
+    if not os.path.exists(_SYNC_JOBS_FILE):
+        return []
+    try:
+        with open(_SYNC_JOBS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def _save_sync_jobs(jobs):
+    with _SYNC_JOBS_LOCK:
+        try:
+            trimmed = jobs[-500:] if len(jobs) > 500 else jobs
+            with open(_SYNC_JOBS_FILE, "w", encoding="utf-8") as f:
+                json.dump(trimmed, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"[SyncQueue] Failed saving jobs: {e}")
+
+
+def create_sync_batch(sections):
+    now = int(time.time())
+    batch_id = f"batch_{now}_{uuid.uuid4().hex[:6]}"
+    jobs = _load_sync_jobs()
+
+    # Reclaim stale running jobs
+    for j in jobs:
+        if j.get("status") == "running" and j.get("lease_expires_at", 0) < now:
+            j["status"] = "queued"
+            j["attempt_count"] = j.get("attempt_count", 0) + 1
+            if j["attempt_count"] > j.get("max_attempts", 3):
+                j["status"] = "failed"
+                j["last_error"] = "Lease expired repeatedly"
+
+    new_jobs = []
+    for s in sections:
+        k = str(s.get("key") or s.get("id") or s.get("slug"))
+        sid = str(s.get("id") or "")
+        job = {
+            "id": f"job_{uuid.uuid4().hex[:10]}",
+            "batch_id": batch_id,
+            "section_id": sid,
+            "section_key": k,
+            "status": "queued",
+            "worker_id": None,
+            "lease_expires_at": 0,
+            "attempt_count": 0,
+            "max_attempts": 3,
+            "last_error": None,
+            "tracks_found": 0,
+            "changed": False,
+            "created_at": now,
+            "updated_at": now,
+        }
+        jobs.append(job)
+        new_jobs.append(job)
+
+    _save_sync_jobs(jobs)
+    return batch_id, new_jobs
+
+
+def get_batch_status(batch_id=None):
+    now = int(time.time())
+    jobs = _load_sync_jobs()
+    if not jobs:
+        return {
+            "batch_id": batch_id or "none",
+            "total": 0, "queued": 0, "running": 0,
+            "completed": 0, "changed": 0, "unchanged": 0,
+            "failed": 0, "is_finished": True, "percent": 100.0
+        }
+    if not batch_id:
+        batch_id = jobs[-1].get("batch_id")
+
+    batch_jobs = [j for j in jobs if j.get("batch_id") == batch_id]
+    total = len(batch_jobs)
+    queued = sum(1 for j in batch_jobs if j.get("status") == "queued")
+    running = sum(1 for j in batch_jobs if j.get("status") == "running")
+    completed = sum(1 for j in batch_jobs if j.get("status") == "completed")
+    failed = sum(1 for j in batch_jobs if j.get("status") == "failed")
+    changed = sum(1 for j in batch_jobs if j.get("status") == "completed" and j.get("changed"))
+    unchanged = sum(1 for j in batch_jobs if j.get("status") == "completed" and not j.get("changed"))
+    is_finished = (queued == 0 and running == 0)
+    percent = round(((completed + failed) / total * 100), 1) if total > 0 else 100.0
+
+    return {
+        "batch_id": batch_id,
+        "total": total,
+        "queued": queued,
+        "running": running,
+        "completed": completed,
+        "changed": changed,
+        "unchanged": unchanged,
+        "failed": failed,
+        "is_finished": is_finished,
+        "percent": percent
+    }
+
+
+def process_sync_job(job_id, worker_id):
+    now = int(time.time())
+    jobs = _load_sync_jobs()
+    target_job = None
+    with _SYNC_JOBS_LOCK:
+        for j in jobs:
+            if j.get("id") == job_id:
+                j["status"] = "running"
+                j["worker_id"] = worker_id
+                j["lease_expires_at"] = now + 90
+                j["updated_at"] = now
+                target_job = dict(j)
+                break
+        if target_job:
+            _save_sync_jobs(jobs)
+
+    if not target_job:
+        return
+
+    sec_key = target_job.get("section_key")
+    sec_id = target_job.get("section_id")
+
+    sections = load_catalog_sections()
+    sec = None
+    for s in sections:
+        if matches_section_key(s, sec_key) or (sec_id and str(s.get("id")) == str(sec_id)):
+            sec = s
+            break
+
+    if not sec:
+        with _SYNC_JOBS_LOCK:
+            for j in jobs:
+                if j.get("id") == job_id:
+                    j["status"] = "failed"
+                    j["last_error"] = f"Section '{sec_key}' not found"
+                    j["updated_at"] = int(time.time())
+                    break
+            _save_sync_jobs(jobs)
+        return
+
+    try:
+        _apply_source_url_identity(sec)
+        items = get_section_items(sec, force_refresh=True)
+        cached = _get_cached_section_entry(sec_key)
+        is_mock = False
+        provider_status = "ok"
+        last_err = None
+        if cached:
+            _, _, meta = cached
+            is_mock = meta.get("is_mock", False)
+            provider_status = meta.get("provider_status", "ok")
+            last_err = meta.get("last_error")
+
+        if is_mock or provider_status != "ok" or not items:
+            raise RuntimeError(last_err or f"Failed resolving tracks ({provider_status})")
+
+        new_fp = compute_section_fingerprint(items)
+        old_fp = sec.get("content_hash") or ""
+        changed = (new_fp != old_fp)
+
+        finish_now = int(time.time())
+        sec["last_refresh"] = finish_now
+        sec["updated_at"] = finish_now
+        sec["provider_status"] = "ok"
+        sec["is_mock"] = False
+        sec["last_error"] = None
+        sec["item_count"] = len(items)
+        sec["content_hash"] = new_fp
+
+        if changed:
+            sec["content_version"] = int(sec.get("content_version") or 1) + 1
+            persist_section_tracks_to_supabase(sec.get("id"), sec_key, items, new_fp)
+
+        save_catalog_sections(sections, sync_db=False)
+        _mark_catalog_items_dirty()
+        upsert_single_catalog_section_to_supabase(sec)
+
+        with _SYNC_JOBS_LOCK:
+            for j in jobs:
+                if j.get("id") == job_id:
+                    j["status"] = "completed"
+                    j["tracks_found"] = len(items)
+                    j["changed"] = changed
+                    j["last_error"] = None
+                    j["updated_at"] = finish_now
+                    break
+            _save_sync_jobs(jobs)
+
+    except Exception as ex:
+        err_msg = str(ex)
+        finish_now = int(time.time())
+        with _SYNC_JOBS_LOCK:
+            for j in jobs:
+                if j.get("id") == job_id:
+                    attempts = j.get("attempt_count", 0) + 1
+                    j["attempt_count"] = attempts
+                    j["updated_at"] = finish_now
+                    j["last_error"] = err_msg
+                    if attempts >= j.get("max_attempts", 3):
+                        j["status"] = "failed"
+                    else:
+                        j["status"] = "queued"
+                    break
+            _save_sync_jobs(jobs)
+
+
+def drain_sync_batch(batch_id=None, max_jobs=None):
+    jobs = _load_sync_jobs()
+    if not batch_id and jobs:
+        batch_id = jobs[-1].get("batch_id")
+    if not batch_id:
+        return 0
+    worker_id = f"sync_drain_{uuid.uuid4().hex[:6]}"
+    processed = 0
+    while True:
+        queued_job_id = None
+        with _SYNC_JOBS_LOCK:
+            current_jobs = _load_sync_jobs()
+            for j in current_jobs:
+                if j.get("batch_id") == batch_id and j.get("status") == "queued":
+                    queued_job_id = j["id"]
+                    break
+        if not queued_job_id or (max_jobs is not None and processed >= max_jobs):
+            break
+        process_sync_job(queued_job_id, worker_id)
+        processed += 1
+    return processed
 
 
 # Section metadata: Supabase is membership truth for users (no timed "wait then update").
@@ -3607,9 +4067,22 @@ def get_section_items(section, force_refresh=False):
         if force_refresh:
             base_items = _resolve_section_base_items(section, force_fetch=True)
         else:
-            # Metadata-only list/detail path: never block the request on Jio.
-            base_items = []
-            need_bg_revalidate = bool(section.get("source_url") or section.get("source_id"))
+            # Check durable Supabase catalog_section_tracks before falling back
+            sec_id = section.get("id")
+            if sec_id:
+                ok, db_tracks = fetch_section_tracks_from_supabase(sec_id, key)
+                if ok and db_tracks:
+                    base_items = db_tracks
+                    _CATALOG_ITEMS_CACHE[key] = (now, db_tracks, {
+                        "is_mock": False,
+                        "provider_status": "ok",
+                        "last_error": None,
+                        "item_count": len(db_tracks),
+                    })
+            if base_items is None:
+                # Metadata-only list/detail path: never block the request on Jio.
+                base_items = []
+                need_bg_revalidate = bool(section.get("source_url") or section.get("source_id"))
 
     if need_bg_revalidate:
         def _bg_revalidate_section(sec=section, sec_key=key):
@@ -3839,10 +4312,17 @@ def api_catalog_refresh_all_sections():
     if not is_admin_request(request):
         return jsonify({"error": "Admin privileges required to refresh catalog sections"}), 403
 
-    sections = load_catalog_sections()
     now_ts = int(time.time())
+    status = get_batch_status()
+    # Idempotency: if an existing batch is currently active, return it without duplicate flood
+    if not status["is_finished"] and status["total"] > 0 and not (app.config.get("TESTING") or request.args.get("sync")):
+        return jsonify({
+            "success": True,
+            "already_running": True,
+            **status
+        }), 200
 
-    # Clean fake error strings from existing sections
+    sections = load_catalog_sections()
     for sec in sections:
         _apply_source_url_identity(sec)
         err = sec.get("last_error")
@@ -3852,129 +4332,89 @@ def api_catalog_refresh_all_sections():
     enabled_secs = [s for s in sections if s.get("is_enabled", True)]
     if app.config.get("TESTING"):
         enabled_secs = enabled_secs[:2]
-    completed = []
-    failed = []
-    pending = []
+    if not enabled_secs:
+        return jsonify({
+            "success": True,
+            "total": 0,
+            "queued": 0,
+            "running": 0,
+            "completed": 0,
+            "failed": 0,
+            "is_finished": True,
+            "percent": 100.0
+        })
 
-    def _resolve_shelf(s):
-        k = str(s.get("key") or s.get("id") or s.get("slug"))
-        try:
-            _apply_source_url_identity(s)
-            items = get_section_items(s, force_refresh=True)
-            cached = _get_cached_section_entry(k)
-            is_mock = False
-            status = "ok"
-            last_err = None
-            if cached:
-                _, _, meta = cached
-                is_mock = meta.get("is_mock", False)
-                status = meta.get("provider_status", "ok")
-                last_err = meta.get("last_error")
-            return k, items, is_mock, status, last_err
-        except Exception as ex:
-            return k, [], False, "error", str(ex)
+    batch_id, new_jobs = create_sync_batch(enabled_secs)
 
-    pool = ThreadPoolExecutor(max_workers=6)
-    fut_map = {pool.submit(_resolve_shelf, s): s for s in enabled_secs}
+    if request.args.get("sync"):
+        drain_sync_batch(batch_id)
+        latest_status = get_batch_status(batch_id)
+        all_sec = load_catalog_sections()
+        return jsonify({
+            "success": True,
+            "status": "completed",
+            "batch_id": batch_id,
+            "completed": latest_status["completed"],
+            "failed": latest_status["failed"],
+            "pending": latest_status["queued"] + latest_status["running"],
+            "total": latest_status["total"],
+            "changed": latest_status["changed"],
+            "unchanged": latest_status["unchanged"],
+            "sections": _sanitize_sections_list(all_sec),
+            "refreshed_at": now_ts,
+        }), 200
 
-    from concurrent.futures import wait as fut_wait
-    done, not_done = fut_wait(fut_map.keys(), timeout=12.0)
+    # Production async path: dispatch to bounded worker pool
+    def _dispatch_batch():
+        worker_id = f"worker_{uuid.uuid4().hex[:6]}"
+        for j in new_jobs:
+            try:
+                _CATALOG_SYNC_WORKER_POOL.submit(process_sync_job, j["id"], worker_id)
+            except Exception as e:
+                print(f"[SyncQueue] Worker pool submission error: {e}")
 
-    for fut in done:
-        sec = fut_map[fut]
-        k = str(sec.get("key") or sec.get("id") or sec.get("slug"))
-        try:
-            _, items, is_mock, status, last_err = fut.result()
-            if not is_mock and status == "ok" and items and len(items) > 0:
-                sec["last_refresh"] = now_ts
-                sec["updated_at"] = now_ts
-                sec["items"] = items
-                sec["item_count"] = len(items)
-                sec["provider_status"] = "ok"
-                sec["is_mock"] = False
-                sec["last_error"] = None
-                _CATALOG_ITEMS_CACHE[k] = (float(now_ts), items, {
-                    "is_mock": False,
-                    "provider_status": "ok",
-                    "last_error": None,
-                    "item_count": len(items),
-                })
-                completed.append(k)
-            else:
-                # Do NOT stamp last_refresh on failure or mock
-                sec["provider_status"] = status
-                sec["is_mock"] = is_mock
-                sec["last_error"] = last_err if (last_err and not str(last_err).startswith("{")) else "Resolution failed"
-                failed.append(k)
-        except Exception as ex:
-            sec["provider_status"] = "error"
-            sec["last_error"] = str(ex)
-            failed.append(k)
-
-    for fut in not_done:
-        sec = fut_map[fut]
-        k = str(sec.get("key") or sec.get("id") or sec.get("slug"))
-        pending.append(k)
-
-    # Save immediately what we have resolved so far
-    sections = _sanitize_sections_list(sections)
-    save_catalog_sections(sections, sync_db=False)
-    _mark_catalog_items_dirty()
-
-    # Background handler to finish pending without blocking HTTP response
-    if not_done:
-        def _finish_pending():
-            bg_now = int(time.time())
-            any_bg_completed = False
-            for p_fut in not_done:
-                p_sec = fut_map[p_fut]
-                p_k = str(p_sec.get("key") or p_sec.get("id") or p_sec.get("slug"))
-                try:
-                    _, p_items, p_mock, p_status, p_err = p_fut.result()
-                    if not p_mock and p_status == "ok" and p_items and len(p_items) > 0:
-                        p_sec["last_refresh"] = bg_now
-                        p_sec["updated_at"] = bg_now
-                        p_sec["items"] = p_items
-                        p_sec["item_count"] = len(p_items)
-                        p_sec["provider_status"] = "ok"
-                        p_sec["is_mock"] = False
-                        p_sec["last_error"] = None
-                        _CATALOG_ITEMS_CACHE[p_k] = (float(bg_now), p_items, {
-                            "is_mock": False,
-                            "provider_status": "ok",
-                            "last_error": None,
-                            "item_count": len(p_items),
-                        })
-                        upsert_single_catalog_section_to_supabase(p_sec)
-                        any_bg_completed = True
-                except Exception as ex:
-                    print(f"[Catalog] BG refresh-all failed for {p_k}: {ex}")
-            if any_bg_completed:
-                save_catalog_sections(_sanitize_sections_list(sections), sync_db=False)
-                _mark_catalog_items_dirty()
-
-        threading.Thread(target=_finish_pending, daemon=True).start()
-
-    # If any completed, sync those rows to Supabase in background
-    if completed:
-        def _sync_completed():
-            for c_k in completed:
-                match = next((s for s in sections if matches_section_key(s, c_k)), None)
-                if match:
-                    upsert_single_catalog_section_to_supabase(match)
-        threading.Thread(target=_sync_completed, daemon=True).start()
+    threading.Thread(target=_dispatch_batch, daemon=True).start()
 
     return jsonify({
         "success": True,
-        "completed": len(completed),
-        "failed": len(failed),
-        "pending": len(pending),
-        "completed_keys": completed,
-        "failed_keys": failed,
-        "pending_keys": pending,
-        "total": len(sections),
+        "batch_id": batch_id,
+        "status": "queued",
+        "total": len(enabled_secs),
+        "completed": 0,
+        "failed": 0,
+        "pending": len(enabled_secs),
+        "changed": 0,
+        "unchanged": 0,
+        "is_finished": False,
+        "percent": 0.0,
         "sections": _sanitize_sections_list(sections),
         "refreshed_at": now_ts,
+    }), 200
+
+
+@app.route("/api/catalog/sections/refresh-all/status", methods=["GET"])
+def api_catalog_refresh_all_status():
+    batch_id = request.args.get("batch_id")
+    status = get_batch_status(batch_id)
+    return jsonify({
+        "success": True,
+        **status
+    })
+
+
+@app.route("/api/catalog/jobs/process", methods=["GET", "POST"])
+def api_catalog_jobs_process():
+    secret = os.environ.get("CRON_SECRET") or os.environ.get("REFRESH_SECRET")
+    auth_header = request.headers.get("Authorization", "")
+    if secret:
+        if auth_header != f"Bearer {secret}" and request.args.get("secret") != secret and not is_admin_request(request):
+            return jsonify({"error": "Unauthorized"}), 401
+    count = int(request.args.get("count", 10))
+    processed = drain_sync_batch(max_jobs=count)
+    return jsonify({
+        "success": True,
+        "processed": processed,
+        "status": get_batch_status()
     })
 
 
@@ -4011,6 +4451,16 @@ def api_catalog_refresh_single_section(section_key):
     # Only stamp last_refresh on a real, successful, non-mock resolve with live songs
     now_ts = int(time.time())
     if not is_mock and provider_status == "ok" and len(items) > 0:
+        new_fp = compute_section_fingerprint(items)
+        old_fp = sec.get("content_hash") or ""
+        changed = (new_fp != old_fp)
+        sec_copy["content_hash"] = new_fp
+        if changed:
+            sec_copy["content_version"] = int(sec.get("content_version") or 1) + 1
+            persist_section_tracks_to_supabase(sec.get("id"), key, items, new_fp)
+        else:
+            sec_copy["content_version"] = int(sec.get("content_version") or 1)
+
         sec_copy["last_refresh"] = now_ts
         sec_copy["updated_at"] = now_ts
         if existing:
@@ -4032,6 +4482,8 @@ def api_catalog_refresh_single_section(section_key):
             s["item_count"] = sec_copy["item_count"]
             s["is_mock"] = sec_copy["is_mock"]
             s["last_error"] = sec_copy["last_error"]
+            s["content_hash"] = sec_copy.get("content_hash")
+            s["content_version"] = sec_copy.get("content_version") or s.get("content_version") or 1
             target_s = s
             break
 
@@ -4198,37 +4650,30 @@ def api_catalog_create_section():
     excluded_track_ids = list(body.get("excluded_track_ids") or []) if isinstance(body.get("excluded_track_ids"), list) else []
     custom_tracks = list(body.get("custom_tracks") or []) if isinstance(body.get("custom_tracks"), list) else []
 
-    # Cap Jio resolve so admin Save never sits past Flutter's ~35s timeout.
+    # Fast metadata-first create flow (non-blocking).
+    # Reuses client preview tracks provisionally if available, or saves with 'pending'
+    # and resolves Jio tracks asynchronously without blocking the admin Save request.
+    preview_tracks = body.get("preview_tracks") or body.get("initial_tracks")
     items, is_mock, provider_status, detected_title, detected_artwork = [], False, "pending", None, None
     if custom_tracks:
         items = list(custom_tracks)
         is_mock = False
         provider_status = "ok"
-    else:
-        def _create_resolve():
-            return resolve_catalog_items(
-                parsed["source_type"],
-                parsed["source_id"],
-                parsed["slug"],
-                language,
-                source_url=url,
-            )
+    elif preview_tracks and isinstance(preview_tracks, list) and len(preview_tracks) > 0:
+        cleaned_preview = _filter_live_catalog_tracks(preview_tracks)
+        if cleaned_preview:
+            items = cleaned_preview
+            is_mock = False
+            # Client provided preview tracks; marked provisional until verified by source resolution
+            provider_status = "provisional"
+            if not custom_artwork_url and items[0].get("artwork_url"):
+                detected_artwork = items[0].get("artwork_url")
+    elif _get_cached_section_entry(key) and not _is_entry_mock(_get_cached_section_entry(key)):
+        existing_sec_cache = _get_cached_section_entry(key)
+        items = existing_sec_cache[1]
+        is_mock = False
+        provider_status = "ok"
 
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            fut = pool.submit(_create_resolve)
-            try:
-                items, is_mock, provider_status, detected_title, detected_artwork = fut.result(
-                    timeout=12
-                )
-            except Exception as exc:
-                print(f"[Catalog] create resolve timed out/failed for {parsed.get('slug')}: {exc}")
-                items, is_mock, provider_status, detected_title, detected_artwork = (
-                    [],
-                    False,
-                    "pending",
-                    None,
-                    None,
-                )
     if not display_title and detected_title:
         display_title = detected_title
     if not custom_artwork_url and detected_artwork:
@@ -4247,10 +4692,12 @@ def api_catalog_create_section():
     if str(body.get("display_mode") or "").strip().lower() in ("tracks", "songs", "song"):
         display_mode = "tracks"
         if saved_type not in ("song", "track"):
-            # Keep URL fetch type but mark as tracks shelf
             pass
 
     sec_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, key))
+    now_ts = int(time.time())
+    last_refresh = now_ts if (items and provider_status == "ok") else 0
+
     new_section = {
         "id": sec_id,
         "key": key,
@@ -4272,11 +4719,12 @@ def api_catalog_create_section():
         "excluded_track_ids": excluded_track_ids,
         "custom_tracks": custom_tracks,
         "provider_status": provider_status,
-        "last_refresh": int(time.time()),
+        "last_refresh": last_refresh,
         "last_error": None,
         "is_mock": is_mock,
         "item_count": len(items),
-        "items": items
+        "items": items,
+        "updated_at": now_ts,
     }
     # Ensure new-releases URLs keep resolvable ids even when admin chose song/track
     _apply_source_url_identity(
@@ -4284,25 +4732,6 @@ def api_catalog_create_section():
         preserve_admin_display_type=(admin_st in ("song", "track") or display_mode == "tracks"),
     )
 
-    if not is_mock and items:
-        meta = {
-            "is_mock": False,
-            "provider_status": "ok",
-            "last_error": None,
-            "is_stale": False,
-            "detected_title": detected_title,
-            "detected_artwork": detected_artwork,
-            "item_count": len(items)
-        }
-        _CATALOG_ITEMS_CACHE[key] = (time.time(), items, meta)
-        _mark_catalog_items_dirty()
-    elif _get_cached_section_entry(key) and not _is_entry_mock(_get_cached_section_entry(key)):
-        existing_sec_cache = _get_cached_section_entry(key)
-        items = existing_sec_cache[1]
-        new_section["items"] = items
-        new_section["item_count"] = len(items)
-        new_section["is_mock"] = False
-        new_section["provider_status"] = "ok"
     # Rebuild list: new shelf is first inside its display_group; other groups stay put.
     target_g = str(display_group).strip().lower()
     ordered = sorted(sections, key=lambda x: int(x.get("position") or 999))
@@ -4322,27 +4751,43 @@ def api_catalog_create_section():
         (s["position"] for s in rebuilt if s.get("key") == new_section.get("key")),
         new_section.get("position", 1),
     )
-    if not save_catalog_sections(rebuilt, sync_db=False):
-        return jsonify({"error": "Failed to persist catalogue section locally"}), 500
 
+    # 1. Supabase persistence FIRST — confirm before updating local state
     supabase_configured = bool(SUPABASE_URL and (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY))
     if supabase_configured:
         ok, res_or_err = upsert_single_catalog_section_to_supabase(new_section)
         if not ok:
-            rolled_back = [s for s in rebuilt if s.get("key") != key]
-            save_catalog_sections(rolled_back, sync_db=False, extend_authority=False)
             return jsonify({
                 "error": f"Failed to persist catalogue section to Supabase: {res_or_err}. Nothing was saved."
             }), 502
 
-    if provider_status == "pending":
+    # 2. Local persistence only after Supabase confirmation (or offline mode)
+    if not save_catalog_sections(rebuilt, sync_db=False):
+        print(f"[Catalog] Warning: local save failed for {key}")
+
+    if items:
+        meta = {
+            "is_mock": is_mock,
+            "provider_status": provider_status,
+            "last_error": None,
+            "is_stale": False,
+            "detected_title": detected_title,
+            "detected_artwork": detected_artwork,
+            "item_count": len(items)
+        }
+        _CATALOG_ITEMS_CACHE[key] = (float(now_ts), items, meta)
+        _mark_catalog_items_dirty()
+
+    # 3. Schedule background resolution if tracks are pending or provisional
+    if provider_status in ("pending", "provisional"):
         def _bg_fill_new_section(sec_key=key, st=saved_type, sid=parsed["source_id"], slug=parsed["slug"], lang=language, src=url):
             try:
                 filled, mock, status, title, art = resolve_catalog_items(st, sid, slug, lang, source_url=src)
                 filled = _filter_live_catalog_tracks(filled)
                 if filled and not mock and status == "ok":
+                    bg_ts = int(time.time())
                     _CATALOG_ITEMS_CACHE[sec_key] = (
-                        time.time(),
+                        float(bg_ts),
                         filled,
                         {
                             "is_mock": False,
@@ -4355,17 +4800,29 @@ def api_catalog_create_section():
                         },
                     )
                     _mark_catalog_items_dirty()
-                    print(f"[Catalog] bg-filled {sec_key} with {len(filled)} tracks")
+                    sec_list = load_catalog_sections()
+                    match = next((s for s in sec_list if matches_section_key(s, sec_key)), None)
+                    if match:
+                        match["items"] = filled
+                        match["item_count"] = len(filled)
+                        match["provider_status"] = "ok"
+                        match["is_mock"] = False
+                        match["last_refresh"] = bg_ts
+                        match["updated_at"] = bg_ts
+                        save_catalog_sections(sec_list, sync_db=False)
+                        upsert_single_catalog_section_to_supabase(match)
+                    print(f"[Catalog] bg-resolved {sec_key} with {len(filled)} tracks (status=ok)")
             except Exception as exc:
                 print(f"[Catalog] bg-fill failed for {sec_key}: {exc}")
 
-        threading.Thread(target=_bg_fill_new_section, daemon=True).start()
+        _CATALOG_RESOLVER_POOL.submit(_bg_fill_new_section)
 
     saved = find_catalog_section(key) or new_section
     out = dict(saved)
     out["items"] = new_section.get("items") or []
     out["item_count"] = new_section.get("item_count") or len(out["items"])
     return jsonify(out), 201
+
 
 
 @app.route("/api/catalog/sections/<section_key>", methods=["PUT"])
@@ -4378,6 +4835,7 @@ def api_catalog_update_section(section_key):
     if not sec:
         return not_found(f"Catalog section '{section_key}' not found")
 
+    prev_sec = copy.deepcopy(sec)
     body = request.get_json(silent=True) or {}
 
     new_url = body.get("source_url")
@@ -4387,6 +4845,7 @@ def api_catalog_update_section(section_key):
     force_refresh = bool(body.get("refresh"))
 
     target_url = new_url or sec.get("source_url")
+    did_refresh_source = False
 
     if (url_changed or lang_changed or force_refresh) and target_url:
         parsed, err = parse_catalog_url(target_url)
@@ -4400,39 +4859,74 @@ def api_catalog_update_section(section_key):
         sec["source_id"] = parsed["source_id"]
         sec["slug"] = parsed["slug"]
         sec["language"] = target_language
-        items, is_mock, provider_status, detected_title, detected_artwork = resolve_catalog_items(
-            parsed["source_type"],
-            parsed["source_id"],
-            parsed["slug"],
-            target_language,
-            source_url=target_url,
-        )
-        sec["items"] = items
-        sec["item_count"] = len(items)
-        sec["is_mock"] = is_mock
-        sec["provider_status"] = provider_status
-        if detected_artwork and not body.get("custom_artwork_url"):
-            sec["custom_artwork_url"] = detected_artwork
-        sec_k = sec.get("key", section_key)
-        if not is_mock and items:
-            meta = {
-                "is_mock": False,
-                "provider_status": "ok",
-                "last_error": None,
-                "is_stale": False,
-                "detected_title": detected_title,
-                "detected_artwork": detected_artwork,
-                "item_count": len(items)
-            }
-            _CATALOG_ITEMS_CACHE[sec_k] = (time.time(), items, meta)
-            _mark_catalog_items_dirty()
-        elif _get_cached_section_entry(sec_k) and not _is_entry_mock(_get_cached_section_entry(sec_k)):
-            existing_sec_cache = _get_cached_section_entry(sec_k)
-            items = existing_sec_cache[1]
+
+        # Bounded resolver so slow JioSaavn never times out Flutter update request
+        def _resolve_update():
+            return resolve_catalog_items(
+                parsed["source_type"],
+                parsed["source_id"],
+                parsed["slug"],
+                target_language,
+                source_url=target_url,
+            )
+
+        fut = _CATALOG_RESOLVER_POOL.submit(_resolve_update)
+        try:
+            items, is_mock, provider_status, detected_title, detected_artwork = fut.result(timeout=6.0)
             sec["items"] = items
             sec["item_count"] = len(items)
-            sec["is_mock"] = False
-            sec["provider_status"] = "ok"
+            sec["is_mock"] = is_mock
+            sec["provider_status"] = provider_status
+            if detected_artwork and not body.get("custom_artwork_url"):
+                sec["custom_artwork_url"] = detected_artwork
+            sec_k = sec.get("key", section_key)
+            if not is_mock and provider_status == "ok" and items:
+                did_refresh_source = True
+                meta = {
+                    "is_mock": False,
+                    "provider_status": "ok",
+                    "last_error": None,
+                    "is_stale": False,
+                    "detected_title": detected_title,
+                    "detected_artwork": detected_artwork,
+                    "item_count": len(items)
+                }
+                _CATALOG_ITEMS_CACHE[sec_k] = (time.time(), items, meta)
+                _mark_catalog_items_dirty()
+        except Exception as exc:
+            print(f"[Catalog] update resolve deferred/timed out for {target_url}: {exc}")
+            sec["provider_status"] = "pending"
+            def _bg_update_finish(sec_k=sec.get("key", section_key), st=parsed["source_type"], sid=parsed["source_id"], sl=parsed["slug"], lg=target_language, surl=target_url):
+                try:
+                    f_items, f_mock, f_status, f_title, f_art = resolve_catalog_items(st, sid, sl, lg, source_url=surl)
+                    f_items = _filter_live_catalog_tracks(f_items)
+                    if f_items and not f_mock and f_status == "ok":
+                        bg_now = int(time.time())
+                        _CATALOG_ITEMS_CACHE[sec_k] = (float(bg_now), f_items, {
+                            "is_mock": False,
+                            "provider_status": "ok",
+                            "last_error": None,
+                            "is_stale": False,
+                            "detected_title": f_title,
+                            "detected_artwork": f_art,
+                            "item_count": len(f_items),
+                        })
+                        _mark_catalog_items_dirty()
+                        sec_list = load_catalog_sections()
+                        match = next((s for s in sec_list if matches_section_key(s, sec_k)), None)
+                        if match:
+                            match["items"] = f_items
+                            match["item_count"] = len(f_items)
+                            match["provider_status"] = "ok"
+                            match["is_mock"] = False
+                            match["last_refresh"] = bg_now
+                            match["updated_at"] = bg_now
+                            save_catalog_sections(sec_list, sync_db=False)
+                            upsert_single_catalog_section_to_supabase(match)
+                        print(f"[Catalog] bg update completed for {sec_k}")
+                except Exception as ex:
+                    print(f"[Catalog] bg update failed for {sec_k}: {ex}")
+            _CATALOG_RESOLVER_POOL.submit(_bg_update_finish)
 
     if "display_title" in body:
         val = body.get("display_title")
@@ -4503,18 +4997,21 @@ def api_catalog_update_section(section_key):
         sec["custom_tracks"] = list(body["custom_tracks"]) if isinstance(body["custom_tracks"], list) else []
 
     sec["updated_at"] = int(time.time())
-    sec["last_refresh"] = int(time.time())
-    sections.sort(key=lambda x: x.get("position", 999))
-    save_catalog_sections(sections, sync_db=False)
+    if did_refresh_source:
+        sec["last_refresh"] = int(time.time())
 
     supabase_configured = bool(SUPABASE_URL and (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY))
     if supabase_configured:
         ok, res_or_err = upsert_single_catalog_section_to_supabase(sec)
         if not ok:
+            sec.clear()
+            sec.update(prev_sec)
             return jsonify({
-                "error": f"Failed to persist catalogue section update to Supabase: {res_or_err}. Please retry."
+                "error": f"Failed to persist catalogue section update to Supabase: {res_or_err}. Local state was rolled back."
             }), 502
 
+    sections.sort(key=lambda x: x.get("position", 999))
+    save_catalog_sections(sections, sync_db=False)
     return jsonify(sec)
 
 
@@ -4618,11 +5115,6 @@ def api_catalog_reorder_sections():
         pos += 1
 
     save_catalog_sections(new_list, sync_db=True)
-    # Push to Supabase immediately so clients reading DB also see new order
-    try:
-        sync_catalog_to_supabase(new_list)
-    except Exception as e:
-        print(f"[Catalog] reorder supabase sync: {e}")
     return jsonify({"sections": new_list, "total": len(new_list)})
 
 
@@ -5709,6 +6201,37 @@ def get_channel():
 _WORKERS_STARTED = False
 
 
+def _catalog_periodic_sync_worker():
+    """Periodic worker: runs every 60s to check if any queued jobs require processing
+    or if 6 hours have passed since the last background sync batch.
+    """
+    time.sleep(15)
+    interval = int(os.environ.get("CATALOG_SYNC_INTERVAL", 21600))  # 6 hours
+    while True:
+        try:
+            now = int(time.time())
+            status = get_batch_status()
+            if status.get("queued", 0) > 0 and status.get("running", 0) == 0:
+                drain_sync_batch(max_jobs=3)
+
+            last_batch_time = 0
+            jobs = _load_sync_jobs()
+            if jobs:
+                last_batch_time = jobs[-1].get("created_at", 0)
+            if (now - last_batch_time) > interval:
+                sections = load_catalog_sections()
+                enabled = [s for s in sections if s.get("is_enabled", True)]
+                if enabled:
+                    print(f"[Periodic Sync] 6h elapsed. Auto-enqueuing durable sync for {len(enabled)} sections.")
+                    b_id, new_jobs = create_sync_batch(enabled)
+                    worker_id = f"periodic_worker_{uuid.uuid4().hex[:6]}"
+                    for j in new_jobs:
+                        _CATALOG_SYNC_WORKER_POOL.submit(process_sync_job, j["id"], worker_id)
+        except Exception as e:
+            print(f"[Periodic Sync] Worker loop error: {e}")
+        time.sleep(60)
+
+
 def start_background_workers():
     global _WORKERS_STARTED
     if _WORKERS_STARTED or IS_VERCEL or os.environ.get("DISABLE_BACKGROUND_REFRESH"):
@@ -5716,6 +6239,7 @@ def start_background_workers():
     _WORKERS_STARTED = True
     threading.Thread(target=_hourly_refresher, daemon=True).start()
     threading.Thread(target=_keep_alive, daemon=True).start()
+    threading.Thread(target=_catalog_periodic_sync_worker, daemon=True).start()
 
 
 start_background_workers()

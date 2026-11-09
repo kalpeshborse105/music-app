@@ -60,10 +60,10 @@ class AppConfig {
     defaultValue: '',
   );
 
-  /// Custom Audio Gateway API Base URL (Python Flask on Fly.io)
+  /// Custom Audio Gateway API Base URL (Render / Custom Domain target)
   static String customApiUrl = const String.fromEnvironment(
     'CUSTOM_API_URL',
-    defaultValue: 'https://kalpkrut-beats-api.fly.dev',
+    defaultValue: 'https://api.beats.kalpkrutinfotech.com',
   );
 
   /// Google Cloud **Web** OAuth Client ID (public, optional in app).
@@ -77,7 +77,8 @@ class AppConfig {
 
   /// Load environment from .env if available
   static void loadFromEnv(Map<String, String> env) {
-    if (env.containsKey('CUSTOM_API_URL') && env['CUSTOM_API_URL']!.isNotEmpty) {
+    if (env.containsKey('CUSTOM_API_URL') &&
+        env['CUSTOM_API_URL']!.isNotEmpty) {
       customApiUrl = env['CUSTOM_API_URL']!;
     }
     if (env.containsKey('SUPABASE_URL') && env['SUPABASE_URL']!.isNotEmpty) {
@@ -90,13 +91,16 @@ class AppConfig {
         env['SUPABASE_ANON_KEY']!.isNotEmpty) {
       supabaseAnonKey = env['SUPABASE_ANON_KEY']!;
     }
-    if (env.containsKey('AUDIUS_API_KEY') && env['AUDIUS_API_KEY']!.isNotEmpty) {
+    if (env.containsKey('AUDIUS_API_KEY') &&
+        env['AUDIUS_API_KEY']!.isNotEmpty) {
       audiusApiKey = env['AUDIUS_API_KEY']!;
     }
-    if (env.containsKey('AUDIUS_APP_NAME') && env['AUDIUS_APP_NAME']!.isNotEmpty) {
+    if (env.containsKey('AUDIUS_APP_NAME') &&
+        env['AUDIUS_APP_NAME']!.isNotEmpty) {
       audiusAppName = env['AUDIUS_APP_NAME']!;
     }
-    if (env.containsKey('JAMENDO_CLIENT_ID') && env['JAMENDO_CLIENT_ID']!.isNotEmpty) {
+    if (env.containsKey('JAMENDO_CLIENT_ID') &&
+        env['JAMENDO_CLIENT_ID']!.isNotEmpty) {
       jamendoClientId = env['JAMENDO_CLIENT_ID']!;
     }
     if (env.containsKey('GOOGLE_WEB_CLIENT_ID') &&

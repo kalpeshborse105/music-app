@@ -32,6 +32,8 @@ class CatalogSection {
   final List<Track> items;
   final List<String> excludedTrackIds;
   final List<Track> customTracks;
+  final String? contentHash;
+  final int? contentVersion;
 
   String get sectionKey => key;
 
@@ -74,6 +76,8 @@ class CatalogSection {
     required this.items,
     this.excludedTrackIds = const <String>[],
     this.customTracks = const <Track>[],
+    this.contentHash,
+    this.contentVersion,
   });
 
   static bool _isJunkCatalogTrack(Map<String, dynamic> item) {
@@ -222,6 +226,8 @@ class CatalogSection {
       excludedTrackIds: ((json['excluded_track_ids'] as List<dynamic>?) ?? <dynamic>[])
           .map((dynamic e) => e.toString())
           .toList(),
+      contentHash: json['content_hash'] as String?,
+      contentVersion: (json['content_version'] as num?)?.toInt(),
     );
   }
 
@@ -275,6 +281,8 @@ class CatalogSection {
       'item_count': cachedItems.isNotEmpty ? cachedItems.length : itemCount,
       'items': cachedItems,
       'excluded_track_ids': excludedTrackIds,
+      if (contentHash != null) 'content_hash': contentHash,
+      if (contentVersion != null) 'content_version': contentVersion,
     };
   }
 
@@ -305,6 +313,8 @@ class CatalogSection {
     List<Track>? items,
     List<String>? excludedTrackIds,
     List<Track>? customTracks,
+    String? contentHash,
+    int? contentVersion,
   }) {
     return CatalogSection(
       id: id ?? this.id,
@@ -333,6 +343,8 @@ class CatalogSection {
       items: items ?? this.items,
       excludedTrackIds: excludedTrackIds ?? this.excludedTrackIds,
       customTracks: customTracks ?? this.customTracks,
+      contentHash: contentHash ?? this.contentHash,
+      contentVersion: contentVersion ?? this.contentVersion,
     );
   }
 }
