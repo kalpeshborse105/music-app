@@ -53,7 +53,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// Home tab re-tap: scroll to top (no mood/language filters).
   void _resetToDefault() {
     _onScrollToTop();
@@ -61,6 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   late Future<List<CatalogSection>> _catalogSectionsFuture;
   bool _initialized = false;
+  DateTime? _lastResumeCatalogRefreshAt;
 
   final ScrollController _scrollController = ScrollController();
   final List<Track> _infiniteTracks = <Track>[];
@@ -73,7 +74,21 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     HomeScreen._activeState = this;
+    WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !_initialized) return;
+    final DateTime now = DateTime.now();
+    final DateTime? last = _lastResumeCatalogRefreshAt;
+    // Debounce: replace disk/RAM catalogue cache when user reopens the app.
+    if (last != null && now.difference(last) < const Duration(seconds: 20)) {
+      return;
+    }
+    _lastResumeCatalogRefreshAt = now;
+    unawaited(_silentBackgroundRefresh());
   }
 
   void _onScroll() {
@@ -229,6 +244,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     if (HomeScreen._activeState == this) {
       HomeScreen._activeState = null;
     }

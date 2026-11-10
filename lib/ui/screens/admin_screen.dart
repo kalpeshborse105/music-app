@@ -39,6 +39,8 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   // Real Database Metrics State
   bool _isLoadingMetrics = true;
   Map<String, dynamic> _metrics = <String, dynamic>{};
+  /// True after the first catalogue list fetch — sidebar count must track this list.
+  bool _catalogSectionsLoaded = false;
   Map<String, dynamic> _usagePulse = <String, dynamic>{};
 
   // Ads Management State
@@ -1126,6 +1128,18 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   // TAB: MUSIC CATALOGUE ORCHESTRATION (LOCAL-FIRST)
   // ==========================================
 
+  /// Live catalogue length for sidebar / header badges (not stale metrics).
+  String get _catalogCountBadge {
+    if (_catalogSectionsLoaded) {
+      return '${_catalogSections.length}';
+    }
+    final dynamic m = _metrics['catalog_sections_count'];
+    if (m != null && '$m'.trim().isNotEmpty && '$m' != '0') {
+      return '$m';
+    }
+    return '${_catalogSections.length}';
+  }
+
   Future<void> _loadCatalogSections({bool forceRefresh = false}) async {
     setState(() => _isLoadingCatalog = true);
     try {
@@ -1137,6 +1151,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       if (mounted) {
         setState(() {
           _catalogSections = list;
+          _catalogSectionsLoaded = true;
+          // Keep overview metrics in sync so badges don't stick at 91 after create/delete.
+          _metrics = Map<String, dynamic>.from(_metrics)
+            ..['catalog_sections_count'] = list.length;
           _isLoadingCatalog = false;
         });
       }
@@ -5437,7 +5455,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                   'Catalogue',
                   Icons.queue_music_rounded,
                   isDark,
-                  badgeText: '${_metrics['catalog_sections_count'] ?? _catalogSections.length}',
+                  badgeText: _catalogCountBadge,
                 ),
                 _buildSidebarItem(
                   2,
@@ -5810,7 +5828,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               context,
               icon: Icons.queue_music_rounded,
               label:
-                  'Catalogue (${_metrics['catalog_sections_count'] ?? _catalogSections.length})',
+                  'Catalogue ($_catalogCountBadge)',
               color: isDark ? AppColors.secondary : AppColors.lightSecondaryAccent,
               onTap: () => _goToTab(1),
             ),
@@ -5998,7 +6016,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               _buildMetricCard(
                 context,
                 title: 'Catalogue Sections',
-                value: _metrics['catalog_sections_count'] ?? '0',
+                value: _catalogCountBadge,
                 icon: Icons.queue_music_rounded,
                 color: isDark ? AppColors.primaryLight : AppColors.lightPrimaryAccent,
                 onTap: () => _goToTab(1),

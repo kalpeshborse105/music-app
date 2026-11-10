@@ -1,11 +1,11 @@
 {
-    "name": "Kalpkrut Beats | Listen Unlimited",
+    "name": "Kalpkrut Beats: Listen Unlimited Music",
     "short_name": "Kalpkrut Beats",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0D0B14",
     "theme_color": "#6366F1",
-    "description": "Listen unlimited Hindi, Punjabi, Bollywood and regional Indian songs with ad-light, uninterrupted playback plus Akashvani live radio. By Kalpkrut Infotech.",
+    "description": "Stream unlimited Hindi, Punjabi, Bollywood and regional Indian songs plus curated playlists and Akashvani live radio. Ad-light listening by Kalpkrut Infotech.",
     "orientation": "portrait-primary",
     "prefer_related_applications": true,
     "related_applications": [

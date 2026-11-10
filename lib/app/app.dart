@@ -105,7 +105,7 @@ class _KalpkrutBeatsAppState extends State<KalpkrutBeatsApp> {
       child: Consumer<SettingsStore>(
         builder: (BuildContext context, SettingsStore settings, Widget? _) {
           return MaterialApp(
-            title: 'Kalpkrut Beats | Listen Unlimited',
+            title: 'Kalpkrut Beats: Listen Unlimited Music — Songs, Playlists & Live Radio',
             navigatorKey: KalpkrutBeatsApp.navigatorKey,
             debugShowCheckedModeBanner: false,
             scaffoldMessengerKey: AppMessenger.key,
