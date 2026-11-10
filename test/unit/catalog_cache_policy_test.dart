@@ -216,4 +216,72 @@ void main() {
       expect(merged.items, isEmpty);
     });
   });
+
+  group('catalogRefreshSnackFeedback (Admin refresh snackbar)', () {
+    test('ok with tracks is success', () {
+      final CatalogRefreshSnackFeedback fb = catalogRefreshSnackFeedback(
+        displayTitle: 'Hits',
+        providerStatus: 'ok',
+        isMock: false,
+        trackCount: 12,
+      );
+      expect(fb.severity, CatalogRefreshSnackSeverity.success);
+      expect(fb.message, contains('12 tracks'));
+    });
+
+    test('unresolved_mix is warning not success', () {
+      final CatalogRefreshSnackFeedback fb = catalogRefreshSnackFeedback(
+        displayTitle: 'Daily Mix',
+        providerStatus: 'unresolved_mix',
+        isMock: false,
+        trackCount: 0,
+      );
+      expect(fb.severity, CatalogRefreshSnackSeverity.warning);
+      expect(fb.message.toLowerCase(), contains('unresolved'));
+    });
+
+    test('unavailable is error', () {
+      final CatalogRefreshSnackFeedback fb = catalogRefreshSnackFeedback(
+        displayTitle: 'Shelf',
+        providerStatus: 'unavailable',
+        isMock: false,
+        trackCount: 0,
+        lastError: 'Upstream down',
+      );
+      expect(fb.severity, CatalogRefreshSnackSeverity.error);
+      expect(fb.message, contains('Upstream down'));
+    });
+
+    test('mock is warning', () {
+      final CatalogRefreshSnackFeedback fb = catalogRefreshSnackFeedback(
+        displayTitle: 'Shelf',
+        providerStatus: 'ok',
+        isMock: true,
+        trackCount: 5,
+      );
+      expect(fb.severity, CatalogRefreshSnackSeverity.warning);
+    });
+
+    test('ok with zero tracks is warning', () {
+      final CatalogRefreshSnackFeedback fb = catalogRefreshSnackFeedback(
+        displayTitle: 'Empty',
+        providerStatus: 'ok',
+        isMock: false,
+        trackCount: 0,
+      );
+      expect(fb.severity, CatalogRefreshSnackSeverity.warning);
+      expect(fb.message, contains('0 tracks'));
+    });
+
+    test('stale is warning', () {
+      final CatalogRefreshSnackFeedback fb = catalogRefreshSnackFeedback(
+        displayTitle: 'Shelf',
+        providerStatus: 'stale',
+        isMock: false,
+        trackCount: 8,
+      );
+      expect(fb.severity, CatalogRefreshSnackSeverity.warning);
+      expect(fb.message.toLowerCase(), contains('stale'));
+    });
+  });
 }

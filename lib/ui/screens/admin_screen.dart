@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/catalog/catalog_cache_policy.dart';
 import '../../core/config/app_config.dart';
 import '../../core/storage/settings_store.dart';
 import '../../data/music_repository.dart';
@@ -2019,8 +2020,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       final String displayMode =
           selectedType == 'song' || selectedType == 'track' ? 'tracks' : 'entity';
 
-      // Optimistically update section in local state immediately so UI updates with 0 delay
+      // Optimistic UI update — revert if API persistence fails.
       final int idx = _catalogSections.indexWhere((CatalogSection s) => s.sectionKey == sec.sectionKey);
+      final CatalogSection? previous = idx != -1 ? _catalogSections[idx] : null;
       if (idx != -1) {
         setState(() {
           _catalogSections[idx] = _catalogSections[idx].copyWith(
@@ -2065,6 +2067,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         await _loadCatalogSections();
         HomeScreen.silentRefreshLatest();
       } catch (e) {
+        if (mounted && previous != null && idx != -1 && idx < _catalogSections.length) {
+          setState(() => _catalogSections[idx] = previous);
+        }
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -2085,16 +2090,27 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     ];
     final List<String> orderedKeys =
         renumbered.map((CatalogSection s) => s.sectionKey).toList();
+    final List<CatalogSection> previousOrder = List<CatalogSection>.from(_catalogSections);
     setState(() => _catalogSections = renumbered);
     try {
       final MusicRepository repo = context.read<MusicRepository>();
       final bool ok = await repo.reorderCatalogSections(orderedKeys);
-      if (ok) {
-        // Force-pull so disk/API cache matches the new Home order
-        await repo.getCatalogSections(includeDisabled: true, forceRefresh: true);
-        await repo.getCatalogSections(forceRefresh: true);
-        HomeScreen.silentRefreshLatest();
+      if (!ok) {
+        if (mounted) {
+          setState(() => _catalogSections = previousOrder);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to persist catalogue order. Try again.'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
       }
+      // Force-pull so disk/API cache matches the new Home order
+      await repo.getCatalogSections(includeDisabled: true, forceRefresh: true);
+      await repo.getCatalogSections(forceRefresh: true);
+      HomeScreen.silentRefreshLatest();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -2106,6 +2122,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _catalogSections = previousOrder);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to reorder: ${_formatErrorMessage(e)}'),
@@ -2203,20 +2220,48 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     try {
       final MusicRepository repo = context.read<MusicRepository>();
       final CatalogSection? updated = await repo.refreshCatalogSection(key);
-      if (mounted && updated != null) {
-        setState(() {
-          final int idx = _catalogSections.indexWhere((CatalogSection s) => s.key == key || s.id == updated.id);
-          if (idx != -1) {
-            _catalogSections[idx] = updated;
-          }
-        });
+      if (!mounted) return;
+      if (updated == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Refreshed "${section.displayTitle}" (${updated.itemCount > 0 ? updated.itemCount : updated.items.length} tracks, ${updated.providerStatus.toUpperCase()})'),
-            backgroundColor: updated.isMock ? AppColors.secondary : AppColors.success,
+          const SnackBar(
+            content: Text('Failed to refresh section: empty response'),
+            backgroundColor: AppColors.error,
           ),
         );
+        return;
       }
+      setState(() {
+        final int idx = _catalogSections.indexWhere(
+          (CatalogSection s) => s.key == key || s.id == updated.id,
+        );
+        if (idx != -1) {
+          _catalogSections[idx] = updated;
+        }
+      });
+      final int trackCount =
+          updated.itemCount > 0 ? updated.itemCount : updated.items.length;
+      final CatalogRefreshSnackFeedback feedback = catalogRefreshSnackFeedback(
+        displayTitle: section.displayTitle,
+        providerStatus: updated.providerStatus,
+        isMock: updated.isMock,
+        trackCount: trackCount,
+        lastError: updated.lastError,
+      );
+      final Color bg;
+      switch (feedback.severity) {
+        case CatalogRefreshSnackSeverity.success:
+          bg = AppColors.success;
+          break;
+        case CatalogRefreshSnackSeverity.warning:
+          bg = Colors.amber.shade700;
+          break;
+        case CatalogRefreshSnackSeverity.error:
+          bg = AppColors.error;
+          break;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(feedback.message), backgroundColor: bg),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
