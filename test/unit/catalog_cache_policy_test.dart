@@ -45,13 +45,14 @@ CatalogSection _section({
   List<Track> items = const <Track>[],
   String status = 'ok',
   String url = 'https://www.jiosaavn.com/featured/x/abc__',
+  String sourceType = 'playlist',
   bool isMock = false,
 }) {
   return CatalogSection(
     id: 'id_$key',
     key: key,
     sourceUrl: url,
-    sourceType: 'playlist',
+    sourceType: sourceType,
     sourceId: key,
     slug: key,
     displayTitle: key,
@@ -90,15 +91,108 @@ void main() {
     });
   });
 
-  group('mergeCatalogSectionTracks (R8)', () {
-    test('preserves prior tracks when fresh is empty/unavailable', () {
+  group('mergeCatalogSectionTracks (R8 + Mix trust)', () {
+    test('unresolved_mix does not restore old disk Mix tracks', () {
       final CatalogSection cached = _section(
-        key: 'mix',
+        key: 'late_night_mix',
+        sourceType: 'mix',
+        items: <Track>[_track('trend1'), _track('trend2')],
+        url: 'https://www.jiosaavn.com/s/mix/late_night_mix/tokA',
+      );
+      final CatalogSection fresh = _section(
+        key: 'late_night_mix',
+        sourceType: 'mix',
+        status: 'unresolved_mix',
+        url: 'https://www.jiosaavn.com/s/mix/late_night_mix/tokA',
+      );
+      final CatalogSection merged =
+          mergeCatalogSectionTracks(fresh: fresh, cached: cached);
+      expect(merged.items, isEmpty);
+      expect(merged.providerStatus, 'unresolved_mix');
+    });
+
+    test('unavailable does not restore old disk Mix tracks', () {
+      final CatalogSection cached = _section(
+        key: 'daily_mix_1',
+        sourceType: 'mix',
+        items: <Track>[_track('old1')],
+      );
+      final CatalogSection fresh = _section(
+        key: 'daily_mix_1',
+        sourceType: 'mix',
+        status: 'unavailable',
+      );
+      final CatalogSection merged =
+          mergeCatalogSectionTracks(fresh: fresh, cached: cached);
+      expect(merged.items, isEmpty);
+      expect(merged.providerStatus, 'unavailable');
+    });
+
+    test('error does not restore old disk Mix tracks', () {
+      final CatalogSection cached = _section(
+        key: 'early_morning_mix',
+        sourceType: 'mix',
+        items: <Track>[_track('old1')],
+      );
+      final CatalogSection fresh = _section(
+        key: 'early_morning_mix',
+        sourceType: 'mix',
+        status: 'error',
+      );
+      final CatalogSection merged =
+          mergeCatalogSectionTracks(fresh: fresh, cached: cached);
+      expect(merged.items, isEmpty);
+      expect(merged.providerStatus, 'error');
+    });
+
+    test('trusted stale Mix keeps stale tracks from API payload', () {
+      final CatalogSection cached = _section(
+        key: 'my_favorites_mix',
+        sourceType: 'mix',
+        items: <Track>[_track('disk_old')],
+      );
+      final CatalogSection fresh = _section(
+        key: 'my_favorites_mix',
+        sourceType: 'mix',
+        status: 'stale',
+        items: <Track>[_track('stale1'), _track('stale2')],
+      );
+      final CatalogSection merged =
+          mergeCatalogSectionTracks(fresh: fresh, cached: cached);
+      expect(merged.items.map((Track t) => t.providerTrackId).toList(),
+          <String>['stale1', 'stale2']);
+      expect(merged.providerStatus, 'stale');
+    });
+
+    test('healthy Mix uses fresh tracks', () {
+      final CatalogSection cached = _section(
+        key: 'hindi_drivetime_mix',
+        sourceType: 'mix',
+        items: <Track>[_track('old')],
+      );
+      final CatalogSection fresh = _section(
+        key: 'hindi_drivetime_mix',
+        sourceType: 'mix',
+        status: 'ok',
+        items: <Track>[_track('new1'), _track('new2')],
+      );
+      final CatalogSection merged =
+          mergeCatalogSectionTracks(fresh: fresh, cached: cached);
+      expect(merged.items.map((Track t) => t.providerTrackId).toList(),
+          <String>['new1', 'new2']);
+      expect(merged.providerStatus, 'ok');
+    });
+
+    test('normal playlist empty ok still restores prior disk tracks', () {
+      final CatalogSection cached = _section(
+        key: 'featured_hits',
+        sourceType: 'playlist',
         items: <Track>[_track('live1'), _track('live2')],
       );
       final CatalogSection fresh = _section(
-        key: 'mix',
-        status: 'unavailable',
+        key: 'featured_hits',
+        sourceType: 'playlist',
+        status: 'ok',
       );
       final CatalogSection merged =
           mergeCatalogSectionTracks(fresh: fresh, cached: cached);

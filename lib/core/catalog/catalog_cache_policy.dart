@@ -15,8 +15,17 @@ bool catalogTrackCacheLooksHealthy(List<CatalogSection> sections) {
   return true;
 }
 
+/// Statuses that mean the API intentionally returned no usable tracks.
+/// Do not resurrect older disk Mix/playlist clones over these.
+bool catalogFreshStatusBlocksTrackRestore(String providerStatus) {
+  final String s = providerStatus.trim().toLowerCase();
+  return s == 'unresolved_mix' || s == 'unavailable' || s == 'error';
+}
+
 /// When network returns empty items, keep prior live tracks unless the
-/// source URL changed. Failed/unavailable Jio must not wipe good shelves.
+/// source URL changed or the API reported an honest failure / unresolved Mix.
+/// Trusted stale Mixes that still include track payloads are unchanged
+/// (`fresh.items.isNotEmpty` returns [fresh] immediately).
 CatalogSection mergeCatalogSectionTracks({
   required CatalogSection fresh,
   required CatalogSection? cached,
@@ -24,6 +33,10 @@ CatalogSection mergeCatalogSectionTracks({
   if (fresh.items.isNotEmpty) return fresh;
   if (cached == null || cached.items.isEmpty || cached.isMock) return fresh;
   if (cached.providerStatus == 'offline_mock') return fresh;
+  // Honor API Mix trust / upstream failure — never restore untrusted disk clones.
+  if (catalogFreshStatusBlocksTrackRestore(fresh.providerStatus)) {
+    return fresh;
+  }
   if (fresh.sourceUrl.isNotEmpty &&
       cached.sourceUrl.isNotEmpty &&
       fresh.sourceUrl != cached.sourceUrl) {
@@ -33,11 +46,8 @@ CatalogSection mergeCatalogSectionTracks({
     items: cached.items,
     itemCount: cached.items.length,
     isMock: false,
-    providerStatus:
-        (fresh.providerStatus == 'unavailable' ||
-                fresh.providerStatus == 'offline_mock' ||
-                fresh.isMock)
-            ? (cached.providerStatus == 'ok' ? 'ok' : cached.providerStatus)
-            : fresh.providerStatus,
+    providerStatus: fresh.isMock
+        ? (cached.providerStatus == 'ok' ? 'ok' : cached.providerStatus)
+        : fresh.providerStatus,
   );
 }

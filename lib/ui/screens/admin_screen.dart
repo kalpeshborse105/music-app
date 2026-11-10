@@ -2288,6 +2288,26 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     return true;
   }
 
+  /// Admin catalogue health badge — never paint unresolved Mix as LIVE.
+  String _catalogProviderStatusLabel(CatalogSection section) {
+    if (section.isMock) return 'MOCK';
+    final String s = section.providerStatus.trim().toLowerCase();
+    if (s == 'stale') return 'STALE';
+    if (s == 'unresolved_mix') return 'UNRESOLVED';
+    if (s == 'unavailable' || s == 'error') return 'UNAVAILABLE';
+    return 'LIVE';
+  }
+
+  Color _catalogProviderStatusColor(CatalogSection section) {
+    if (section.isMock) return AppColors.secondary;
+    final String s = section.providerStatus.trim().toLowerCase();
+    if (s == 'stale') return Colors.orange;
+    if (s == 'unresolved_mix' || s == 'unavailable' || s == 'error') {
+      return Colors.amber.shade700;
+    }
+    return AppColors.success;
+  }
+
   String _formatLastRefresh(int ts) {
     if (ts <= 0) return 'Never';
     final int now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -2454,26 +2474,16 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: (section.isMock
-                                ? AppColors.secondary
-                                : (section.providerStatus == 'stale'
-                                    ? Colors.orange
-                                    : AppColors.success))
+                        color: _catalogProviderStatusColor(section)
                             .withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        section.isMock
-                            ? 'MOCK'
-                            : (section.providerStatus == 'stale' ? 'STALE' : 'LIVE'),
+                        _catalogProviderStatusLabel(section),
                         style: TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
-                          color: section.isMock
-                              ? AppColors.secondary
-                              : (section.providerStatus == 'stale'
-                                  ? Colors.orange
-                                  : AppColors.success),
+                          color: _catalogProviderStatusColor(section),
                         ),
                       ),
                     ),
@@ -2764,26 +2774,16 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: (section.isMock
-                                    ? AppColors.secondary
-                                    : (section.providerStatus == 'stale'
-                                        ? Colors.orange
-                                        : AppColors.success))
+                            color: _catalogProviderStatusColor(section)
                                 .withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            section.isMock
-                                ? 'MOCK'
-                                : (section.providerStatus == 'stale' ? 'STALE' : 'LIVE'),
+                            _catalogProviderStatusLabel(section),
                             style: TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.w800,
-                              color: section.isMock
-                                  ? AppColors.secondary
-                                  : (section.providerStatus == 'stale'
-                                      ? Colors.orange
-                                      : AppColors.success),
+                              color: _catalogProviderStatusColor(section),
                             ),
                           ),
                         ),
